@@ -32,6 +32,54 @@ export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> 
   return data as SalonInfo;
 }
 
+export interface Service {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price_cents: number;
+  description: string | null;
+  category: string | null;
+  display_order?: number | null;
+  bundle_only?: boolean;
+  bookable_online?: boolean | null;
+  price_is_from?: boolean | null;
+}
+
+export async function fetchServicesBySalonId(salonId: string): Promise<Service[]> {
+  const { data, error } = await supabase
+    .from('services')
+    .select('*')
+    .eq('client_id', salonId)
+    .eq('active', true)
+    .order('display_order');
+
+  if (error || !data) return [];
+  return data as Service[];
+}
+
+export function formatPrice(priceCents: number, priceIsFrom?: boolean | null): string {
+  if (!priceCents) return 'Free';
+  const amount = `$${(priceCents / 100).toFixed(0)}`;
+  return priceIsFrom ? `${amount} & up` : amount;
+}
+
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+export function groupServicesByCategory(services: Service[]): { category: string; items: Service[] }[] {
+  const map = new Map<string, Service[]>();
+  for (const svc of services) {
+    const cat = svc.category || 'Services';
+    if (!map.has(cat)) map.set(cat, []);
+    map.get(cat)!.push(svc);
+  }
+  return Array.from(map.entries()).map(([category, items]) => ({ category, items }));
+}
+
 export function formatHours(
   hours: Record<string, { open: boolean; start: string; end: string }> | null | undefined
 ): { day: string; label: string }[] {

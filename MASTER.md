@@ -18,7 +18,7 @@
 | 5 | Phone OTP Auth (Supabase) | ⏸ ON HOLD — SMS not approved yet | |
 | 6 | Salon Landing Screen | ✅ Done | 2026-07-15 |
 | 7 | QR Code Scanner | ✅ Done | 2026-07-15 |
-| 8 | Service Selection | ⬜ | |
+| 8 | Service Selection | ✅ Done | 2026-07-15 |
 | 9 | Staff Selection | ⬜ | |
 | 10 | Date + Time Selection | ⬜ | |
 | 11 | Appointment Review | ⬜ | |
