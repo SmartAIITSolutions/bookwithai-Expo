@@ -14,9 +14,16 @@ import {
   Fraunces_700Bold,
 } from '@expo-google-fonts/fraunces';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
+
+// Extract salon slug from a bookwithai.app/book/<slug> URL
+function extractSlugFromUrl(url: string): string | null {
+  const match = url.match(/bookwithai\.app\/book\/([^/?#]+)/);
+  return match ? match[1] : null;
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -43,6 +50,24 @@ export default function RootLayout() {
       checkOnboarding();
     }
   }, [fontsLoaded]);
+
+  // Handle incoming deep links (cold start + warm start)
+  useEffect(() => {
+    // Cold start — app opened via link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url);
+    });
+    // Warm start — app already open
+    const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+    return () => sub.remove();
+  }, []);
+
+  function handleDeepLink(url: string) {
+    const slug = extractSlugFromUrl(url);
+    if (slug) {
+      router.push({ pathname: '/salon/[id]', params: { id: slug } });
+    }
+  }
 
   async function checkOnboarding() {
     const done = await AsyncStorage.getItem(ONBOARDING_KEY);

@@ -32,6 +32,25 @@ export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> 
   return data as SalonInfo;
 }
 
+export interface StaffMember {
+  id: string;
+  name: string;
+  bio: string | null;
+  role: string | null;
+}
+
+export async function fetchStaffBySalonId(salonId: string): Promise<StaffMember[]> {
+  const { data, error } = await supabase
+    .from('staff')
+    .select('id, name, bio, role')
+    .eq('client_id', salonId)
+    .eq('active', true)
+    .order('display_order');
+
+  if (error || !data) return [];
+  return data as StaffMember[];
+}
+
 export interface Service {
   id: string;
   name: string;

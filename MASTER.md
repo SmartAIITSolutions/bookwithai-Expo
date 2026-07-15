@@ -19,16 +19,16 @@
 | 6 | Salon Landing Screen | ✅ Done | 2026-07-15 |
 | 7 | QR Code Scanner | ✅ Done | 2026-07-15 |
 | 8 | Service Selection | ✅ Done | 2026-07-15 |
-| 9 | Staff Selection | ⬜ | |
-| 10 | Date + Time Selection | ⬜ | |
-| 11 | Appointment Review | ⬜ | |
-| 12 | Payment (Stripe + Google Pay) | ⬜ | |
-| 13 | Booking Confirmation | ⬜ | |
-| 14 | Deep Linking | ⬜ | |
-| 15 | Calendar + Maps | ⬜ | |
-| 16 | Legal Screens | ⬜ | |
-| 17 | Error Handling Pass | ⬜ | |
-| 18 | Native Polish | ⬜ | |
+| 9 | Staff Selection | ✅ Done | 2026-07-15 |
+| 10 | Date + Time Selection | ✅ Done | 2026-07-15 |
+| 11 | Appointment Review | ✅ Done | 2026-07-15 |
+| 12 | Payment (Stripe + Google Pay) | ✅ Done | 2026-07-15 |
+| 13 | Booking Confirmation | ✅ Done | 2026-07-15 |
+| 14 | Deep Linking | ✅ Done | 2026-07-15 |
+| 15 | Calendar + Maps | ✅ Done | 2026-07-15 |
+| 16 | Legal Screens | ✅ Done | 2026-07-15 |
+| 17 | Error Handling Pass | ✅ Done | 2026-07-15 |
+| 18 | Native Polish | ✅ Done | 2026-07-15 |
 | 19 | Internal Testing | ⬜ | |
 | 20 | Android Build + Google Play | ⬜ | |
 | 21 | iOS Build (EAS) + App Store | ⬜ | |
@@ -171,6 +171,9 @@ bookwithai-expo/
 | `expo-linking` | Deep link handling | 2026-07-15 |
 | `expo-constants` | App config access | 2026-07-15 |
 | `expo-camera` | QR code scanning | 2026-07-15 |
+| `@stripe/stripe-react-native` | PaymentSheet + Google Pay | 2026-07-15 |
+| `expo-calendar` | Add booking to device calendar | 2026-07-15 |
+| `expo-haptics` | Haptic feedback on key actions | 2026-07-15 |
 
 *Packages to install at later steps are listed in each step's notes below.*
 

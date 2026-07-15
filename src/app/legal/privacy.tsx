@@ -1,20 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, FontFamily, Spacing } from '@/constants/Theme';
-
-// PLACEHOLDER — Step 17 will build the real privacy policy screen
+import { LegalWebScreen } from '@/components/LegalWebScreen';
 export default function PrivacyScreen() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Privacy Policy</Text>
-      </View>
-    </SafeAreaView>
-  );
+  return <LegalWebScreen title="Privacy Policy" url="https://bookwithai.app/privacy" />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl },
-  title: { fontFamily: FontFamily.frauncesBold, fontSize: 28, color: Colors.textPrimary },
-});
