@@ -15,8 +15,8 @@
 | 2 | Design System | ✅ Done | 2026-07-15 |
 | 3 | Navigation Shell | ✅ Done | 2026-07-15 |
 | 4 | Splash + Onboarding | ✅ Done | 2026-07-15 |
-| 5 | Phone OTP Auth (Supabase) | ⬜ | |
-| 6 | Salon Landing Screen | ⬜ | |
+| 5 | Phone OTP Auth (Supabase) | ⏸ ON HOLD — SMS not approved yet | |
+| 6 | Salon Landing Screen | ✅ Done | 2026-07-15 |
 | 7 | QR Code Scanner | ⬜ | |
 | 8 | Service Selection | ⬜ | |
 | 9 | Staff Selection | ⬜ | |
@@ -167,6 +167,9 @@ bookwithai-expo/
 | `react-native-safe-area-context` | Safe area insets | 2026-07-15 |
 | `@expo/vector-icons` | Ionicons for tab icons | 2026-07-15 |
 | `@react-native-async-storage/async-storage` | Persist onboarding state + session data | 2026-07-15 |
+| `@supabase/supabase-js` | Supabase client — same project as booking-app | 2026-07-15 |
+| `expo-linking` | Deep link handling | 2026-07-15 |
+| `expo-constants` | App config access | 2026-07-15 |
 
 *Packages to install at later steps are listed in each step's notes below.*
 
