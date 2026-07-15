@@ -17,7 +17,7 @@
 | 4 | Splash + Onboarding | ✅ Done | 2026-07-15 |
 | 5 | Phone OTP Auth (Supabase) | ⏸ ON HOLD — SMS not approved yet | |
 | 6 | Salon Landing Screen | ✅ Done | 2026-07-15 |
-| 7 | QR Code Scanner | ⬜ | |
+| 7 | QR Code Scanner | ✅ Done | 2026-07-15 |
 | 8 | Service Selection | ⬜ | |
 | 9 | Staff Selection | ⬜ | |
 | 10 | Date + Time Selection | ⬜ | |
@@ -170,6 +170,7 @@ bookwithai-expo/
 | `@supabase/supabase-js` | Supabase client — same project as booking-app | 2026-07-15 |
 | `expo-linking` | Deep link handling | 2026-07-15 |
 | `expo-constants` | App config access | 2026-07-15 |
+| `expo-camera` | QR code scanning | 2026-07-15 |
 
 *Packages to install at later steps are listed in each step's notes below.*
 

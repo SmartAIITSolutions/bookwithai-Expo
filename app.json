@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "bookwithai-expo",
-    "slug": "bookwithai-expo",
+    "name": "Book With AI",
+    "slug": "bookwithai-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "bookwithaiexpo",
+    "icon": "./assets/images/bwa-logo.png",
+    "scheme": "bookwithai",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -28,12 +28,19 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/bwa-logo.png",
+          "imageWidth": 120
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Book With AI needs camera access to scan salon QR codes.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
