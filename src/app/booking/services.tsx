@@ -20,10 +20,11 @@ import {
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 export default function ServicesScreen() {
-  const { salonId, salonSlug, salonName } = useLocalSearchParams<{
+  const { salonId, salonSlug, salonName, requireOnlinePayment } = useLocalSearchParams<{
     salonId: string;
     salonSlug: string;
     salonName: string;
+    requireOnlinePayment: string;
   }>();
 
   const [groups, setGroups] = useState<{ category: string; items: Service[] }[]>([]);
@@ -64,6 +65,7 @@ export default function ServicesScreen() {
         salonId,
         salonSlug,
         salonName,
+        requireOnlinePayment,
         serviceIds: selected.map((s) => s.id).join(','),
         serviceNames: selected.map((s) => s.name).join('||'),
         totalCents: String(totalCents),

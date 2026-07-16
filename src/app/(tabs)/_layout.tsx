@@ -1,11 +1,18 @@
+import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { NotificationBell } from '@/components/NotificationBell';
 import { Colors } from '@/constants/Theme';
 
 export default function TabsLayout() {
+  const { user } = useAuth();
+
   return (
-    <Tabs
-      screenOptions={{
+    <View style={{ flex: 1 }}>
+      {user && <NotificationBell />}
+      <Tabs
+        screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.navSelected,
         tabBarInactiveTintColor: Colors.navUnselected,
@@ -49,6 +56,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-    </Tabs>
+      </Tabs>
+    </View>
   );
 }

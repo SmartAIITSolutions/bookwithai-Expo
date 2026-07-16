@@ -1,15 +1,21 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Pressable,
-  Alert, Switch, ScrollView,
+  Alert, Switch, ScrollView, Linking as RNLinking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth/AuthContext';
+import {
+  requestAndRegisterPushToken,
+  getNotificationPermissionStatus,
+  unregisterPushToken,
+} from '@/lib/push/registerForPushNotifications';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 const ONBOARDING_KEY = 'bwa_onboarding_done';
@@ -18,6 +24,7 @@ const BIOMETRICS_KEY = 'bwa_biometrics_enabled';
 export default function AccountScreen() {
   const { user, signOut } = useAuth();
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [notifsEnabled, setNotifsEnabled] = useState(false);
 
   // Load biometrics preference on mount
   useState(() => {
@@ -25,6 +32,44 @@ export default function AccountScreen() {
       setBiometricsEnabled(v === 'true');
     });
   });
+
+  // Re-check the real OS notification permission every time this tab is
+  // focused — catches changes made in device Settings while the app was away.
+  useFocusEffect(
+    useCallback(() => {
+      getNotificationPermissionStatus().then((status) => {
+        setNotifsEnabled(status === 'granted');
+      });
+    }, [])
+  );
+
+  async function handleToggleNotifications(value: boolean) {
+    if (value) {
+      const granted = await requestAndRegisterPushToken();
+      if (granted) {
+        setNotifsEnabled(true);
+      } else {
+        // Already denied once — OS won't show the dialog again, send them to Settings.
+        Alert.alert(
+          'Enable in Settings',
+          'Notifications are turned off for Book With AI. Open Settings to turn them on.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => RNLinking.openSettings() },
+          ]
+        );
+      }
+    } else {
+      Alert.alert(
+        'Turn off in Settings',
+        'To stop notifications, turn them off for Book With AI in your device Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => RNLinking.openSettings() },
+        ]
+      );
+    }
+  }
 
   async function handleToggleBiometrics(value: boolean) {
     if (value) {
@@ -61,6 +106,7 @@ export default function AccountScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            await unregisterPushToken();
             await signOut();
             router.replace('/auth');
           },
@@ -140,6 +186,25 @@ export default function AccountScreen() {
             <Switch
               value={biometricsEnabled}
               onValueChange={handleToggleBiometrics}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor={Colors.white}
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="notifications-outline" size={20} color={Colors.primary} />
+              <View>
+                <Text style={styles.settingLabel}>Push Notifications</Text>
+                <Text style={styles.settingDesc}>Booking confirmations and reminders</Text>
+              </View>
+            </View>
+            <Switch
+              value={notifsEnabled}
+              onValueChange={handleToggleNotifications}
               trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor={Colors.white}
             />

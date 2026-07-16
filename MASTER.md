@@ -21,7 +21,8 @@
 | 8 — Service Selection | 1 session | 1 session (2026-07-15) | On track |
 | 9–18 — Full booking flow | implied weeks (part of 12–16 wk total) | 1 session (2026-07-15) | Weeks ahead |
 | **TOTAL Steps 1–18** | **~12–16 weeks** | **1 day** | **~11–15 weeks ahead of original estimate** |
-| 19 — Internal Testing | 1–2 sessions | ⬜ Up next | — |
+| 18.5 — Push Notifications (pulled forward from V2) | ~6–8 hours / 1–2 sessions | ✅ Done 2026-07-16 (same day) | Predicted completion was 2026-07-18 — 2 days ahead. Includes 6 bug fixes found during E2E testing (see build plan below). |
+| 19 — Internal Testing | 1–2 sessions | 🔄 Unblocked, ready to resume | — |
 | 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
 
@@ -52,9 +53,86 @@
 | 16 | Legal Screens | ✅ Done | 2026-07-15 |
 | 17 | Error Handling Pass | ✅ Done | 2026-07-15 |
 | 18 | Native Polish | ✅ Done | 2026-07-15 |
-| 19 | Internal Testing | 🔄 In progress | 2026-07-15 |
+| 18.5 | Push Notifications (pulled forward from V2) | ✅ Done | 2026-07-16 |
+| 19 | Internal Testing | 🔄 Unblocked, ready to resume | 2026-07-15 |
 | 20 | Android Build + Google Play | ⬜ | |
 | 21 | iOS Build (EAS) + App Store | ⬜ | |
+
+---
+
+## PUSH NOTIFICATIONS BUILD PLAN (Step 18.5)
+
+> Pulled forward from Version 2 (`booking-app/MASTER.md` line ~1868) on 2026-07-16. ETA/traffic "leave now" reminders explicitly stay in V2 — they need salon address/lat-lng data that doesn't exist yet, plus a Google Maps API key not yet wired into `booking-app`, plus a background-location decision that adds Play Store review risk. This build plan is the reduced scope: core notifications only.
+
+**Predicted completion: 2026-07-18** — **Actual: all 6 phases code-complete and deployed 2026-07-16, 2 days ahead.** Only remaining item is the end-to-end device test (see checklist above).
+
+| Phase | What | Repo | Est. | Status |
+|-------|------|------|------|--------|
+| 1 | Firebase project (`BookWithAI`, reused existing GCP project) + Android app + `google-services.json` (FCM credentials) | Firebase Console (user action) | ~30 min | ✅ Done 2026-07-16 |
+| 1b | **New, found mid-build:** link an EAS project (`eas init`) + upload the Firebase FCM V1 service account key to Expo (`eas credentials -p android`) — Expo's push service needs this to actually deliver to Android devices, and `getExpoPushTokenAsync()` needs an EAS `projectId` in app.json's `extra.eas.projectId` | EAS/Expo account (user action) | ~20–30 min | ✅ Done 2026-07-16 — EAS project `bookwithai-app` (ID `09a191e6-4d32-4ef9-9fba-8a9e1eac2213`) linked under `bookwithai` account, FCM V1 service account key uploaded |
+| 2 | `push_tokens` + `customers.auth_user_id` + `push_notification_log` migration + `POST/DELETE /api/mobile/push-token` (session-verified) | booking-app | ~30–45 min | ✅ Done 2026-07-16 — migration applied to production |
+| 3 | Expo push-send utility wired into booking-created + dashboard reschedule/cancel (`PUT /api/bookings/[id]`) code paths | booking-app | ~1.5–2 hours | ✅ Done 2026-07-16 — deployed to production |
+| 4 | `/api/cron/appointment-reminders` endpoint (24h fixed-6pm + 2h reminders, timezone-aware, dedup tracking) | booking-app | ~1–1.5 hours | ✅ Done 2026-07-16 — deployed + cron-job.org running every 15 min |
+| 5 | `expo-notifications` + `expo-device` installed, permission request after first booking, Account tab re-enable toggle | bookwithai-expo | ~1–1.5 hours | ✅ Done 2026-07-16 — native rebuild succeeded, installed on Pixel_8 emulator |
+| 6 | In-app notification inbox (bell icon, list, read/unread, delete) + app icon badge count | bookwithai-expo | ~1–1.5 hours | ✅ Done 2026-07-16 — built into same rebuild |
+
+**Security note (2026-07-16):** the Firebase service account private key was briefly mis-saved as `eas.json` in the repo root during setup — caught before it was ever committed (confirmed via `git status`/`git ls-files`), then deleted and redone correctly. Added `.gitignore` patterns (`google-services.json`, `*serviceAccount*.json`, `firebase-adminsdk*.json`, etc.) so any Firebase/Google credential file is protected automatically regardless of name, going forward.
+
+**Remaining before this can actually be tested end-to-end:**
+1. ~~User: create Firebase project, download `google-services.json`~~ ✅ Done.
+2. ~~User: link EAS project + upload FCM V1 credentials~~ ✅ Done.
+3. ~~User: apply migration to staging then production Supabase~~ ✅ Done 2026-07-16 — applied directly to production only (staging skipped per user decision).
+4. ~~User: add `CRON_SECRET` env var + configure cron-job.org~~ ✅ Done 2026-07-16 — cron-job.org hits `GET /api/cron/appointment-reminders` every 15 min.
+5. ~~Deploy `booking-app` (Vercel)~~ ✅ Done 2026-07-16 — commit `7fc517b` live in production (verified via Vercel deployment status).
+6. ~~Native rebuild of `bookwithai-expo`~~ ✅ Done 2026-07-16 — build succeeded, installed on Pixel_8 emulator.
+7. ~~End-to-end test~~ ✅ Done 2026-07-16 — booking → permission prompt → push arrives → inbox shows history → badge count correct, all verified on emulator.
+
+**STEP 18.5 COMPLETE — 2026-07-16.** Push notifications fully built, deployed, and verified end-to-end.
+
+**Bugs found and fixed during E2E testing (2026-07-16), all verified:**
+| Bug | Root cause | Fix |
+|-----|------------|-----|
+| Mobile app ignored salon's "pay at salon" setting | `require_online_payment` was fetched but never threaded through the booking flow or checked before routing to Stripe | Threaded through salon→services→staff→datetime→review; review.tsx now creates the booking directly (skipping Stripe) when the salon doesn't require online payment or price is $0. Backend `payment_intent_id` made optional. |
+| First-ever booking never sent its own "Booking Confirmed" push | `customers.auth_user_id` only got linked during push-token registration (after the confirmation screen) — but the push send happens at booking-creation time, before that ever runs | Mobile app now sends `auth_user_id` with the booking request; backend links it immediately, before attempting the push |
+| No notification permission dialog on emulator | `Device.isDevice` check blocked the whole flow pre-emptively on this Play-Store-enabled emulator | Removed the blanket check; wrapped the actual token-fetch call in try/catch instead so it fails gracefully only where genuinely unsupported |
+| Notification permission dialog still skipped after above fix | Added a pre-check reading `getPermissionsAsync()` status and skipping if not `'undetermined'` — but Android can't cleanly distinguish "never asked" from "denied" without extra checks the library wasn't doing, so it read as already-decided | Removed the pre-check entirely — just call the request function every time; it and Android's own permission system already correctly implement "ask once" without help |
+| Confirmation screen said "Paid" even for pay-at-salon bookings | Label was hardcoded regardless of payment method | Added a `paid` param threaded from payment.tsx (`'true'`)/review.tsx (`'false'`) → shows "Due at Salon" when not actually charged |
+| "My Booking" tab always showed "No bookings yet" | Client-side query had **no filter at all** — pre-existing gap from before auth existed, RLS silently blocked everything | New session-verified `GET /api/mobile/my-bookings` endpoint, looks up bookings via `customers.auth_user_id` |
+| "Add to Calendar" threw a deprecated-API error | `expo-calendar`'s default export path is deprecated in this SDK version | Changed import to `expo-calendar/legacy` (same API, still supported) |
+
+**Local testing workflow (added 2026-07-16):** `src/lib/config.ts` exports `API_BASE`, reading `EXPO_PUBLIC_API_BASE` from `.env.local` (falls back to production). Set it to `http://10.0.2.2:3000` (Android emulator's alias for host machine's localhost) while running `npm run dev` in `booking-app`, to test against a local server before deploying — avoids a deploy-and-wait cycle for every backend change. Not yet applied to all API call sites (`payment.tsx`, `notifications/api.ts`, `registerForPushNotifications.ts` still have their own local constant) — finish wiring this up next time a backend change needs local testing.
+
+**Permission timing (decided 2026-07-16):** request notification permission right after the booking confirmation screen following a user's first successful booking — a natural, in-context moment, avoiding the App Store/Play Store penalty for asking on first launch. Can be changed after launch via a normal app update — not a permanent lock-in, just best to get right for the first store submission.
+
+**Other locked decisions for this build (2026-07-16):**
+| Decision | What Was Decided |
+|----------|-----------------|
+| Multi-device | Support multiple active device tokens per customer account (one row per device, not overwrite-on-login) |
+| Notification events | One combined "Booking Confirmed" push covers both payment success and pay-at-salon bookings — not split into separate "payment received" / "booking confirmed" events, since today's flow creates the booking only after payment succeeds anyway |
+| Inbox placement | Bell icon in the app header (visible from any tab, badge count on the bell) — not a 4th tab, since 3 tabs (Book/My Booking/Account) are locked |
+| 24h reminder timing | Fixed time (6pm the day before), not exactly-24-hours-before-appointment-time, to avoid firing at odd hours |
+| Permission re-enable path | Toggle in Account tab — if off, deep-links to the device's system Settings for the app |
+| Notification copy | See drafted copy below — approved 2026-07-16 |
+
+**Deferred to V2:** re-prompting for notification permission on every subsequent booking (while still off) via a custom in-app soft-ask banner that deep-links to Settings after the first OS denial. Not built now — only the single first-booking ask + Account tab toggle are in this scope. Add once V1 is approved.
+
+**Rescheduled/Cancelled pushes added to this build (2026-07-16):** small addition to Phase 3 — reuses the existing reschedule/cancel endpoints in `booking-app`, no new feature required.
+
+**Notification copy (approved 2026-07-16, final wording from Farheen):**
+| Type | Title | Body |
+|------|-------|------|
+| Booking Confirmed | `Booking Confirmed` | `You're all set! Your appointment at {salon_name} is confirmed for {date} at {time}.` |
+| 24-Hour Reminder | `See You Tomorrow` | `Just a reminder—your appointment at {salon_name} is tomorrow at {time}.` |
+| 2-Hour Reminder | `Almost Time` | `Your appointment at {salon_name} starts in 2 hours. See you at {time}.` |
+| Appointment Rescheduled | `Appointment Updated` | `Your appointment at {salon_name} has been rescheduled to {date} at {time}.` |
+| Appointment Cancelled | `Appointment Cancelled` | `Your appointment at {salon_name} has been cancelled.` |
+
+**Notification copy logged for V2 (needs features that don't exist yet — waitlist system, promotions, reviews):**
+| Type | Title | Body |
+|------|-------|------|
+| Waitlist Available | `Earlier Appointment Available` | `Good news! An earlier appointment is available at {salon_name}. Book it before it's gone.` |
+| Favorite Salon Promotion | `Special Offer` | `Your favorite salon has a new offer waiting for you.` |
+| Review Request | `How Was Your Visit?` | `Tell us about your experience at {salon_name}. Your feedback helps others discover great professionals.` |
 
 ---
 
@@ -95,6 +173,7 @@
 | `phone` | ⚠️ Exists as `owner_phone` | App currently uses `owner_phone`. Decide if a separate public-facing phone field is needed. |
 | **Booking creation (no auth)** | ✅ Done — 2026-07-16 | Built `/api/mobile/bookings` — verifies payment via `payment_intent_id` instead of requiring Supabase auth. Payment screen now uses it. |
 | **Card scan on payment screen** | ❌ Not working | Stripe PaymentSheet card scanner not functioning. Investigate next session. |
+| **Magic link / auth email sender name** | ⏸ DEFERRED — hold until post-launch | Supabase Auth emails (magic link, etc.) currently show default Supabase sender, not "Book With AI". Fix = enable Custom SMTP in Supabase Dashboard (Auth → SMTP Settings) using existing Resend credentials, Sender Name = "Book With AI". Deliberately holding off: Resend free tier is capped at 3,000 emails/month and email volume will drop once app push notifications replace some of that after Play Store approval. Revisit once app is live. |
 | **Native module rebuild required** | ⚠️ Process note | Adding a native package (e.g. `expo-secure-store`, `expo-local-authentication`) to `package.json`/`app.json` is NOT enough — it requires `npx expo prebuild --clean` + a full `npx expo run:android` rebuild before the JS can call it, or the app crashes on launch. This is what caused the 2026-07-16 launch crash. Also needs `JAVA_HOME` (Android Studio's bundled JDK) and `ANDROID_HOME`/`android/local.properties` set correctly in the shell running the build. |
 | **Deep linking** | ⏸ Untestable in debug build | Will work automatically once app is live on Play Store. |
 | **Stripe payment approach** | ✅ Switched to destination charges | Direct charges on connected account caused PaymentSheet issues. Now uses `transfer_data.destination` on platform account. Works. |

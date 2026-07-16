@@ -8,11 +8,16 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { API_BASE } from '@/lib/config';
 
 function formatPrice(cents: number) {
   if (!cents) return 'Free';
@@ -41,13 +46,14 @@ function formatDateTime(isoStr: string) {
 }
 
 export default function ReviewScreen() {
+  const { user } = useAuth();
   const {
-    salonId, salonSlug, salonName,
+    salonId, salonSlug, salonName, requireOnlinePayment,
     serviceIds, serviceNames, totalCents, totalMins,
     staffId, staffName,
     startsAt, endsAt,
   } = useLocalSearchParams<{
-    salonId: string; salonSlug: string; salonName: string;
+    salonId: string; salonSlug: string; salonName: string; requireOnlinePayment: string;
     serviceIds: string; serviceNames: string; totalCents: string; totalMins: string;
     staffId: string; staffName: string;
     startsAt: string; endsAt: string;
@@ -55,23 +61,76 @@ export default function ReviewScreen() {
 
   const [notes, setNotes] = useState('');
   const [consented, setConsented] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   const services = (serviceNames || '').split('||').filter(Boolean);
   const cents = parseInt(totalCents || '0', 10);
   const mins = parseInt(totalMins || '0', 10);
 
-  function handleProceed() {
+  // Salon doesn't require online payment (or nothing to charge) — skip
+  // Stripe entirely and create the booking directly. Salon collects
+  // payment in person.
+  const skipOnlinePayment = requireOnlinePayment === 'false' || cents === 0;
+
+  async function handleProceed() {
     if (!consented) return;
-    router.push({
-      pathname: '/booking/payment',
-      params: {
-        salonId, salonSlug, salonName,
-        serviceIds, serviceNames, totalCents, totalMins,
-        staffId, staffName,
-        startsAt, endsAt,
-        notes,
-      },
-    });
+
+    if (!skipOnlinePayment) {
+      router.push({
+        pathname: '/booking/payment',
+        params: {
+          salonId, salonSlug, salonName,
+          serviceIds, serviceNames, totalCents, totalMins,
+          staffId, staffName,
+          startsAt, endsAt,
+          notes,
+        },
+      });
+      return;
+    }
+
+    setBookingLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/mobile/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id:      salonId,
+          service_ids:    (serviceIds || '').split(',').filter(Boolean),
+          staff_id:       staffId || undefined,
+          starts_at:      startsAt,
+          ends_at:        endsAt || undefined,
+          price_cents:    cents,
+          notes:          notes || undefined,
+          customer_name:  user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest',
+          customer_email: user?.email || undefined,
+          customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
+          auth_user_id:   user?.id || undefined,
+        }),
+      });
+
+      const booking = await res.json();
+      if (!res.ok) throw new Error(booking.error || 'Booking creation failed');
+
+      notificationSuccess();
+      router.replace({
+        pathname: '/booking/confirmation',
+        params: {
+          salonId, salonSlug, salonName,
+          serviceNames, totalCents, totalMins,
+          staffName,
+          startsAt, endsAt,
+          bookingId: booking.id ?? '',
+          customerId: booking.customer_id ?? '',
+          paid: 'false',
+        },
+      });
+    } catch (e: any) {
+      notificationError();
+      Alert.alert('Booking failed', e.message || 'Something went wrong. Please try again.');
+    } finally {
+      setBookingLoading(false);
+    }
   }
 
   return (
@@ -164,17 +223,25 @@ export default function ReviewScreen() {
       {/* Footer */}
       <View style={styles.footer}>
         <Pressable
-          style={[styles.proceedBtn, !consented && styles.proceedBtnDisabled]}
+          style={[styles.proceedBtn, (!consented || bookingLoading) && styles.proceedBtnDisabled]}
           onPress={handleProceed}
-          disabled={!consented}>
-          <Text style={[styles.proceedBtnText, !consented && styles.proceedBtnTextDisabled]}>
-            {cents > 0 ? `Proceed to Payment · ${formatPrice(cents)}` : 'Confirm Booking'}
-          </Text>
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color={consented ? Colors.white : Colors.textDisabled}
-          />
+          disabled={!consented || bookingLoading}>
+          {bookingLoading ? (
+            <ActivityIndicator color={Colors.white} />
+          ) : (
+            <>
+              <Text style={[styles.proceedBtnText, !consented && styles.proceedBtnTextDisabled]}>
+                {skipOnlinePayment
+                  ? (cents > 0 ? `Confirm Booking · Pay ${formatPrice(cents)} at Salon` : 'Confirm Booking')
+                  : `Proceed to Payment · ${formatPrice(cents)}`}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={consented ? Colors.white : Colors.textDisabled}
+              />
+            </>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>

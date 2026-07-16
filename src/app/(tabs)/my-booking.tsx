@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { API_BASE } from '@/lib/config';
 
 interface Booking {
   id: string;
@@ -55,19 +56,14 @@ export default function MyBookingScreen() {
   async function fetchBookings() {
     try {
       setLoading(true);
-      // Fetch bookings linked to this user's email via customer record
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          id, starts_at, ends_at, status, price_cents, notes,
-          agency_clients ( business_name ),
-          staff ( name ),
-          services ( name )
-        `)
-        .order('starts_at', { ascending: false })
-        .limit(20);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
-      if (!error && data) setBookings(data as any);
+      const res = await fetch(`${API_BASE}/api/mobile/my-bookings`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (res.ok && json.data) setBookings(json.data);
     } catch (e) {
       // silent
     } finally {

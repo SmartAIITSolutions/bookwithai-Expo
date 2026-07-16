@@ -57,11 +57,11 @@ function getFirstDayOfMonth(year: number, month: number): number {
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function DateTimeScreen() {
   const {
-    salonId, salonSlug, salonName,
+    salonId, salonSlug, salonName, requireOnlinePayment,
     serviceIds, serviceNames, totalCents, totalMins,
     staffId, staffName,
   } = useLocalSearchParams<{
-    salonId: string; salonSlug: string; salonName: string;
+    salonId: string; salonSlug: string; salonName: string; requireOnlinePayment: string;
     serviceIds: string; serviceNames: string; totalCents: string; totalMins: string;
     staffId: string; staffName: string;
   }>();
@@ -147,7 +147,7 @@ export default function DateTimeScreen() {
     router.push({
       pathname: '/booking/review',
       params: {
-        salonId, salonSlug, salonName,
+        salonId, salonSlug, salonName, requireOnlinePayment,
         serviceIds, serviceNames, totalCents, totalMins,
         staffId: selectedSlot.staff_id,
         staffName: selectedSlot.staff_name,

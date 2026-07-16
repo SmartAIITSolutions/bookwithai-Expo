@@ -5,7 +5,7 @@
  * - Add to Calendar via expo-calendar (run: npx expo install expo-calendar)
  * - Get Directions via Linking to maps
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,8 +19,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Calendar from 'expo-calendar';
+import * as Calendar from 'expo-calendar/legacy';
 import { notificationSuccess } from '@/hooks/usePressHaptic';
+import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 function formatPrice(cents: number) {
@@ -53,19 +54,31 @@ export default function ConfirmationScreen() {
     serviceNames, totalCents,
     staffName,
     startsAt, endsAt,
-    bookingId,
+    bookingId, customerId, paid,
   } = useLocalSearchParams<{
     salonId: string; salonSlug: string; salonName: string;
     serviceNames: string; totalCents: string;
     staffName: string;
     startsAt: string; endsAt: string;
-    bookingId: string;
+    bookingId: string; customerId: string; paid: string;
   }>();
 
   const [calAdded, setCalAdded] = useState(false);
 
   const services = (serviceNames || '').split('||').filter(Boolean);
   const cents = parseInt(totalCents || '0', 10);
+  const wasPaid = paid !== 'false';
+
+  // Ask for notification permission on every confirmed booking.
+  // requestAndRegisterPushToken() already only calls the real permission API
+  // when status isn't 'granted', and Android itself only ever shows the
+  // actual system dialog the true first time — after a decision (granted or
+  // denied) it silently no-ops on every call after. That naturally gives us
+  // "ask once" without needing to track it ourselves, and avoids the ambiguity
+  // between "never asked" and "denied" that a pre-check status read has.
+  useEffect(() => {
+    requestAndRegisterPushToken(customerId || undefined);
+  }, []);
 
   async function handleAddToCalendar() {
     try {
@@ -160,8 +173,10 @@ export default function ConfirmationScreen() {
             <>
               <View style={styles.divider} />
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Paid</Text>
-                <Text style={styles.priceValue}>{formatPrice(cents)}</Text>
+                <Text style={styles.priceLabel}>{wasPaid ? 'Paid' : 'Due at Salon'}</Text>
+                <Text style={[styles.priceValue, !wasPaid && { color: Colors.textPrimary }]}>
+                  {formatPrice(cents)}
+                </Text>
               </View>
             </>
           )}

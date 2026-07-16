@@ -14,11 +14,12 @@ import { fetchStaffBySalonId, type StaffMember } from '@/lib/api/salon';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 export default function StaffScreen() {
-  const { salonId, salonSlug, salonName, serviceIds, serviceNames, totalCents, totalMins } =
+  const { salonId, salonSlug, salonName, requireOnlinePayment, serviceIds, serviceNames, totalCents, totalMins } =
     useLocalSearchParams<{
       salonId: string;
       salonSlug: string;
       salonName: string;
+      requireOnlinePayment: string;
       serviceIds: string;
       serviceNames: string;
       totalCents: string;
@@ -55,6 +56,7 @@ export default function StaffScreen() {
         salonId,
         salonSlug,
         salonName,
+        requireOnlinePayment,
         serviceIds,
         serviceNames,
         totalCents,

@@ -46,7 +46,12 @@ export default function SalonScreen() {
   function handleBookNow() {
     router.push({
       pathname: '/booking/services',
-      params: { salonId: salon?.id, salonSlug: slug },
+      params: {
+        salonId: salon?.id,
+        salonSlug: slug,
+        salonName: salon?.business_name,
+        requireOnlinePayment: String(salon?.require_online_payment ?? true),
+      },
     });
   }
 

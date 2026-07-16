@@ -41,3 +41,10 @@ example
 # generated native folders
 /ios
 /android
+
+# Firebase / Google service account credentials — never commit these
+google-services.json
+GoogleService-Info.plist
+*serviceAccount*.json
+*service-account*.json
+firebase-adminsdk*.json

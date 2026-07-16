@@ -17,6 +17,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
@@ -31,6 +32,16 @@ function extractSlugFromUrl(url: string): string | null {
 }
 
 SplashScreen.preventAutoHideAsync();
+
+// Show a banner + play sound even while the app is open in the foreground.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList:   true,
+    shouldPlaySound:  true,
+    shouldSetBadge:   true,
+  }),
+});
 
 const ONBOARDING_KEY    = 'bwa_onboarding_done';
 const BIOMETRICS_KEY    = 'bwa_biometrics_enabled';
@@ -81,6 +92,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="onboarding" />
+        <Stack.Screen name="notifications" />
         <Stack.Screen name="salon/[id]" />
         <Stack.Screen name="booking/services" />
         <Stack.Screen name="booking/staff" />

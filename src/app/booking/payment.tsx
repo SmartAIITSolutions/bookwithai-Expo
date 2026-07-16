@@ -158,6 +158,7 @@ function PaymentForm() {
           customer_name:  user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest',
           customer_email: user?.email || undefined,
           customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
+          auth_user_id:   user?.id || undefined,
         }),
       });
 
@@ -173,6 +174,8 @@ function PaymentForm() {
           staffName,
           startsAt, endsAt,
           bookingId: booking.id ?? '',
+          customerId: booking.customer_id ?? '',
+          paid: 'true',
         },
       });
     } catch (e: any) {
