@@ -22,8 +22,8 @@
 | 9–18 — Full booking flow | implied weeks (part of 12–16 wk total) | 1 session (2026-07-15) | Weeks ahead |
 | **TOTAL Steps 1–18** | **~12–16 weeks** | **1 day** | **~11–15 weeks ahead of original estimate** |
 | 18.5 — Push Notifications (pulled forward from V2) | ~6–8 hours / 1–2 sessions | ✅ Done 2026-07-16 (same day) | Predicted completion was 2026-07-18 — 2 days ahead. Includes 6 bug fixes found during E2E testing (see build plan below). |
-| 18.6 — Customer self-serve reschedule/cancel | ~5–6 hours / 1 session | 🔄 Started 2026-07-16 | New gap found during Internal Testing prep: mobile app had no way for customers to reschedule/cancel their own bookings at all. See build plan below. |
-| 19 — Internal Testing | 1–2 sessions | ⏸ Paused until 18.6 done | — |
+| 18.6 — Customer self-serve reschedule/cancel | ~5–6 hours / 1 session | ✅ Done 2026-07-16 (same day) | New gap found during Internal Testing prep. Includes 1 follow-up fix (customer confirmation push was missing on self-serve actions) found and fixed during verification. |
+| 19 — Internal Testing | 1–2 sessions | 🔄 Unblocked, ready to resume | — |
 | 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
 
@@ -55,8 +55,8 @@
 | 17 | Error Handling Pass | ✅ Done | 2026-07-15 |
 | 18 | Native Polish | ✅ Done | 2026-07-15 |
 | 18.5 | Push Notifications (pulled forward from V2) | ✅ Done | 2026-07-16 |
-| 18.6 | Customer self-serve reschedule/cancel | 🔄 In progress | Started 2026-07-16 |
-| 19 | Internal Testing | ⏸ Paused until 18.6 done | 2026-07-15 |
+| 18.6 | Customer self-serve reschedule/cancel | ✅ Done | 2026-07-16 |
+| 19 | Internal Testing | 🔄 Unblocked, ready to resume | 2026-07-15 |
 | 20 | Android Build + Google Play | ⬜ | |
 | 21 | iOS Build (EAS) + App Store | ⬜ | |
 
@@ -163,6 +163,8 @@
 | 3 | My Booking tab: Reschedule/Cancel buttons on upcoming bookings, cutoff-aware (swaps to Call/Text past cutoff), shows salon's policy text before confirming | bookwithai-expo | ~2–2.5 hours |
 | 4 | Reschedule flow reuses existing staff/date/time picker screens, adapted to update instead of create | bookwithai-expo | included in Phase 3 |
 | 5 | Testing + bug fixing buffer | both | ~1 hour |
+
+**STEP 18.6 COMPLETE — 2026-07-16.** Reschedule and cancel verified working end-to-end on device: buttons appear correctly on upcoming bookings, actions succeed, cutoff logic in place. One bug found during verification: the new endpoints only notified the salon's dashboard bell, not the customer themselves — fixed by adding the same `sendPushToCustomer` call used on the staff-side routes, so self-serve actions now produce the same push + inbox receipt as staff-initiated ones.
 
 ---
 
