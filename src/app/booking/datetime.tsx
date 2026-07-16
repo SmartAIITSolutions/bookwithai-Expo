@@ -7,10 +7,13 @@ import {
   Pressable,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
+import { rescheduleBooking } from '@/lib/api/bookingActions';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -60,11 +63,16 @@ export default function DateTimeScreen() {
     salonId, salonSlug, salonName, requireOnlinePayment,
     serviceIds, serviceNames, totalCents, totalMins,
     staffId, staffName,
+    rescheduleBookingId,
   } = useLocalSearchParams<{
     salonId: string; salonSlug: string; salonName: string; requireOnlinePayment: string;
     serviceIds: string; serviceNames: string; totalCents: string; totalMins: string;
     staffId: string; staffName: string;
+    rescheduleBookingId?: string;
   }>();
+
+  const isRescheduling = !!rescheduleBookingId;
+  const [rescheduling, setRescheduling] = useState(false);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -141,9 +149,26 @@ export default function DateTimeScreen() {
     startHold();
   }
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!selectedSlot || !selectedDate) return;
     if (holdInterval.current) clearInterval(holdInterval.current);
+
+    if (isRescheduling && rescheduleBookingId) {
+      setRescheduling(true);
+      const result = await rescheduleBooking(rescheduleBookingId, selectedSlot.starts_at, selectedSlot.ends_at);
+      setRescheduling(false);
+      if (!result.ok) {
+        notificationError();
+        Alert.alert('Could not reschedule', result.error || 'Something went wrong. Please try again.');
+        return;
+      }
+      notificationSuccess();
+      Alert.alert('Rescheduled!', 'Your appointment has been moved to the new time.', [
+        { text: 'OK', onPress: () => router.replace('/(tabs)/my-booking') },
+      ]);
+      return;
+    }
+
     router.push({
       pathname: '/booking/review',
       params: {
@@ -187,7 +212,7 @@ export default function DateTimeScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Date & Time</Text>
+          <Text style={styles.headerTitle}>{isRescheduling ? 'Reschedule' : 'Date & Time'}</Text>
           {salonName ? <Text style={styles.headerSub} numberOfLines={1}>{salonName}</Text> : null}
         </View>
         <View style={styles.backBtn} />
@@ -316,9 +341,17 @@ export default function DateTimeScreen() {
             <Text style={styles.footerTime}>{formatSlotTime(selectedSlot.starts_at)}</Text>
             <Text style={styles.footerStaff}>with {selectedSlot.staff_name}</Text>
           </View>
-          <Pressable style={styles.continueBtn} onPress={handleContinue}>
-            <Text style={styles.continueBtnText}>Review Booking</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+          <Pressable style={styles.continueBtn} onPress={handleContinue} disabled={rescheduling}>
+            {rescheduling ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <>
+                <Text style={styles.continueBtnText}>
+                  {isRescheduling ? 'Confirm Reschedule' : 'Review Booking'}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+              </>
+            )}
           </Pressable>
         </View>
       )}

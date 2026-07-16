@@ -1,26 +1,37 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, ActivityIndicator,
+  Pressable, ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
+import { cancelBooking } from '@/lib/api/bookingActions';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 import { API_BASE } from '@/lib/config';
 
 interface Booking {
   id: string;
+  client_id: string;
+  service_id: string | null;
+  staff_id: string | null;
   starts_at: string;
   ends_at: string;
   status: string;
   price_cents: number | null;
   notes: string | null;
-  agency_clients: { business_name: string } | null;
-  staff: { name: string } | null;
-  services: { name: string } | null;
+  agency_clients: {
+    business_name: string;
+    owner_phone: string | null;
+    booking_cutoff_minutes: number | null;
+    cancellation_policy: string | null;
+    rescheduling_policy: string | null;
+  } | null;
+  staff: { id: string; name: string } | null;
+  services: { id: string; name: string; duration_minutes: number; buffer_minutes: number | null } | null;
 }
 
 function formatDateTime(isoStr: string) {
@@ -44,10 +55,16 @@ function statusColor(status: string) {
   }
 }
 
+// Minutes between now and the appointment's start — negative once it's passed.
+function minutesUntil(startsAt: string): number {
+  return (new Date(startsAt).getTime() - Date.now()) / 60000;
+}
+
 export default function MyBookingScreen() {
   const { user, loading: authLoading } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading,  setLoading]  = useState(false);
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) fetchBookings();
@@ -69,6 +86,70 @@ export default function MyBookingScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleReschedule(item: Booking) {
+    router.push({
+      pathname: '/booking/datetime',
+      params: {
+        salonId: item.client_id,
+        salonName: item.agency_clients?.business_name ?? '',
+        requireOnlinePayment: 'false',
+        serviceIds: item.service_id ?? '',
+        serviceNames: item.services?.name ?? '',
+        totalCents: String(item.price_cents ?? 0),
+        totalMins: String((item.services?.duration_minutes ?? 60) + (item.services?.buffer_minutes ?? 0)),
+        staffId: item.staff_id ?? '',
+        staffName: item.staff?.name ?? '',
+        rescheduleBookingId: item.id,
+      },
+    });
+  }
+
+  function handleCancel(item: Booking) {
+    const policy = item.agency_clients?.rescheduling_policy || item.agency_clients?.cancellation_policy;
+    Alert.alert(
+      'Cancel appointment?',
+      (policy ? `${policy}\n\n` : '') +
+        "This can't be undone. Any refund, if applicable, will be handled directly by the salon.",
+      [
+        { text: 'Keep It', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            setActioningId(item.id);
+            const result = await cancelBooking(item.id);
+            setActioningId(null);
+            if (!result.ok) {
+              notificationError();
+              Alert.alert('Could not cancel', result.error || 'Something went wrong. Please try again.');
+              return;
+            }
+            notificationSuccess();
+            fetchBookings();
+          },
+        },
+      ]
+    );
+  }
+
+  function handleContactSalon(item: Booking) {
+    const phone = item.agency_clients?.owner_phone;
+    const salonName = item.agency_clients?.business_name ?? 'the salon';
+    if (!phone) {
+      Alert.alert('Contact info unavailable', `Please reach out to ${salonName} directly.`);
+      return;
+    }
+    Alert.alert(
+      `Contact ${salonName}`,
+      "This appointment is too close to reschedule or cancel online — please contact the salon directly.",
+      [
+        { text: 'Call', onPress: () => Linking.openURL(`tel:${phone}`) },
+        { text: 'Text', onPress: () => Linking.openURL(`sms:${phone}`) },
+        { text: 'Close', style: 'cancel' },
+      ]
+    );
   }
 
   // Not signed in
@@ -118,45 +199,76 @@ export default function MyBookingScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <View style={styles.cardTop}>
-                <Text style={styles.salonName}>
-                  {(item.agency_clients as any)?.business_name ?? 'Salon'}
-                </Text>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '20' }]}>
-                  <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
-                    {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+          renderItem={({ item }) => {
+            const isUpcoming = item.status === 'confirmed' && minutesUntil(item.starts_at) > 0;
+            const cutoffMinutes = item.agency_clients?.booking_cutoff_minutes ?? 1440;
+            const withinCutoff = minutesUntil(item.starts_at) >= cutoffMinutes;
+            const isActioning = actioningId === item.id;
+
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardTop}>
+                  <Text style={styles.salonName}>
+                    {item.agency_clients?.business_name ?? 'Salon'}
                   </Text>
+                  <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '20' }]}>
+                    <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
+                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
 
-              <View style={styles.cardRow}>
-                <Ionicons name="calendar-outline" size={14} color={Colors.primary} />
-                <Text style={styles.cardDetail}>{formatDateTime(item.starts_at)}</Text>
-              </View>
-
-              {(item.services as any)?.name && (
                 <View style={styles.cardRow}>
-                  <Ionicons name="cut-outline" size={14} color={Colors.primary} />
-                  <Text style={styles.cardDetail}>{(item.services as any).name}</Text>
+                  <Ionicons name="calendar-outline" size={14} color={Colors.primary} />
+                  <Text style={styles.cardDetail}>{formatDateTime(item.starts_at)}</Text>
                 </View>
-              )}
 
-              {(item.staff as any)?.name && (
-                <View style={styles.cardRow}>
-                  <Ionicons name="person-outline" size={14} color={Colors.primary} />
-                  <Text style={styles.cardDetail}>{(item.staff as any).name}</Text>
-                </View>
-              )}
+                {item.services?.name && (
+                  <View style={styles.cardRow}>
+                    <Ionicons name="cut-outline" size={14} color={Colors.primary} />
+                    <Text style={styles.cardDetail}>{item.services.name}</Text>
+                  </View>
+                )}
 
-              {item.price_cents && item.price_cents > 0 && (
-                <Text style={styles.price}>
-                  ${(item.price_cents / 100).toFixed(2)}
-                </Text>
-              )}
-            </View>
-          )}
+                {item.staff?.name && (
+                  <View style={styles.cardRow}>
+                    <Ionicons name="person-outline" size={14} color={Colors.primary} />
+                    <Text style={styles.cardDetail}>{item.staff.name}</Text>
+                  </View>
+                )}
+
+                {item.price_cents && item.price_cents > 0 && (
+                  <Text style={styles.price}>
+                    ${(item.price_cents / 100).toFixed(2)}
+                  </Text>
+                )}
+
+                {isUpcoming && (
+                  <View style={styles.actionsRow}>
+                    {isActioning ? (
+                      <ActivityIndicator color={Colors.primary} style={{ paddingVertical: Spacing.sm }} />
+                    ) : withinCutoff ? (
+                      <>
+                        <Pressable style={styles.actionBtn} onPress={() => handleReschedule(item)}>
+                          <Ionicons name="calendar-outline" size={14} color={Colors.primary} />
+                          <Text style={styles.actionBtnText}>Reschedule</Text>
+                        </Pressable>
+                        <Pressable style={styles.actionBtnDanger} onPress={() => handleCancel(item)}>
+                          <Ionicons name="close-circle-outline" size={14} color={Colors.error} />
+                          <Text style={styles.actionBtnDangerText}>Cancel</Text>
+                        </Pressable>
+                      </>
+                    ) : (
+                      <Pressable style={styles.actionBtn} onPress={() => handleContactSalon(item)}>
+                        <Ionicons name="call-outline" size={14} color={Colors.primary} />
+                        <Text style={styles.actionBtnText}>Contact Salon</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          }}
         />
       )}
     </SafeAreaView>
@@ -260,5 +372,46 @@ const styles = StyleSheet.create({
     fontSize: FontSize.base,
     color: Colors.textPrimary,
     marginTop: Spacing.xs,
+  },
+
+  actionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.backgroundLavender,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  actionBtnText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+  },
+  actionBtnDanger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF2F2',
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  actionBtnDangerText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.xs,
+    color: Colors.error,
   },
 });
