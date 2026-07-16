@@ -27,6 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
 const API_BASE  = 'https://bookwithai.app';
@@ -49,6 +50,7 @@ function formatDateTime(isoStr: string) {
 // Inner component (needs Stripe context)
 function PaymentForm() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { user } = useAuth();
   const {
     salonId, salonSlug, salonName,
     serviceIds, serviceNames, totalCents, totalMins,
@@ -139,19 +141,23 @@ function PaymentForm() {
         return;
       }
 
-      // Payment succeeded — create booking
-      const bookingRes = await fetch(`${API_BASE}/api/bookings`, {
+      // Payment succeeded — create booking via mobile endpoint (no auth required)
+      const bookingRes = await fetch(`${API_BASE}/api/mobile/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          client_id:   salonId,
-          service_ids: serviceIdList,
-          staff_id:    staffId || undefined,
-          starts_at:   startsAt,
-          source:      'mobile',
-          price_cents: chargedCents,
-          notes:       notes || undefined,
+          client_id:         salonId,
+          service_ids:       serviceIdList,
+          staff_id:          staffId || undefined,
+          starts_at:         startsAt,
+          ends_at:           endsAt || undefined,
+          price_cents:       chargedCents,
           payment_intent_id: paymentIntentId,
+          notes:             notes || undefined,
+          // Customer identity — from auth if signed in, else placeholder (collected at review)
+          customer_name:  user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest',
+          customer_email: user?.email || undefined,
+          customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
         }),
       });
 

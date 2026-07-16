@@ -74,7 +74,14 @@
         {
           "calendarPermission": "Book With AI needs calendar access to add your appointments."
         }
-      ]
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Book With AI uses Face ID to keep your account secure."
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -60,12 +60,12 @@ export default function OnboardingScreen() {
 
   async function handleGetStarted() {
     await markOnboardingDone();
-    router.replace('/book');
+    router.replace('/auth');
   }
 
   async function handleSignIn() {
     await markOnboardingDone();
-    router.replace('/account');
+    router.replace('/auth/sign-in');
   }
 
   const isLastSlide = activeIndex === SLIDES.length;

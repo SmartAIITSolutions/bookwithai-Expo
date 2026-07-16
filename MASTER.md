@@ -1,6 +1,6 @@
 # 📱 Book With AI — Expo App MASTER.md
 ### Single source of truth for the customer mobile app
-**Last updated:** 2026-07-15
+**Last updated:** 2026-07-16
 
 > Always pull this at the start of every session.
 > For platform-wide decisions (SANAA, booking backend, web app), see `C:\Dev\booking-app\MASTER.md`
@@ -15,7 +15,7 @@
 | 2 — Design System | 1 week | 1 session (2026-07-15) | 6 days ahead |
 | 3 — Navigation Shell | 1–2 sessions | 1 session (2026-07-15) | On track |
 | 4 — Splash + Onboarding | 2–3 sessions | 1 session (2026-07-15) | 1–2 sessions ahead |
-| 5 — Phone OTP Auth | 1–1.5 weeks | ⏸ ON HOLD | Waiting on SMS approval — not behind, just blocked |
+| 5 — Auth (mandatory, email/password + Google + magic link + biometrics) | 1–1.5 weeks | 1 session (2026-07-16) | Phone OTP scrapped, rebuilt as full auth gate — weeks ahead |
 | 6 — Salon Landing | 1 week | 1 session (2026-07-15) | 6 days ahead |
 | 7 — QR Scanner | 1 session | 1 session (2026-07-15) | On track |
 | 8 — Service Selection | 1 session | 1 session (2026-07-15) | On track |
@@ -38,7 +38,7 @@
 | 2 | Design System | ✅ Done | 2026-07-15 |
 | 3 | Navigation Shell | ✅ Done | 2026-07-15 |
 | 4 | Splash + Onboarding | ✅ Done | 2026-07-15 |
-| 5 | Auth | ❌ SCRAPPED — No auth in V1. Email auth in future version. | 2026-07-15 |
+| 5 | Auth — mandatory login gate (Email/Password, Google OAuth, Magic Link, Biometrics unlock) | ✅ Done | 2026-07-16 |
 | 6 | Salon Landing Screen | ✅ Done | 2026-07-15 |
 | 7 | QR Code Scanner | ✅ Done | 2026-07-15 |
 | 8 | Service Selection | ✅ Done | 2026-07-15 |
@@ -74,7 +74,7 @@
 | **Navigation** | Expo Router with standard `Tabs` (not experimental NativeTabs) | 2026-07-15 |
 | **Tabs (V1)** | 3 tabs — Book, My Booking, Account | 2026-07-15 |
 | **Fonts** | Sora (body/UI) + Fraunces (headings/display) — matches web app | 2026-07-15 |
-| **Auth** | NO auth in V1. Email auth in a future version. Phone OTP scrapped. | 2026-07-15 |
+| **Auth** | Email+Password + Google OAuth + Magic Link. Biometrics for return visits. No phone OTP. | 2026-07-15 |
 | **Payments** | Stripe React Native + Google Pay (V1). Apple Pay in V3. | 2026-07-15 |
 | **SANAA in customer app** | Not in V1. Future version — scope TBD. | 2026-07-15 |
 | **Shared backend** | All booking logic, payments, data live in the existing BWA backend. App calls the same API. No duplication. | 2026-07-15 |
@@ -93,8 +93,9 @@
 | `address` | ❌ Not in `agency_clients` | Need to add this column. Required for Maps integration on confirmation screen. |
 | `zip` | ❌ Not in `agency_clients` | Goes with address above. |
 | `phone` | ⚠️ Exists as `owner_phone` | App currently uses `owner_phone`. Decide if a separate public-facing phone field is needed. |
-| **Booking creation (no auth)** | ❌ Blocked | `/api/bookings` requires Supabase auth. Need new `/api/mobile/bookings` endpoint that verifies payment via `payment_intent_id` instead. Build next session. |
+| **Booking creation (no auth)** | ✅ Done — 2026-07-16 | Built `/api/mobile/bookings` — verifies payment via `payment_intent_id` instead of requiring Supabase auth. Payment screen now uses it. |
 | **Card scan on payment screen** | ❌ Not working | Stripe PaymentSheet card scanner not functioning. Investigate next session. |
+| **Native module rebuild required** | ⚠️ Process note | Adding a native package (e.g. `expo-secure-store`, `expo-local-authentication`) to `package.json`/`app.json` is NOT enough — it requires `npx expo prebuild --clean` + a full `npx expo run:android` rebuild before the JS can call it, or the app crashes on launch. This is what caused the 2026-07-16 launch crash. Also needs `JAVA_HOME` (Android Studio's bundled JDK) and `ANDROID_HOME`/`android/local.properties` set correctly in the shell running the build. |
 | **Deep linking** | ⏸ Untestable in debug build | Will work automatically once app is live on Play Store. |
 | **Stripe payment approach** | ✅ Switched to destination charges | Direct charges on connected account caused PaymentSheet issues. Now uses `transfer_data.destination` on platform account. Works. |
 | **App icon** | `public/icons/icon-512.png` from booking-app — purple + gold atom on dark | 2026-07-15 |
