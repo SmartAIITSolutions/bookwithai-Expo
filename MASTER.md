@@ -22,7 +22,8 @@
 | 9–18 — Full booking flow | implied weeks (part of 12–16 wk total) | 1 session (2026-07-15) | Weeks ahead |
 | **TOTAL Steps 1–18** | **~12–16 weeks** | **1 day** | **~11–15 weeks ahead of original estimate** |
 | 18.5 — Push Notifications (pulled forward from V2) | ~6–8 hours / 1–2 sessions | ✅ Done 2026-07-16 (same day) | Predicted completion was 2026-07-18 — 2 days ahead. Includes 6 bug fixes found during E2E testing (see build plan below). |
-| 19 — Internal Testing | 1–2 sessions | 🔄 Unblocked, ready to resume | — |
+| 18.6 — Customer self-serve reschedule/cancel | ~5–6 hours / 1 session | 🔄 Started 2026-07-16 | New gap found during Internal Testing prep: mobile app had no way for customers to reschedule/cancel their own bookings at all. See build plan below. |
+| 19 — Internal Testing | 1–2 sessions | ⏸ Paused until 18.6 done | — |
 | 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
 
@@ -54,7 +55,8 @@
 | 17 | Error Handling Pass | ✅ Done | 2026-07-15 |
 | 18 | Native Polish | ✅ Done | 2026-07-15 |
 | 18.5 | Push Notifications (pulled forward from V2) | ✅ Done | 2026-07-16 |
-| 19 | Internal Testing | 🔄 Unblocked, ready to resume | 2026-07-15 |
+| 18.6 | Customer self-serve reschedule/cancel | 🔄 In progress | Started 2026-07-16 |
+| 19 | Internal Testing | ⏸ Paused until 18.6 done | 2026-07-15 |
 | 20 | Android Build + Google Play | ⬜ | |
 | 21 | iOS Build (EAS) + App Store | ⬜ | |
 
@@ -136,6 +138,31 @@
 | Waitlist Available | `Earlier Appointment Available` | `Good news! An earlier appointment is available at {salon_name}. Book it before it's gone.` |
 | Favorite Salon Promotion | `Special Offer` | `Your favorite salon has a new offer waiting for you.` |
 | Review Request | `How Was Your Visit?` | `Tell us about your experience at {salon_name}. Your feedback helps others discover great professionals.` |
+
+---
+
+## CUSTOMER SELF-SERVE RESCHEDULE/CANCEL BUILD PLAN (Step 18.6)
+
+> Found 2026-07-16 during Internal Testing prep: the mobile app's "My Booking" tab was read-only — no way for a customer to reschedule or cancel their own appointment. Not in the original 21-step plan; added as a new step.
+
+**Predicted completion: same day (2026-07-16), ~5–6 hours.**
+
+**Locked decisions (2026-07-16):**
+| Decision | What Was Decided |
+|----------|-----------------|
+| Cutoff enforcement | Reuse `booking_cutoff_minutes` from `agency_clients` — the exact same field + dropdown salon owners already configure ("Cancellation & rescheduling window" in dashboard settings, default 24h), and the exact same logic SANAA's voice-agent routes already use: `(starts_at - now) < cutoffMinutes` blocks the action. No new salon setting. |
+| Refunds | No automatic refund on self-cancel — matches today's dashboard behavior where refund/fees are a manual staff decision. Self-cancel just marks the booking cancelled. |
+| Past cutoff | Reschedule/Cancel buttons replaced with "Contact the salon" (Call/Text), not a silent block or a warn-and-allow. |
+| Policy visibility | Show the salon's actual free-text `cancellation_policy`/`rescheduling_policy` (the only place this policy lives — it's not a structured/enforceable field) to the customer before they confirm. |
+
+**Build plan:**
+| Phase | What | Repo | Est. |
+|-------|------|------|------|
+| 1 | `POST /api/mobile/bookings/[id]/cancel` — session-verified, ownership check via `customers.auth_user_id`, cutoff check, marks cancelled (`cancelled_by: 'customer'`), no refund, adds a dashboard notification for the salon owner | booking-app | ~1 hour |
+| 2 | `POST /api/mobile/bookings/[id]/reschedule` — same ownership + cutoff check (against the *existing* appointment time), verifies new slot availability, updates booking, resets `reminder_24h_sent_at`/`reminder_2h_sent_at`, notifies salon owner | booking-app | ~1 hour |
+| 3 | My Booking tab: Reschedule/Cancel buttons on upcoming bookings, cutoff-aware (swaps to Call/Text past cutoff), shows salon's policy text before confirming | bookwithai-expo | ~2–2.5 hours |
+| 4 | Reschedule flow reuses existing staff/date/time picker screens, adapted to update instead of create | bookwithai-expo | included in Phase 3 |
+| 5 | Testing + bug fixing buffer | both | ~1 hour |
 
 ---
 
