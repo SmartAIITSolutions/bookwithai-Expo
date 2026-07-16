@@ -101,7 +101,6 @@ function PaymentForm() {
 
       const { error: initErr } = await initPaymentSheet({
         paymentIntentClientSecret: data.client_secret,
-        stripeAccountId: data.stripe_account_id,
         merchantDisplayName: salonName || 'Book With AI',
         googlePay: {
           merchantCountryCode: 'US',

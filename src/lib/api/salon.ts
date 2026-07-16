@@ -4,12 +4,10 @@ export interface SalonInfo {
   id: string;
   business_name: string;
   slug: string;
-  logo_url?: string | null;
-  phone?: string | null;
-  address?: string | null;
+  // TODO: logo_url, address, zip, phone not in agency_clients — add when available (see MASTER.md)
+  owner_phone?: string | null;
   city?: string | null;
   state?: string | null;
-  zip?: string | null;
   iana_timezone?: string | null;
   business_hours?: Record<string, { open: boolean; start: string; end: string }> | null;
   cancellation_policy?: string | null;
@@ -23,7 +21,7 @@ export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> 
   const { data, error } = await supabase
     .from('agency_clients')
     .select(
-      'id, business_name, slug, logo_url, phone, address, city, state, zip, iana_timezone, business_hours, cancellation_policy, rescheduling_policy, store_policy, require_online_payment, booking_cutoff_minutes'
+      'id, business_name, slug, owner_phone, city, state, iana_timezone, business_hours, cancellation_policy, rescheduling_policy, store_policy, require_online_payment, booking_cutoff_minutes'
     )
     .eq('slug', slug)
     .single();

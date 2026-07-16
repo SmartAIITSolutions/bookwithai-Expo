@@ -1,12 +1,20 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 import { QRScanner } from '@/components/scanner/QRScanner';
 
 export default function BookScreen() {
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [slug, setSlug] = useState('');
+
+  function handleGoToSalon() {
+    const trimmed = slug.trim();
+    if (!trimmed) return;
+    router.push({ pathname: '/salon/[id]', params: { id: trimmed } });
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -36,12 +44,23 @@ export default function BookScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Open link hint */}
-        <View style={styles.hintCard}>
-          <Ionicons name="link-outline" size={20} color={Colors.primary} />
-          <Text style={styles.hintText}>
-            Open a booking link from a text, email, or the salon's website — the app will open automatically.
-          </Text>
+        {/* Manual slug entry — DEV TOOL, replace with deep link hint for prod */}
+        <View style={styles.manualCard}>
+          <Text style={styles.manualLabel}>Enter salon slug</Text>
+          <View style={styles.manualRow}>
+            <TextInput
+              style={styles.manualInput}
+              value={slug}
+              onChangeText={setSlug}
+              placeholder="e.g. brows-by-tina"
+              placeholderTextColor={Colors.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable style={styles.goBtn} onPress={handleGoToSalon}>
+              <Text style={styles.goBtnText}>Go</Text>
+            </Pressable>
+          </View>
         </View>
 
       </View>
@@ -139,21 +158,46 @@ const styles = StyleSheet.create({
     color: Colors.textDisabled,
   },
 
-  // Hint card
-  hintCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
+  // Manual entry
+  manualCard: {
+    width: '100%',
     backgroundColor: Colors.backgroundLavender,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
-    width: '100%',
+    gap: Spacing.sm,
   },
-  hintText: {
-    flex: 1,
-    fontFamily: FontFamily.sora,
+  manualLabel: {
+    fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    lineHeight: FontSize.sm * 1.6,
+  },
+  manualRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  manualInput: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.base,
+    color: Colors.textPrimary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  goBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goBtnText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.base,
+    color: Colors.white,
   },
 });

@@ -7,6 +7,29 @@
 
 ---
 
+## PREDICTED vs ACTUAL
+
+| Step | Original Estimate | Actual | Notes |
+|------|------------------|--------|-------|
+| 1 — Repo + Scaffold | 1 session | 1 session (2026-07-15) | On track |
+| 2 — Design System | 1 week | 1 session (2026-07-15) | 6 days ahead |
+| 3 — Navigation Shell | 1–2 sessions | 1 session (2026-07-15) | On track |
+| 4 — Splash + Onboarding | 2–3 sessions | 1 session (2026-07-15) | 1–2 sessions ahead |
+| 5 — Phone OTP Auth | 1–1.5 weeks | ⏸ ON HOLD | Waiting on SMS approval — not behind, just blocked |
+| 6 — Salon Landing | 1 week | 1 session (2026-07-15) | 6 days ahead |
+| 7 — QR Scanner | 1 session | 1 session (2026-07-15) | On track |
+| 8 — Service Selection | 1 session | 1 session (2026-07-15) | On track |
+| 9–18 — Full booking flow | implied weeks (part of 12–16 wk total) | 1 session (2026-07-15) | Weeks ahead |
+| **TOTAL Steps 1–18** | **~12–16 weeks** | **1 day** | **~11–15 weeks ahead of original estimate** |
+| 19 — Internal Testing | 1–2 sessions | ⬜ Up next | — |
+| 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
+| 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
+
+> The 12–16 week original estimate was based on a human developer working a few sessions per week.
+> AI-assisted coding collapsed the build time to a single day. Store review timelines remain the same — those are Google and Apple's clocks, not ours.
+
+---
+
 ## BUILD PROGRESS
 
 | Step | What | Status | Date |
@@ -15,7 +38,7 @@
 | 2 | Design System | ✅ Done | 2026-07-15 |
 | 3 | Navigation Shell | ✅ Done | 2026-07-15 |
 | 4 | Splash + Onboarding | ✅ Done | 2026-07-15 |
-| 5 | Phone OTP Auth (Supabase) | ⏸ ON HOLD — SMS not approved yet | |
+| 5 | Auth | ❌ SCRAPPED — No auth in V1. Email auth in future version. | 2026-07-15 |
 | 6 | Salon Landing Screen | ✅ Done | 2026-07-15 |
 | 7 | QR Code Scanner | ✅ Done | 2026-07-15 |
 | 8 | Service Selection | ✅ Done | 2026-07-15 |
@@ -29,7 +52,7 @@
 | 16 | Legal Screens | ✅ Done | 2026-07-15 |
 | 17 | Error Handling Pass | ✅ Done | 2026-07-15 |
 | 18 | Native Polish | ✅ Done | 2026-07-15 |
-| 19 | Internal Testing | ⬜ | |
+| 19 | Internal Testing | 🔄 In progress | 2026-07-15 |
 | 20 | Android Build + Google Play | ⬜ | |
 | 21 | iOS Build (EAS) + App Store | ⬜ | |
 
@@ -51,7 +74,7 @@
 | **Navigation** | Expo Router with standard `Tabs` (not experimental NativeTabs) | 2026-07-15 |
 | **Tabs (V1)** | 3 tabs — Book, My Booking, Account | 2026-07-15 |
 | **Fonts** | Sora (body/UI) + Fraunces (headings/display) — matches web app | 2026-07-15 |
-| **Auth** | Supabase phone OTP (V1). Email + social login in V2. | 2026-07-15 |
+| **Auth** | NO auth in V1. Email auth in a future version. Phone OTP scrapped. | 2026-07-15 |
 | **Payments** | Stripe React Native + Google Pay (V1). Apple Pay in V3. | 2026-07-15 |
 | **SANAA in customer app** | Not in V1. Future version — scope TBD. | 2026-07-15 |
 | **Shared backend** | All booking logic, payments, data live in the existing BWA backend. App calls the same API. No duplication. | 2026-07-15 |
@@ -59,6 +82,21 @@
 | **POS hardware** | Decide after apps are live in stores | 2026-07-15 |
 | **Google Play account** | Individual — dhanani.farheen.46@gmail.com — $25 paid ✅ | 2026-07-15 |
 | **Apple Developer account** | Buy at Step 21 only. Not needed until iOS submission. | 2026-07-15 |
+
+---
+
+## ⚠️ KNOWN GAPS — REVISIT LATER
+
+| Field | Status | Notes |
+|-------|--------|-------|
+| `logo_url` | ❌ Not in `agency_clients` | Need to add this column to the DB, or store logo elsewhere (e.g. Storage bucket). Required for salon landing screen branding. |
+| `address` | ❌ Not in `agency_clients` | Need to add this column. Required for Maps integration on confirmation screen. |
+| `zip` | ❌ Not in `agency_clients` | Goes with address above. |
+| `phone` | ⚠️ Exists as `owner_phone` | App currently uses `owner_phone`. Decide if a separate public-facing phone field is needed. |
+| **Booking creation (no auth)** | ❌ Blocked | `/api/bookings` requires Supabase auth. Need new `/api/mobile/bookings` endpoint that verifies payment via `payment_intent_id` instead. Build next session. |
+| **Card scan on payment screen** | ❌ Not working | Stripe PaymentSheet card scanner not functioning. Investigate next session. |
+| **Deep linking** | ⏸ Untestable in debug build | Will work automatically once app is live on Play Store. |
+| **Stripe payment approach** | ✅ Switched to destination charges | Direct charges on connected account caused PaymentSheet issues. Now uses `transfer_data.destination` on platform account. Works. |
 | **App icon** | `public/icons/icon-512.png` from booking-app — purple + gold atom on dark | 2026-07-15 |
 | **Play Store feature graphic** | `public/feature-graphic-1024x500.png` from booking-app | 2026-07-15 |
 
