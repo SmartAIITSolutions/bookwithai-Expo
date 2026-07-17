@@ -1,37 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { Ionicons } from '@expo/vector-icons';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
+import { WalkInSheet } from '@/components/owner/WalkInSheet';
+import { TimelineCalendar } from '@/components/owner/TimelineCalendar';
 import { useOwnerBookings } from '@/lib/calendar/useOwnerBookings';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
-import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
+import { getBusiness, Business } from '@/lib/api/ownerBusiness';
 import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
+import { Spacing } from '@/constants/Spacing';
 
 function toDateKey(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-// Day view (Phase 0.3 default). Simplified for Sprint 2: a time-sorted list
-// with status coloring and staff filtering, rather than the full
-// absolute-positioned hour-grid with drag/pinch gestures — those are a
-// deliberate follow-up, not silently skipped. Tapping a card opens the
-// Phase 0.4 appointment sheet.
+// Day view (Phase 0.3 default) — full hour-grid timeline with drag-to-move,
+// pinch-to-zoom, and swipe (check-in / advance status) gestures, staff
+// selector, and Walk-In. Tapping a card opens the Phase 0.4 appointment sheet.
 export default function OwnerCalendarScreen() {
   const [date, setDate] = useState(new Date());
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [business, setBusiness] = useState<Business | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | 'all'>('all');
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
+  const walkInRef = useRef<BottomSheetModal>(null);
 
   const dateKey = toDateKey(date);
   const { bookings, loading, reload } = useOwnerBookings(dateKey);
 
   useEffect(() => {
     listStaff().then(result => { if (result.ok) setStaff(result.data.data.filter(s => s.active)); });
+    getBusiness().then(result => { if (result.ok) setBusiness(result.data.business); });
   }, []);
 
   function shiftDay(delta: number) {
@@ -50,6 +53,11 @@ export default function OwnerCalendarScreen() {
     reload();
   }, [reload]);
 
+  const handleWalkInBooked = useCallback(() => {
+    walkInRef.current?.dismiss();
+    reload();
+  }, [reload]);
+
   const visibleBookings = selectedStaffId === 'all'
     ? bookings
     : bookings.filter(b => b.staff_id === selectedStaffId);
@@ -58,7 +66,7 @@ export default function OwnerCalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <OwnerScreenHeader title="Calendar" />
+      <OwnerScreenHeader title="Calendar" onCreatePress={() => walkInRef.current?.present()} />
 
       <View style={styles.dateRow}>
         <TouchableOpacity onPress={() => shiftDay(-1)}><Text style={styles.dateNav}>← Yesterday</Text></TouchableOpacity>
@@ -66,38 +74,33 @@ export default function OwnerCalendarScreen() {
         <TouchableOpacity onPress={() => shiftDay(1)}><Text style={styles.dateNav}>Tomorrow →</Text></TouchableOpacity>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.staffSelector} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
+      <View style={styles.staffSelectorRow}>
         <StaffChip label="All" active={selectedStaffId === 'all'} onPress={() => setSelectedStaffId('all')} />
         {staff.map(s => (
           <StaffChip key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => setSelectedStaffId(s.id)} />
         ))}
-      </ScrollView>
+        <TouchableOpacity style={styles.walkInButton} onPress={() => walkInRef.current?.present()}>
+          <Ionicons name="walk-outline" size={14} color={Colors.primary} />
+          <Text style={styles.walkInText}>Walk-In</Text>
+        </TouchableOpacity>
+      </View>
 
-      {loading ? (
+      {loading || !business ? (
         <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          {visibleBookings.length === 0 && (
-            <Text style={styles.emptyHint}>Nothing on the books for this day yet.</Text>
-          )}
-          {visibleBookings.map(b => {
-            const { color } = bookingStatusColor(b);
-            return (
-              <TouchableOpacity key={b.id} style={[styles.card, { borderLeftColor: color }]} onPress={() => openBooking(b)}>
-                <Text style={styles.cardTime}>
-                  {new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                </Text>
-                <Text style={styles.cardCustomer}>{b.customer?.name ?? 'Customer'}</Text>
-                <Text style={styles.cardMeta}>
-                  {b.service?.name ?? 'Service'}{b.staff?.name ? ` · ${b.staff.name}` : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <TimelineCalendar
+          date={date}
+          bookings={visibleBookings}
+          staff={staff}
+          selectedStaffId={selectedStaffId}
+          weekSchedule={business.week_schedule}
+          onOpenBooking={openBooking}
+          onChanged={reload}
+        />
       )}
 
       <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={handleChanged} />
+      <WalkInSheet ref={walkInRef} staff={staff} todaysBookings={bookings} onBooked={handleWalkInBooked} />
     </View>
   );
 }
@@ -119,21 +122,20 @@ const styles = StyleSheet.create({
   },
   dateNav: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
   dateLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  staffSelector: { flexGrow: 0, marginBottom: Spacing.sm },
+  staffSelectorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm, flexWrap: 'wrap',
+  },
   chip: {
-    paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: 999,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
   chipTextActive: { color: Colors.textOnPrimary },
-  list: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing['2xl'] },
-  emptyHint: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing['2xl'] },
-  card: {
-    backgroundColor: Colors.card, borderRadius: BorderRadius.lg, borderLeftWidth: 4,
-    padding: Spacing.md, ...Shadows.subtle,
+  walkInButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto',
+    paddingHorizontal: Spacing.sm, paddingVertical: 6,
   },
-  cardTime: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' },
-  cardCustomer: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginTop: 2 },
-  cardMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  walkInText: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
 });

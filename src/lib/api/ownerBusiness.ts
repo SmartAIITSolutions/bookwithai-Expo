@@ -1,4 +1,5 @@
 import { ownerFetch } from './ownerApi';
+import { WeekSchedule } from '@/lib/calendar/timeGrid';
 
 export interface Business {
   id: string;
@@ -12,6 +13,7 @@ export interface Business {
   postal_code: string | null;
   iana_timezone: string | null;
   cancellation_policy: string | null;
+  week_schedule: WeekSchedule | null;
 }
 
 export interface Holiday {
