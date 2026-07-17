@@ -1,4 +1,6 @@
 import { Stack, router } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import {
@@ -85,6 +87,8 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+    <BottomSheetModalProvider>
     <AuthProvider>
       <StatusBar style="dark" />
       <AuthRedirectGate />
@@ -113,6 +117,8 @@ export default function RootLayout() {
         <SplashOverlay onDone={() => handleSplashDone(setSplashVisible)} />
       )}
     </AuthProvider>
+    </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }
 
