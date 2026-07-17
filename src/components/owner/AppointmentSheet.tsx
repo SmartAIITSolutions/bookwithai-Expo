@@ -1,10 +1,12 @@
-import { forwardRef, useCallback, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { checkIn, startService, completeService, cancelBooking } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, nextAction } from '@/lib/calendar/bookingStatus';
+import { CheckoutSheet } from './CheckoutSheet';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
@@ -21,6 +23,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
   function AppointmentSheet({ booking, onChanged }, ref) {
     const [working, setWorking] = useState(false);
     const snapPoints = useMemo(() => ['85%'], []);
+    const checkoutRef = useRef<BottomSheetModal>(null);
 
     const renderBackdrop = useCallback(
       (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />,
@@ -42,10 +45,19 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     }
 
     function handleActionPress() {
-      if (!action || action.disabled) return;
+      if (!action) return;
       if (action.label === 'CHECK IN') runAction(checkIn);
       else if (action.label === 'START SERVICE') runAction(startService);
       else if (action.label === 'MARK SERVICE COMPLETE') runAction(completeService);
+      else if (action.label === 'READY FOR CHECKOUT') checkoutRef.current?.present();
+      else if (action.label === 'BOOK NEXT APPOINTMENT') {
+        if (booking?.customer_id) router.push(`/customer/${booking.customer_id}` as never);
+      }
+    }
+
+    function handleCheckoutDone() {
+      checkoutRef.current?.dismiss();
+      onChanged();
     }
 
     function handleCancel() {
@@ -96,10 +108,6 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
               )}
             </TouchableOpacity>
           )}
-          {action?.disabled && (
-            <Text style={styles.disabledHint}>Checkout arrives in a later sprint — this appointment is ready when it does.</Text>
-          )}
-
           {booking.status !== 'cancelled' && booking.status !== 'no_show' && (
             <TouchableOpacity onPress={handleCancel} style={styles.cancelRow}>
               <Ionicons name="close-circle-outline" size={16} color={Colors.error} />
@@ -107,6 +115,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
             </TouchableOpacity>
           )}
         </BottomSheetView>
+        <CheckoutSheet ref={checkoutRef} booking={booking} onDone={handleCheckoutDone} />
       </BottomSheetModal>
     );
   }

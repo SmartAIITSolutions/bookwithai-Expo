@@ -14,7 +14,8 @@ import { Shadows } from '@/constants/Shadows';
 const GROUPS: { name: string; items: { label: string; route?: string }[] }[] = [
   { name: 'Business', items: [
     { label: 'Services', route: '/owner-settings/services' },
-    { label: 'Products' }, { label: 'Inventory' }, { label: 'Expenses' }, { label: 'Taxes' },
+    { label: 'Products', route: '/owner-settings/products' },
+    { label: 'Inventory' }, { label: 'Expenses' }, { label: 'Taxes' },
   ] },
   { name: 'Team', items: [
     { label: 'Staff', route: '/owner-settings/staff' },

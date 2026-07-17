@@ -37,12 +37,12 @@ export function bookingStatusColor(b: BookingLike): { color: string; label: Stat
 }
 
 // The Phase 0.4/0.6 sticky action bar — the one next action the current
-// state calls for. `disabled` marks READY FOR CHECKOUT, since Checkout Mode
-// itself is Sprint 4 scope, not built yet — shown honestly as pending
-// rather than wired to a dead end.
+// state calls for. READY FOR CHECKOUT now opens real Checkout Mode
+// (Sprint 4) instead of the Sprint 2 placeholder disabled state.
 export function nextAction(b: BookingLike): { label: string; disabled?: boolean } | null {
   if (b.status === 'cancelled' || b.status === 'no_show') return null;
-  if (b.service_completed_at) return { label: 'READY FOR CHECKOUT', disabled: true };
+  if (b.status === 'completed') return { label: 'BOOK NEXT APPOINTMENT' };
+  if (b.service_completed_at) return { label: 'READY FOR CHECKOUT' };
   if (b.service_started_at)   return { label: 'MARK SERVICE COMPLETE' };
   if (b.checked_in_at)        return { label: 'START SERVICE' };
   return { label: 'CHECK IN' };
