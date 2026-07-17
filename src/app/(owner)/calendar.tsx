@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { router } from 'expo-router';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,7 +67,7 @@ export default function OwnerCalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <OwnerScreenHeader title="Calendar" onCreatePress={() => walkInRef.current?.present()} />
+      <OwnerScreenHeader title="Calendar" onCreatePress={() => walkInRef.current?.present()} onNotificationsPress={() => router.push('/owner-notifications' as never)} />
 
       <View style={styles.dateRow}>
         <TouchableOpacity onPress={() => shiftDay(-1)}><Text style={styles.dateNav}>← Yesterday</Text></TouchableOpacity>

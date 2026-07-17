@@ -41,7 +41,7 @@ export default function OwnerMoreScreen() {
 
   return (
     <View style={styles.container}>
-      <OwnerScreenHeader title="More" />
+      <OwnerScreenHeader title="More" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
       <ScrollView contentContainerStyle={styles.content}>
         {GROUPS.map((group) => (
           <View key={group.name} style={styles.group}>

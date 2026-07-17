@@ -14,6 +14,7 @@ export interface Business {
   iana_timezone: string | null;
   cancellation_policy: string | null;
   week_schedule: WeekSchedule | null;
+  morning_brief_hour: number;
 }
 
 export interface Holiday {

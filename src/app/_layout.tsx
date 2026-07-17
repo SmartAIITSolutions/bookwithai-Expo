@@ -20,12 +20,13 @@ import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
+import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
 
 // Extract salon slug from a bookwithai.app/book/<slug> URL
 function extractSlugFromUrl(url: string): string | null {
@@ -101,6 +102,7 @@ export default function RootLayout() {
         <Stack.Screen name="owner-settings/products" options={{ headerShown: true }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="customer/merge-duplicates" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-notifications" options={{ headerShown: true }} />
         <Stack.Screen name="auth" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="notifications" />
@@ -132,6 +134,7 @@ export default function RootLayout() {
 function AuthRedirectGate() {
   const { user, role, loading } = useAuth();
   const segments = useSegments();
+  const pushRegistered = useRef(false);
 
   useEffect(() => {
     if (loading) return;
@@ -140,6 +143,14 @@ function AuthRedirectGate() {
       router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
     }
   }, [user, role, loading, segments]);
+
+  // Owner push registration -- Sprint 5's real Notification Center needs a
+  // device token on file. Fires once per signed-in owner session.
+  useEffect(() => {
+    if (loading || !user || role !== 'owner' || pushRegistered.current) return;
+    pushRegistered.current = true;
+    requestAndRegisterPushToken();
+  }, [user, role, loading]);
 
   return null;
 }

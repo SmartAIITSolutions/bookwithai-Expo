@@ -30,7 +30,7 @@ export default function OwnerCustomersScreen() {
 
   return (
     <View style={styles.container}>
-      <OwnerScreenHeader title="Customers" />
+      <OwnerScreenHeader title="Customers" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
       <View style={styles.searchRow}>
         <Ionicons name="search" size={16} color={Colors.textSecondary} />
         <TextInput

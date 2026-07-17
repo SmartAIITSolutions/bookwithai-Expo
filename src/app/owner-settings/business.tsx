@@ -47,6 +47,7 @@ export default function BusinessSetupScreen() {
       state: business.state,
       postal_code: business.postal_code,
       cancellation_policy: business.cancellation_policy,
+      morning_brief_hour: business.morning_brief_hour,
     });
     setSaving(false);
     if (!result.ok) Alert.alert('Could not save', result.error);
@@ -105,6 +106,23 @@ export default function BusinessSetupScreen() {
             onChangeText={v => set('cancellation_policy', v)}
             multiline
           />
+        </Section>
+
+        <Section title="Morning Brief">
+          <Text style={styles.fieldLabel}>Delivered daily at:</Text>
+          <View style={styles.hourRow}>
+            {[6, 7, 8, 9].map(h => (
+              <TouchableOpacity
+                key={h}
+                style={[styles.hourChip, business.morning_brief_hour === h && styles.hourChipActive]}
+                onPress={() => set('morning_brief_hour', h)}
+              >
+                <Text style={[styles.hourChipText, business.morning_brief_hour === h && styles.hourChipTextActive]}>
+                  {h > 12 ? h - 12 : h}{h >= 12 ? 'PM' : 'AM'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </Section>
 
         <Section title="Holiday Hours">
@@ -202,6 +220,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.backgroundMain },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.backgroundMain },
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
+  hourRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
+  hourChip: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full, backgroundColor: Colors.backgroundMain, borderWidth: 1, borderColor: Colors.border },
+  hourChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  hourChipText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
+  hourChipTextActive: { color: Colors.textOnPrimary },
   section: { gap: Spacing.xs },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase',
