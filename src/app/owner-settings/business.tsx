@@ -1,0 +1,235 @@
+import { useEffect, useState, useCallback } from 'react';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { Stack, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { getBusiness, updateBusiness, addHoliday, removeHoliday, Business, Holiday } from '@/lib/api/ownerBusiness';
+import { Colors } from '@/constants/Colors';
+import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { Shadows } from '@/constants/Shadows';
+
+// Business Setup — Sprint 1, Phase 1 "Business Setup" group. Includes the
+// two confirmed-missing fields from the audit: structured address and
+// holiday hours (shared with SANAA via sanaa_holidays).
+export default function BusinessSetupScreen() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [addingHoliday, setAddingHoliday] = useState(false);
+  const [newDate, setNewDate] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newMessage, setNewMessage] = useState('');
+
+  const load = useCallback(async () => {
+    const result = await getBusiness();
+    if (result.ok) {
+      setBusiness(result.data.business);
+      setHolidays(result.data.holidays);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function set<K extends keyof Business>(key: K, value: Business[K]) {
+    setBusiness(b => (b ? { ...b, [key]: value } : b));
+  }
+
+  async function handleSave() {
+    if (!business) return;
+    setSaving(true);
+    const result = await updateBusiness({
+      business_name: business.business_name,
+      owner_phone: business.owner_phone,
+      address_line1: business.address_line1,
+      address_line2: business.address_line2,
+      city: business.city,
+      state: business.state,
+      postal_code: business.postal_code,
+      cancellation_policy: business.cancellation_policy,
+    });
+    setSaving(false);
+    if (!result.ok) Alert.alert('Could not save', result.error);
+  }
+
+  async function handleAddHoliday() {
+    if (!newDate.trim() || !newName.trim() || !newMessage.trim()) {
+      Alert.alert('Missing info', 'Date, name, and message are all required.');
+      return;
+    }
+    const result = await addHoliday({ date: newDate.trim(), name: newName.trim(), message: newMessage.trim() });
+    if (result.ok) {
+      setNewDate(''); setNewName(''); setNewMessage(''); setAddingHoliday(false);
+      load();
+    } else {
+      Alert.alert('Could not add holiday', result.error);
+    }
+  }
+
+  async function handleRemoveHoliday(id: string) {
+    const result = await removeHoliday(id);
+    if (result.ok) setHolidays(h => h.filter(x => x.id !== id));
+    else Alert.alert('Could not remove', result.error);
+  }
+
+  if (loading || !business) {
+    return (
+      <View style={styles.centered}>
+        <Stack.Screen options={{ title: 'Business Setup' }} />
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Business Setup', headerBackTitle: 'More' }} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Section title="Business Info">
+          <Field label="Business name" value={business.business_name} onChangeText={v => set('business_name', v)} />
+          <Field label="Phone" value={business.owner_phone ?? ''} onChangeText={v => set('owner_phone', v)} keyboardType="phone-pad" />
+        </Section>
+
+        <Section title="Address">
+          <Field label="Address line 1" value={business.address_line1 ?? ''} onChangeText={v => set('address_line1', v)} />
+          <Field label="Address line 2" value={business.address_line2 ?? ''} onChangeText={v => set('address_line2', v)} />
+          <Field label="City" value={business.city ?? ''} onChangeText={v => set('city', v)} />
+          <Field label="State" value={business.state ?? ''} onChangeText={v => set('state', v)} />
+          <Field label="Postal code" value={business.postal_code ?? ''} onChangeText={v => set('postal_code', v)} keyboardType="number-pad" />
+        </Section>
+
+        <Section title="Policies">
+          <Field
+            label="Cancellation policy"
+            value={business.cancellation_policy ?? ''}
+            onChangeText={v => set('cancellation_policy', v)}
+            multiline
+          />
+        </Section>
+
+        <Section title="Holiday Hours">
+          {holidays.length === 0 && (
+            <Text style={styles.emptyHint}>Add dates you're closed — SANAA reads these automatically to callers too.</Text>
+          )}
+          {holidays.map(h => (
+            <View key={h.id} style={styles.holidayRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.holidayName}>{h.name} — {h.date}</Text>
+                <Text style={styles.holidayMessage}>{h.message}</Text>
+              </View>
+              <TouchableOpacity onPress={() => handleRemoveHoliday(h.id)} hitSlop={8}>
+                <Ionicons name="trash-outline" size={18} color={Colors.error} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          {addingHoliday ? (
+            <View style={styles.inlineForm}>
+              <TextInput
+                style={styles.input}
+                placeholder="Date (YYYY-MM-DD)"
+                placeholderTextColor={Colors.textDisabled}
+                value={newDate}
+                onChangeText={setNewDate}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Name (e.g. Christmas Day)"
+                placeholderTextColor={Colors.textDisabled}
+                value={newName}
+                onChangeText={setNewName}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Message (what SANAA/customers hear)"
+                placeholderTextColor={Colors.textDisabled}
+                value={newMessage}
+                onChangeText={setNewMessage}
+              />
+              <View style={styles.inlineFormActions}>
+                <TouchableOpacity onPress={() => setAddingHoliday(false)}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleAddHoliday}>
+                  <Text style={styles.addRowText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.addRow} onPress={() => setAddingHoliday(true)}>
+              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Text style={styles.addRowText}>Add closed date</Text>
+            </TouchableOpacity>
+          )}
+        </Section>
+
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color={Colors.textOnPrimary} /> : <Text style={styles.saveButtonText}>Save</Text>}
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.card}>{children}</View>
+    </View>
+  );
+}
+
+function Field(props: {
+  label: string; value: string; onChangeText: (v: string) => void;
+  keyboardType?: 'default' | 'phone-pad' | 'number-pad'; multiline?: boolean;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{props.label}</Text>
+      <TextInput
+        style={[styles.input, props.multiline && styles.inputMultiline]}
+        value={props.value}
+        onChangeText={props.onChangeText}
+        keyboardType={props.keyboardType ?? 'default'}
+        multiline={props.multiline}
+        placeholderTextColor={Colors.textDisabled}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.backgroundMain },
+  content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
+  section: { gap: Spacing.xs },
+  sectionTitle: {
+    fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase',
+    color: Colors.textSecondary, marginLeft: Spacing.xs,
+  },
+  card: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.md, ...Shadows.subtle },
+  field: { gap: 6 },
+  fieldLabel: { fontSize: 13, color: Colors.textSecondary },
+  input: {
+    borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 10, fontSize: 15, color: Colors.textPrimary,
+  },
+  inputMultiline: { minHeight: 72, textAlignVertical: 'top' },
+  holidayRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: Spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  holidayName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
+  holidayMessage: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 2 },
+  emptyHint: { fontSize: 13, color: Colors.textSecondary },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
+  addRowText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  inlineForm: { gap: Spacing.sm, paddingTop: Spacing.xs },
+  inlineFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg, paddingTop: 2 },
+  cancelText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
+  saveButton: {
+    backgroundColor: Colors.buttonPrimaryBg, borderRadius: BorderRadius.lg,
+    paddingVertical: 14, alignItems: 'center', ...Shadows.button,
+  },
+  saveButtonText: { color: Colors.buttonPrimaryText, fontSize: 15, fontWeight: '700' },
+});

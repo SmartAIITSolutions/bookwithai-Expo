@@ -27,6 +27,7 @@
 | 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
 | **Salon Owner App — Sprint 0** (Foundation shell: role-aware auth, 5-tab owner nav, design tokens, bottom-sheet dependency) | 4–6 days, predicted 2026-07-25 | ✅ Done 2026-07-17 (8 days ahead) | Full sprint schedule + reasoning lives in `booking-app/MASTER.md` § SALON OWNER APP — FULL ROADMAP → Sprint Schedule. `profiles` table migration applied to prod via Supabase CLI (`supabase db push`) after installing the CLI and repairing its migration ledger — see that file's Sprint 0 build note for the full story, including a pre-existing duplicate-migration-timestamp bug it surfaced (still open, unrelated to this sprint). |
+| **Salon Owner App — Sprint 1** (Business Setup + Services + Staff Foundation) | 5–7 days, predicted 2026-08-04 | ✅ Done 2026-07-17 (18 days ahead) | New screens: `owner-settings/{business,services,staff}.tsx`, reachable from More → Settings/Services/Staff. Business Setup includes address + holiday hours (the two Phase 1 gaps found in the audit). Staff screen includes a simple weekly-hours editor. Full build notes in `booking-app/MASTER.md`. |
 
 > The 12–16 week original estimate was based on a human developer working a few sessions per week.
 > AI-assisted coding collapsed the build time to a single day. Store review timelines remain the same — those are Google and Apple's clocks, not ours.

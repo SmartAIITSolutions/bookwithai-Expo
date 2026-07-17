@@ -91,6 +91,9 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(owner)" />
+        <Stack.Screen name="owner-settings/business" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/services" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/staff" options={{ headerShown: true }} />
         <Stack.Screen name="auth" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="notifications" />
