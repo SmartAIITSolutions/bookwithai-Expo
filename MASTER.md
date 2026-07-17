@@ -26,6 +26,7 @@
 | 19 — Internal Testing | 1–2 sessions | 🔄 Unblocked, ready to resume | — |
 | 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
+| **Salon Owner App — Sprint 0** (Foundation shell: role-aware auth, 5-tab owner nav, design tokens, bottom-sheet dependency) | 4–6 days, predicted 2026-07-25 | ⚠️ Code complete 2026-07-17 — **DB migration not yet applied** | Full sprint schedule + reasoning lives in `booking-app/MASTER.md` § SALON OWNER APP — FULL ROADMAP → Sprint Schedule. `profiles` table migration (`booking-app/supabase/migrations/20260717120000_profiles_role.sql`) written but not yet run against Supabase — no CLI/psql tool available this session, needs to be applied via Supabase Dashboard SQL editor. Until then, role defaults to 'customer' for everyone and `(owner)` routes are unreachable in practice. |
 
 > The 12–16 week original estimate was based on a human developer working a few sessions per week.
 > AI-assisted coding collapsed the build time to a single day. Store review timelines remain the same — those are Google and Apple's clocks, not ours.

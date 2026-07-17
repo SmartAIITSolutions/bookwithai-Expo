@@ -15,7 +15,7 @@ import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/
 import { useAuth } from '@/lib/auth/AuthContext';
 
 export default function BiometricsScreen() {
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const [biometricType, setBiometricType] = useState<'fingerprint' | 'face' | 'none'>('none');
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function BiometricsScreen() {
       });
 
       if (result.success) {
-        router.replace('/(tabs)/book');
+        router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
       }
     } catch (e) {
       // User cancelled or error — stay on screen

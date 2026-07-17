@@ -58,6 +58,16 @@ export const Colors = {
 
   // ── Shadow ───────────────────────────────────────────
   shadowColor: 'rgba(34, 34, 34, 0.08)',
+
+  // ── Salon-owner app: appointment status colors (Phase 0.3) ───
+  // Status only — never used for service or staff identity.
+  statusCompleted:      '#9CA3AF', // Gray
+  statusCheckedIn:      '#3B82F6', // Blue
+  statusInService:      '#5B2EFF', // Purple (reuses primary)
+  statusPaid:           '#22C55E', // Green
+  statusArrivingSoon:   '#D4AF37', // Amber (reuses gold)
+  statusLate:           '#EF4444', // Red
+  statusPaymentPending: '#F97316', // Orange
 } as const;
 
 export type ColorKey = keyof typeof Colors;

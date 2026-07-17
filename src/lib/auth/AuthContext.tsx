@@ -2,37 +2,62 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
+export type UserRole = 'customer' | 'owner';
+
 interface AuthContextValue {
-  user:    User | null;
-  session: Session | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
+  user:     User | null;
+  session:  Session | null;
+  role:     UserRole | null;
+  clientId: string | null;
+  loading:  boolean;
+  signOut:  () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
-  user:    null,
-  session: null,
-  loading: true,
-  signOut: async () => {},
+  user:     null,
+  session:  null,
+  role:     null,
+  clientId: null,
+  loading:  true,
+  signOut:  async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user,    setUser]    = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user,     setUser]     = useState<User | null>(null);
+  const [session,  setSession]  = useState<Session | null>(null);
+  const [role,     setRole]     = useState<UserRole | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [loading,  setLoading]  = useState(true);
+
+  async function loadProfile(userId: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('role, client_id')
+      .eq('id', userId)
+      .maybeSingle();
+    setRole((data?.role as UserRole) ?? 'customer');
+    setClientId(data?.client_id ?? null);
+  }
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) await loadProfile(session.user.id);
       setLoading(false);
     });
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        await loadProfile(session.user.id);
+      } else {
+        setRole(null);
+        setClientId(null);
+      }
       setLoading(false);
     });
 
@@ -44,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, clientId, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

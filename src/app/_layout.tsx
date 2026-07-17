@@ -90,6 +90,7 @@ export default function RootLayout() {
       <AuthRedirectGate />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(owner)" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="notifications" />
@@ -114,17 +115,19 @@ export default function RootLayout() {
 
 // Watches auth state and moves a now-signed-in user off the /auth stack
 // (covers sign-in, sign-up, magic link, and Google OAuth completing).
+// Routes by role — 'owner' lands in the salon-owner shell, everyone else
+// (including the 'customer' default) lands in the existing customer tabs.
 function AuthRedirectGate() {
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   const segments = useSegments();
 
   useEffect(() => {
     if (loading) return;
     const onAuthStack = segments[0] === 'auth';
     if (user && onAuthStack) {
-      router.replace('/(tabs)/book');
+      router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
     }
-  }, [user, loading, segments]);
+  }, [user, role, loading, segments]);
 
   return null;
 }
@@ -157,6 +160,11 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
     }
   }
 
-  // 4. Signed in, no biometrics lock — straight to tabs
-  router.replace('/(tabs)/book');
+  // 4. Signed in, no biometrics lock — route by role
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .maybeSingle();
+  router.replace(profile?.role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
 }
