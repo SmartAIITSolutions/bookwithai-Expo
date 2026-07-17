@@ -7,6 +7,7 @@ import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLin
 import { getStoreCredit } from '@/lib/api/ownerCheckout';
 import { validateGiftCard } from '@/lib/api/giftCards';
 import { listProducts, Product } from '@/lib/api/ownerProducts';
+import { listServices, Service } from '@/lib/api/ownerServices';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
@@ -28,6 +29,9 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
     const [preview, setPreview] = useState<CheckoutPreview | null>(null);
     const [catalog, setCatalog] = useState<Product[]>([]);
     const [products, setProducts] = useState<ProductLine[]>([]);
+    const [services, setServices] = useState<Service[]>([]);
+    const [upgradedService, setUpgradedService] = useState<Service | null>(null);
+    const [showServicePicker, setShowServicePicker] = useState(false);
     const [discountCents, setDiscountCents] = useState(0);
     const [tipCents, setTipCents] = useState(0);
     const [tenders, setTenders] = useState<Tender[]>([]);
@@ -45,12 +49,14 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
 
     const load = useCallback(async () => {
       if (!booking) return;
-      const [previewResult, productsResult] = await Promise.all([
+      const [previewResult, productsResult, servicesResult] = await Promise.all([
         getCheckoutPreview(booking.id),
         listProducts(),
+        listServices(),
       ]);
       if (previewResult.ok) setPreview(previewResult.data);
       if (productsResult.ok) setCatalog(productsResult.data.data);
+      if (servicesResult.ok) setServices(servicesResult.data.data.filter(s => s.active && s.id !== booking.service_id));
       if (booking.customer_id) {
         const credit = await getStoreCredit(booking.customer_id);
         if (credit.ok) setStoreCreditBalance(credit.data.balance_cents);
@@ -59,7 +65,7 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
 
     useEffect(() => {
       if (booking) {
-        setResult(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0);
+        setResult(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setUpgradedService(null);
         load();
       }
     }, [booking, load]);
@@ -72,8 +78,9 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
       );
     }
 
+    const serviceBaseCents = upgradedService ? upgradedService.price_cents : preview.subtotal_cents;
     const productTotal = products.reduce((s, p) => s + p.quantity * p.price_cents_each, 0);
-    const subtotal = preview.subtotal_cents + productTotal;
+    const subtotal = serviceBaseCents + productTotal;
     // Recomputed reactively, not frozen from the initial preview call --
     // tax must reflect products/discount chosen during this checkout.
     const taxableBase = Math.max(0, subtotal - discountCents);
@@ -121,6 +128,7 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
       const res = await submitCheckout(booking.id, {
         tip_cents: tipCents, discount_cents: discountCents, tax_cents: taxCents,
         products, tenders, send_receipt_email: sendEmail, send_receipt_sms: sendSms,
+        upgraded_service_id: upgradedService?.id, upgraded_price_cents: upgradedService?.price_cents,
       });
       setSubmitting(false);
       if (!res.ok) { Alert.alert('Checkout failed', res.error); return; }
@@ -178,6 +186,29 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
               {preview.checklist.filter(c => !c.ok).map((c, i) => <Text key={i} style={styles.checklistItem}>⚠ {c.label}</Text>)}
             </View>
           )}
+
+          <Section title="Service">
+            {upgradedService ? (
+              <View style={styles.tenderRow}>
+                <Text style={styles.tenderText}>Upgraded to {upgradedService.name} — {money(upgradedService.price_cents)}</Text>
+                <TouchableOpacity onPress={() => setUpgradedService(null)}><Ionicons name="close" size={16} color={Colors.error} /></TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.addRow} onPress={() => setShowServicePicker(v => !v)}>
+                <Ionicons name="arrow-up-circle-outline" size={16} color={Colors.primary} />
+                <Text style={styles.linkText}>Upgrade service</Text>
+              </TouchableOpacity>
+            )}
+            {showServicePicker && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {services.map(s => (
+                  <TouchableOpacity key={s.id} style={styles.chip} onPress={() => { setUpgradedService(s); setShowServicePicker(false); }}>
+                    <Text style={styles.chipText}>{s.name} · {money(s.price_cents)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </Section>
 
           <Section title="Products">
             {products.map(p => (

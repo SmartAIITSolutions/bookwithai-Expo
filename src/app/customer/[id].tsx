@@ -86,6 +86,12 @@ export default function CustomerDetailScreen() {
     load();
   }
 
+  async function handleTogglePriority() {
+    if (!id || !data) return;
+    const result = await updateCustomer(id, { priority: !data.customer.priority });
+    if (result.ok) load();
+  }
+
   async function handleDelete() {
     if (!id) return;
     Alert.alert('Delete customer?', 'Bookings stay on record but unlinked. This cannot be undone.', [
@@ -178,6 +184,9 @@ export default function CustomerDetailScreen() {
             <View style={styles.badgeRow}>
               {(customer.total_bookings ?? 0) >= 5 && <Badge label="VIP" color={Colors.gold} />}
               {customer.blocked && <Badge label="Blocked" color={Colors.error} />}
+              <TouchableOpacity onPress={handleTogglePriority}>
+                <Badge label={customer.priority ? '★ Priority' : '+ Priority'} color={customer.priority ? Colors.gold : Colors.textDisabled} />
+              </TouchableOpacity>
             </View>
           </View>
           <TouchableOpacity onPress={() => setHealthExpanded(v => !v)} style={[styles.healthPill, { borderColor: healthColor }]}>

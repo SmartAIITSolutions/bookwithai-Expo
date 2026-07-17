@@ -3,6 +3,7 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Activi
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getBusiness, updateBusiness, addHoliday, removeHoliday, Business, Holiday } from '@/lib/api/ownerBusiness';
+import { listClosures, addClosure, removeClosure, BusinessClosure } from '@/lib/api/ownerDailyOps';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
@@ -19,13 +20,19 @@ export default function BusinessSetupScreen() {
   const [newDate, setNewDate] = useState('');
   const [newName, setNewName] = useState('');
   const [newMessage, setNewMessage] = useState('');
+  const [closures, setClosures] = useState<BusinessClosure[]>([]);
+  const [addingClosure, setAddingClosure] = useState(false);
+  const [closureStart, setClosureStart] = useState('');
+  const [closureEnd, setClosureEnd] = useState('');
+  const [closureReason, setClosureReason] = useState('');
 
   const load = useCallback(async () => {
-    const result = await getBusiness();
+    const [result, closureResult] = await Promise.all([getBusiness(), listClosures()]);
     if (result.ok) {
       setBusiness(result.data.business);
       setHolidays(result.data.holidays);
     }
+    if (closureResult.ok) setClosures(closureResult.data.data);
     setLoading(false);
   }, []);
 
@@ -48,6 +55,7 @@ export default function BusinessSetupScreen() {
       postal_code: business.postal_code,
       cancellation_policy: business.cancellation_policy,
       morning_brief_hour: business.morning_brief_hour,
+      max_daily_bookings: business.max_daily_bookings,
     });
     setSaving(false);
     if (!result.ok) Alert.alert('Could not save', result.error);
@@ -71,6 +79,25 @@ export default function BusinessSetupScreen() {
     const result = await removeHoliday(id);
     if (result.ok) setHolidays(h => h.filter(x => x.id !== id));
     else Alert.alert('Could not remove', result.error);
+  }
+
+  async function handleAddClosure() {
+    if (!closureStart.trim() || !closureEnd.trim()) {
+      Alert.alert('Missing info', 'Start and end dates are required (YYYY-MM-DD).');
+      return;
+    }
+    const result = await addClosure(closureStart.trim(), closureEnd.trim(), closureReason.trim() || undefined);
+    if (result.ok) {
+      setClosureStart(''); setClosureEnd(''); setClosureReason(''); setAddingClosure(false);
+      load();
+    } else {
+      Alert.alert('Could not add closure', result.error);
+    }
+  }
+
+  async function handleRemoveClosure(id: string) {
+    const result = await removeClosure(id);
+    if (result.ok) setClosures(c => c.filter(x => x.id !== id));
   }
 
   if (loading || !business) {
@@ -105,6 +132,12 @@ export default function BusinessSetupScreen() {
             value={business.cancellation_policy ?? ''}
             onChangeText={v => set('cancellation_policy', v)}
             multiline
+          />
+          <Field
+            label="Max bookings per day (blank = no cap)"
+            value={business.max_daily_bookings != null ? String(business.max_daily_bookings) : ''}
+            onChangeText={v => set('max_daily_bookings', v.trim() ? parseInt(v, 10) : null)}
+            keyboardType="number-pad"
           />
         </Section>
 
@@ -176,6 +209,37 @@ export default function BusinessSetupScreen() {
             <TouchableOpacity style={styles.addRow} onPress={() => setAddingHoliday(true)}>
               <Ionicons name="add" size={18} color={Colors.primary} />
               <Text style={styles.addRowText}>Add closed date</Text>
+            </TouchableOpacity>
+          )}
+        </Section>
+
+        <Section title="Business Closures">
+          <Text style={styles.emptyHint}>Multi-day closures (vacation, renovation) — distinct from single-day holiday hours above.</Text>
+          {closures.map(c => (
+            <View key={c.id} style={styles.holidayRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.holidayName}>{c.starts_on} → {c.ends_on}</Text>
+                {c.reason && <Text style={styles.holidayMessage}>{c.reason}</Text>}
+              </View>
+              <TouchableOpacity onPress={() => handleRemoveClosure(c.id)} hitSlop={8}>
+                <Ionicons name="trash-outline" size={18} color={Colors.error} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          {addingClosure ? (
+            <View style={styles.inlineForm}>
+              <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={closureStart} onChangeText={setClosureStart} />
+              <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={closureEnd} onChangeText={setClosureEnd} />
+              <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={Colors.textDisabled} value={closureReason} onChangeText={setClosureReason} />
+              <View style={styles.inlineFormActions}>
+                <TouchableOpacity onPress={() => setAddingClosure(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={handleAddClosure}><Text style={styles.addRowText}>Save</Text></TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.addRow} onPress={() => setAddingClosure(true)}>
+              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Text style={styles.addRowText}>Add closure</Text>
             </TouchableOpacity>
           )}
         </Section>

@@ -18,7 +18,8 @@ export interface OwnerBooking {
   service_completed_at: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
-  customer: { id: string; name: string; email: string | null; phone: string | null } | null;
+  locked: boolean;
+  customer: { id: string; name: string; email: string | null; phone: string | null; priority?: boolean } | null;
   service: { id: string; name: string; duration_minutes: number } | null;
   staff: { id: string; name: string } | null;
 }
@@ -46,3 +47,23 @@ export function checkIn(id: string)            { return updateBooking(id, { chec
 export function startService(id: string)        { return updateBooking(id, { service_started_at: new Date().toISOString() }); }
 export function completeService(id: string)     { return updateBooking(id, { service_completed_at: new Date().toISOString() }); }
 export function cancelBooking(id: string)        { return updateBooking(id, { status: 'cancelled' }); }
+
+export function markNoShow(id: string) {
+  return ownerFetch(`/api/owner/bookings/${id}/no-show`, { method: 'POST' });
+}
+
+export function duplicateBooking(id: string, starts_at: string, ends_at: string) {
+  return ownerFetch(`/api/owner/bookings/${id}/duplicate`, { method: 'POST', body: { starts_at, ends_at } });
+}
+
+export function setBookingLocked(id: string, locked: boolean) {
+  return ownerFetch(`/api/owner/bookings/${id}/lock`, { method: 'PATCH', body: { locked } });
+}
+
+export function bulkCancelBookings(bookingIds: string[]) {
+  return ownerFetch('/api/owner/bookings/bulk', { method: 'POST', body: { booking_ids: bookingIds, action: 'cancel' } });
+}
+
+export function bulkShiftBookings(bookingIds: string[], shiftMinutes: number) {
+  return ownerFetch('/api/owner/bookings/bulk', { method: 'POST', body: { booking_ids: bookingIds, action: 'shift', shift_minutes: shiftMinutes } });
+}

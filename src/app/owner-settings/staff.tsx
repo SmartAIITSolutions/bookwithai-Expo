@@ -3,6 +3,7 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Activi
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { listStaff, createStaff, saveStaffAvailability, StaffMember, DayAvailability } from '@/lib/api/ownerStaff';
+import { setStaffOverride } from '@/lib/api/ownerDailyOps';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
@@ -29,6 +30,9 @@ export default function StaffScreen() {
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingWeek, setEditingWeek] = useState<DayAvailability[]>([]);
+  const [exceptionForId, setExceptionForId] = useState<string | null>(null);
+  const [exceptionDate, setExceptionDate] = useState('');
+  const [exceptionReason, setExceptionReason] = useState('');
 
   const load = useCallback(async () => {
     const result = await listStaff();
@@ -68,6 +72,17 @@ export default function StaffScreen() {
     const result = await saveStaffAvailability(staffId, editingWeek);
     if (result.ok) { setExpandedId(null); load(); }
     else Alert.alert('Could not save hours', result.error);
+  }
+
+  async function handleSaveException(staffId: string) {
+    if (!exceptionDate.trim()) { Alert.alert('Missing date', 'Enter a date (YYYY-MM-DD).'); return; }
+    const result = await setStaffOverride(staffId, { date: exceptionDate.trim(), is_working: false, reason: exceptionReason.trim() || undefined });
+    if (result.ok) {
+      Alert.alert('Saved', `${exceptionDate} marked as a day off.`);
+      setExceptionForId(null); setExceptionDate(''); setExceptionReason('');
+    } else {
+      Alert.alert('Could not save', result.error);
+    }
   }
 
   return (
@@ -124,6 +139,23 @@ export default function StaffScreen() {
                   <TouchableOpacity style={styles.saveHoursButton} onPress={() => handleSaveHours(s.id)}>
                     <Text style={styles.addRowText}>Save hours</Text>
                   </TouchableOpacity>
+
+                  {exceptionForId === s.id ? (
+                    <View style={styles.exceptionForm}>
+                      <Text style={styles.exceptionLabel}>Mark a specific date off (sick day, etc.)</Text>
+                      <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={exceptionDate} onChangeText={setExceptionDate} />
+                      <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={Colors.textDisabled} value={exceptionReason} onChangeText={setExceptionReason} />
+                      <View style={styles.inlineFormActions}>
+                        <TouchableOpacity onPress={() => setExceptionForId(null)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleSaveException(s.id)}><Text style={styles.addRowText}>Save</Text></TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity style={styles.addRow} onPress={() => setExceptionForId(s.id)}>
+                      <Ionicons name="calendar-outline" size={16} color={Colors.primary} />
+                      <Text style={styles.addRowText}>Add a day-off exception</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </View>
@@ -172,6 +204,8 @@ const styles = StyleSheet.create({
   },
   toText: { fontSize: 12, color: Colors.textSecondary },
   saveHoursButton: { alignSelf: 'flex-end', paddingTop: Spacing.xs },
+  exceptionForm: { gap: Spacing.xs, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+  exceptionLabel: { fontSize: 12.5, color: Colors.textSecondary },
   addCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.sm, ...Shadows.subtle },
   input: {
     borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,

@@ -58,6 +58,7 @@ export interface CustomerDetail {
   preferred_staff: { id: string; name: string } | null;
   opt_out_sms: boolean | null;
   opt_out_email: boolean | null;
+  priority: boolean;
 }
 
 export interface RewardRow {
@@ -120,7 +121,7 @@ export async function getCustomer(id: string) {
 
 export async function updateCustomer(id: string, patch: Partial<{
   email: string | null; phone: string | null; date_of_birth: string | null;
-  blocked: boolean; preferred_staff_id: string | null; opt_out_sms: boolean; opt_out_email: boolean;
+  blocked: boolean; preferred_staff_id: string | null; opt_out_sms: boolean; opt_out_email: boolean; priority: boolean;
 }>) {
   return ownerFetch(`/api/owner/customers/${id}`, { method: 'PATCH', body: patch });
 }

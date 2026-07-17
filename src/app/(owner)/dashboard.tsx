@@ -5,6 +5,8 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { AIInsightSlot } from '@/components/owner/AIInsightSlot';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
+import { DailyOpsCard } from '@/components/owner/DailyOpsCard';
+import { WaitingQueue } from '@/components/owner/WaitingQueue';
 import { getDashboard, DashboardData } from '@/lib/api/ownerDashboard';
 import { listBookingsForDate, OwnerBooking } from '@/lib/api/ownerBookings';
 import { Colors } from '@/constants/Colors';
@@ -91,6 +93,12 @@ export default function OwnerDashboardScreen() {
 
           {/* AI Insights */}
           {data.insights.map((ins, i) => <AIInsightSlot key={i} message={ins} />)}
+
+          {/* Daily Operations: status, announcements, opening/closing checklist */}
+          <DailyOpsCard />
+
+          {/* Waiting Queue */}
+          <WaitingQueue bookings={todaysBookings} onOpen={openBooking} />
 
           {/* Today's Snapshot */}
           <View style={styles.snapshotGrid}>

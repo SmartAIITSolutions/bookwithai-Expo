@@ -15,6 +15,14 @@ export interface Service {
   active: boolean;
 }
 
+export interface AddOnSuggestion {
+  service_id: string;
+  name: string;
+  price_cents: number;
+  duration_minutes: number;
+  confidence_pct: number;
+}
+
 export async function listServices() {
   return ownerFetch<{ data: Service[] }>('/api/owner/services');
 }
@@ -32,4 +40,8 @@ export async function updateService(id: string, patch: Partial<Service>) {
 
 export async function archiveService(id: string) {
   return ownerFetch(`/api/owner/services/${id}`, { method: 'DELETE' });
+}
+
+export async function getAddOnSuggestion(serviceId: string) {
+  return ownerFetch<{ suggestion: AddOnSuggestion | null }>(`/api/owner/services/${serviceId}/add-on-suggestion`);
 }

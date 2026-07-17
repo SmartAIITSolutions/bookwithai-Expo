@@ -31,6 +31,8 @@ export interface CheckoutRequest {
   tenders: Tender[];
   send_receipt_email?: boolean;
   send_receipt_sms?: boolean;
+  upgraded_service_id?: string;
+  upgraded_price_cents?: number;
 }
 
 export interface CheckoutResult {

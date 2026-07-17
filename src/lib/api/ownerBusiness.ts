@@ -15,6 +15,7 @@ export interface Business {
   cancellation_policy: string | null;
   week_schedule: WeekSchedule | null;
   morning_brief_hour: number;
+  max_daily_bookings: number | null;
 }
 
 export interface Holiday {
