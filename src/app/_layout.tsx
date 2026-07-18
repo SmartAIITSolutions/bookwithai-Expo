@@ -139,6 +139,8 @@ export default function RootLayout() {
         <Stack.Screen name="owner-settings/time-off" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/clock" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/products" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/membership-plans" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/service-packages" options={{ headerShown: true }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="customer/merge-duplicates" options={{ headerShown: true }} />
         <Stack.Screen name="owner-notifications" options={{ headerShown: true }} />

@@ -199,6 +199,33 @@
 - ⬜ Sign out and sign back in as a staff member — lands directly in the staff shell (role persists across sessions)
 - ⬜ Log out of all devices / password change flows (existing account-security patterns) also work correctly for a staff-role account, not just customer/owner
 
+### B9. CRM Depth (Sprint 8)
+- ⬜ Create a membership plan with manual billing → saves, shows in the customer detail screen's purchase chips
+- ⬜ Create a membership plan with Stripe subscription billing → real Stripe Price is created automatically (verify in Stripe dashboard), owner never has to touch Stripe directly
+- ⬜ Purchase a manual-mode membership for a customer → activates immediately, correct period-end date shown
+- ⬜ Purchase a Stripe-mode membership → owner gets a real Checkout URL, opening it lets the customer complete payment on their own device
+- ⬜ Completing a Stripe membership checkout → webhook activates the `customer_memberships` row (verify status becomes "Active" without the owner doing anything else)
+- ⬜ A Stripe membership's real renewal (next billing cycle) → `invoice.payment_succeeded` extends the period and resets the visit counter, verify without manual intervention
+- ⬜ Cancel a manual-mode membership → status becomes cancelled immediately
+- ⬜ Cancel a Stripe-mode membership → real Stripe subscription is cancelled, status updates to cancelled once the webhook confirms (not instantly)
+- ⬜ Manual-mode "Renew" button is hidden/rejected for Stripe-mode memberships (renewal is automatic there)
+- ⬜ Create a service package (e.g. "5-visit haircut bundle") → saves with correct included-visits count
+- ⬜ Grant a package to a customer → `visits_remaining` starts at the package's included_visits
+- ⬜ Redeem a package visit → decrements by 1; redeeming with 0 remaining is rejected with a real error
+- ⬜ A package with `expires_after_days` set → redeeming after expiry is rejected
+- ⬜ Add a tag to a customer (inline chip input, not `Alert.prompt`) → saves, appears immediately
+- ⬜ Tag autocomplete suggests previously-used tags from other customers at the same salon
+- ⬜ Remove a tag → disappears from the customer's chip row
+- ⬜ Filter the customer directory by tag (`?tag=`) → returns only customers with that exact tag
+- ⬜ Set a customer's referrer (search + pick an existing customer) → "Referred by" shows the correct name
+- ⬜ A customer cannot be set as their own referrer (rejected)
+- ⬜ The referrer's own customer page shows the referred customer under "Referred by this customer"
+- ⬜ Grant a referral reward → creates a real usable promo code for the REFERRER (not the referred customer), reward status becomes "granted"
+- ⬜ Attempting to grant a reward twice for the same referral is rejected
+- ⬜ Relationship Timeline shows, in chronological order: joined date, first visit, visit-count milestones (5th/10th/25th/50th/100th — only the ones actually reached), every reward unlocked, membership/package purchases, referrals made, and priority-flag grant date
+- ⬜ Relationship Timeline does NOT duplicate/conflict with the existing Service Timeline or Communication sections — verify all three coexist showing different, correct information
+- ⬜ Toggling Priority on for the first time stamps `priority_set_at` and it appears on the Relationship Timeline; toggling it off and back on again does NOT re-stamp the date
+
 ---
 
 ## C. Known regressions to re-check every full pass
@@ -215,3 +242,6 @@ These were real bugs, caught and fixed once already — they're exactly the kind
 - ⬜ **`require_online_payment` respected end-to-end.** A salon with pay-at-salon enabled must never route to Stripe; this was broken once by a setting that was fetched but never actually checked.
 - ⬜ **Role routing after any auth-flow change.** `_layout.tsx`'s `roleHome()` must keep routing owner → owner shell, staff → staff shell, customer → customer tabs — a change to sign-in, invite-linking, or session-refresh logic is exactly the kind of thing that could silently break this for one role while looking fine for the others.
 - ⬜ **Commission never double-charges or double-counts.** `booking_commissions` has a `UNIQUE(booking_id, staff_id)` constraint specifically so a re-finalized checkout (e.g. a webhook re-fires) upserts the existing row instead of creating a second one — verify a booking that gets finalized twice still shows exactly one commission entry.
+- ⬜ **Next.js route-export validation.** `tsc --noEmit` does NOT catch a `route.ts` file exporting a non-HTTP-method constant (breaks Next's build-time route validator, not TypeScript) — this silently broke 3 consecutive production deploys before being caught via the Vercel dashboard directly. Run a real `npm run build` in `booking-app` after touching any route file, not just `tsc`.
+- ⬜ **New table names checked against existing ones before creating.** A `packages` table already existed (agency-level SaaS pricing tiers) when Sprint 8 needed a genuinely different "customer visit bundle" concept — a same-named `CREATE TABLE IF NOT EXISTS` would have silently no-op'd against the wrong table. Before any new migration, grep the codebase for the intended table name first.
+- ⬜ **Stripe-subscription membership state depends on webhooks arriving.** If a webhook is missed/delayed (Stripe retries, but not instantly), a `customer_memberships` row can sit in a stale status for a while — verify the Stripe CLI/dashboard event log shows successful delivery after any membership subscription test, not just that the UI eventually looked right.

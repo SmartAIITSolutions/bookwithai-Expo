@@ -15,6 +15,8 @@ const GROUPS: { name: string; items: { label: string; route?: string }[] }[] = [
   { name: 'Business', items: [
     { label: 'Services', route: '/owner-settings/services' },
     { label: 'Products', route: '/owner-settings/products' },
+    { label: 'Membership Plans', route: '/owner-settings/membership-plans' },
+    { label: 'Packages', route: '/owner-settings/service-packages' },
     { label: 'Inventory' }, { label: 'Expenses' }, { label: 'Taxes' },
   ] },
   { name: 'Team', items: [
