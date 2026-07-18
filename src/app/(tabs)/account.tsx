@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
@@ -18,7 +17,6 @@ import {
 } from '@/lib/push/registerForPushNotifications';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
-const ONBOARDING_KEY = 'bwa_onboarding_done';
 const BIOMETRICS_KEY = 'bwa_biometrics_enabled';
 
 export default function AccountScreen() {
@@ -115,15 +113,6 @@ export default function AccountScreen() {
     );
   }
 
-  // ⚠️ DEV ONLY — remove before store submission
-  async function handleResetOnboarding() {
-    await AsyncStorage.removeItem(ONBOARDING_KEY);
-    Alert.alert('Reset!', 'Onboarding cleared.', [
-      { text: 'Go to Onboarding', onPress: () => router.replace('/onboarding') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }
-
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -143,13 +132,6 @@ export default function AccountScreen() {
             onPress={() => router.push('/auth/sign-up')}>
             <Text style={styles.createBtnText}>Create Account</Text>
           </Pressable>
-
-          <View style={styles.devSection}>
-            <Text style={styles.devLabel}>⚠️ DEV TOOLS — REMOVE BEFORE SUBMISSION</Text>
-            <Pressable style={styles.devBtn} onPress={handleResetOnboarding}>
-              <Text style={styles.devBtnText}>Reset Onboarding</Text>
-            </Pressable>
-          </View>
         </View>
       </SafeAreaView>
     );
@@ -226,6 +208,7 @@ export default function AccountScreen() {
             { label: 'Privacy Policy',   route: '/legal/privacy' },
             { label: 'Terms of Service', route: '/legal/terms' },
             { label: 'Support',          route: '/legal/support' },
+            { label: 'Delete My Data',   route: '/legal/delete-account' },
           ].map(({ label, route }) => (
             <Pressable
               key={route}
@@ -243,13 +226,6 @@ export default function AccountScreen() {
           <Ionicons name="log-out-outline" size={20} color={Colors.error} />
           <Text style={styles.signOutBtnText}>Sign Out</Text>
         </Pressable>
-
-        <View style={styles.devSection}>
-          <Text style={styles.devLabel}>⚠️ DEV TOOLS — REMOVE BEFORE SUBMISSION</Text>
-          <Pressable style={styles.devBtn} onPress={handleResetOnboarding}>
-            <Text style={styles.devBtnText}>Reset Onboarding</Text>
-          </Pressable>
-        </View>
 
       </ScrollView>
     </SafeAreaView>
@@ -407,31 +383,4 @@ const styles = StyleSheet.create({
     color: Colors.error,
   },
 
-  devSection: {
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: Spacing.xl,
-    marginTop: Spacing.md,
-  },
-  devLabel: {
-    fontFamily: FontFamily.soraSemiBold,
-    fontSize: FontSize.xs,
-    color: Colors.warning,
-    textAlign: 'center',
-  },
-  devBtn: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: Colors.warning,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-  },
-  devBtnText: {
-    fontFamily: FontFamily.soraSemiBold,
-    fontSize: FontSize.base,
-    color: Colors.warning,
-  },
 });
