@@ -56,6 +56,7 @@ export default function BusinessSetupScreen() {
       cancellation_policy: business.cancellation_policy,
       morning_brief_hour: business.morning_brief_hour,
       max_daily_bookings: business.max_daily_bookings,
+      staff_login_mode: business.staff_login_mode,
     });
     setSaving(false);
     if (!result.ok) Alert.alert('Could not save', result.error);
@@ -155,6 +156,30 @@ export default function BusinessSetupScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+        </Section>
+
+        <Section title="Staff Login">
+          <Text style={styles.fieldLabel}>How does your team clock in and access their schedule?</Text>
+          <View style={styles.staffModeCol}>
+            <TouchableOpacity
+              style={[styles.staffModeOption, business.staff_login_mode === 'shared_device' && styles.staffModeOptionActive]}
+              onPress={() => set('staff_login_mode', 'shared_device')}
+            >
+              <Text style={[styles.staffModeTitle, business.staff_login_mode === 'shared_device' && styles.staffModeTitleActive]}>
+                Shared device
+              </Text>
+              <Text style={styles.staffModeDesc}>Staff tap their name + a PIN on one front-desk device to clock in.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.staffModeOption, business.staff_login_mode === 'individual_accounts' && styles.staffModeOptionActive]}
+              onPress={() => set('staff_login_mode', 'individual_accounts')}
+            >
+              <Text style={[styles.staffModeTitle, business.staff_login_mode === 'individual_accounts' && styles.staffModeTitleActive]}>
+                Individual accounts
+              </Text>
+              <Text style={styles.staffModeDesc}>Each staff member signs in on their own device with their own account.</Text>
+            </TouchableOpacity>
           </View>
         </Section>
 
@@ -289,6 +314,15 @@ const styles = StyleSheet.create({
   hourChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   hourChipText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
   hourChipTextActive: { color: Colors.textOnPrimary },
+  staffModeCol: { gap: Spacing.sm, marginTop: Spacing.xs },
+  staffModeOption: {
+    padding: Spacing.md, borderRadius: BorderRadius.md,
+    backgroundColor: Colors.backgroundMain, borderWidth: 1, borderColor: Colors.border,
+  },
+  staffModeOptionActive: { borderColor: Colors.primary, backgroundColor: Colors.card },
+  staffModeTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  staffModeTitleActive: { color: Colors.primary },
+  staffModeDesc: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 2 },
   section: { gap: Spacing.xs },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase',

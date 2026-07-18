@@ -16,6 +16,7 @@ export interface Business {
   week_schedule: WeekSchedule | null;
   morning_brief_hour: number;
   max_daily_bookings: number | null;
+  staff_login_mode: 'shared_device' | 'individual_accounts';
 }
 
 export interface Holiday {

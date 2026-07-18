@@ -48,9 +48,9 @@ export async function getAddOnSuggestion(serviceId: string) {
 
 // Empty staff_ids means "any staff can perform this service" (no restriction).
 export async function getServiceStaff(serviceId: string) {
-  return ownerFetch<{ staff_ids: string[] }>(`/api/owner/services/${serviceId}/staff`);
+  return ownerFetch<{ staff_ids: string[]; commission_rates: Record<string, number | null> }>(`/api/owner/services/${serviceId}/staff`);
 }
 
-export async function setServiceStaff(serviceId: string, staffIds: string[]) {
-  return ownerFetch(`/api/owner/services/${serviceId}/staff`, { method: 'PUT', body: { staff_ids: staffIds } });
+export async function setServiceStaff(serviceId: string, staffIds: string[], commissionRates?: Record<string, number | null>) {
+  return ownerFetch(`/api/owner/services/${serviceId}/staff`, { method: 'PUT', body: { staff_ids: staffIds, commission_rates: commissionRates } });
 }

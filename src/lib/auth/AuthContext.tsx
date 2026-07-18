@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
-export type UserRole = 'customer' | 'owner';
+export type UserRole = 'customer' | 'owner' | 'staff';
 
 interface AuthContextValue {
   user:     User | null;
@@ -11,6 +11,7 @@ interface AuthContextValue {
   clientId: string | null;
   loading:  boolean;
   signOut:  (scope?: 'local' | 'global') => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextValue>({
   clientId: null,
   loading:  true,
   signOut:  async () => {},
+  refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -68,8 +70,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut({ scope });
   }
 
+  // Re-reads profiles.role/client_id for the current session without a
+  // full sign-out/sign-in -- needed right after linking a staff invite,
+  // since that write happens server-side and onAuthStateChange only
+  // fires on an actual token change, not a profiles row update.
+  async function refreshProfile() {
+    if (user) await loadProfile(user.id);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, session, role, clientId, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, clientId, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

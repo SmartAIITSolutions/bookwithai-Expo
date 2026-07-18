@@ -21,6 +21,7 @@ export default function ServicesScreen() {
 
   const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
   const [assignedStaffIds, setAssignedStaffIds] = useState<Set<string>>(new Set());
+  const [commissionRates, setCommissionRates] = useState<Record<string, number | null>>({});
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffSaving, setStaffSaving] = useState(false);
 
@@ -42,8 +43,12 @@ export default function ServicesScreen() {
     setStaffLoading(true);
     const result = await getServiceStaff(serviceId);
     setStaffLoading(false);
-    if (result.ok) setAssignedStaffIds(new Set(result.data.staff_ids));
-    else Alert.alert('Could not load staff assignments', result.error);
+    if (result.ok) {
+      setAssignedStaffIds(new Set(result.data.staff_ids));
+      setCommissionRates(result.data.commission_rates ?? {});
+    } else {
+      Alert.alert('Could not load staff assignments', result.error);
+    }
   }
 
   async function handleToggleStaffMember(serviceId: string, staffId: string) {
@@ -52,12 +57,24 @@ export default function ServicesScreen() {
     else next.add(staffId);
     setAssignedStaffIds(next);
     setStaffSaving(true);
-    const result = await setServiceStaff(serviceId, Array.from(next));
+    const result = await setServiceStaff(serviceId, Array.from(next), commissionRates);
     setStaffSaving(false);
     if (!result.ok) {
       Alert.alert('Could not save', result.error);
       setAssignedStaffIds(assignedStaffIds);
     }
+  }
+
+  async function handleSetCommissionRate(serviceId: string, staffId: string, value: string) {
+    const pct = value.trim() ? parseFloat(value) : null;
+    if (value.trim() && (isNaN(pct as number) || (pct as number) < 0 || (pct as number) > 100)) {
+      Alert.alert('Invalid rate', 'Enter a percentage between 0 and 100.');
+      return;
+    }
+    const next = { ...commissionRates, [staffId]: pct };
+    setCommissionRates(next);
+    const result = await setServiceStaff(serviceId, Array.from(assignedStaffIds), next);
+    if (!result.ok) Alert.alert('Could not save rate', result.error);
   }
 
   async function handleAdd() {
@@ -134,18 +151,29 @@ export default function ServicesScreen() {
                       {staff.map(member => {
                         const isAssigned = assignedStaffIds.has(member.id);
                         return (
-                          <TouchableOpacity
-                            key={member.id}
-                            style={styles.staffRow}
-                            disabled={staffSaving}
-                            onPress={() => handleToggleStaffMember(s.id, member.id)}>
-                            <Ionicons
-                              name={isAssigned ? 'checkbox' : 'square-outline'}
-                              size={20}
-                              color={isAssigned ? Colors.primary : Colors.textDisabled}
-                            />
-                            <Text style={styles.staffRowText}>{member.name}</Text>
-                          </TouchableOpacity>
+                          <View key={member.id} style={styles.staffRow}>
+                            <TouchableOpacity
+                              style={styles.staffRowMain}
+                              disabled={staffSaving}
+                              onPress={() => handleToggleStaffMember(s.id, member.id)}>
+                              <Ionicons
+                                name={isAssigned ? 'checkbox' : 'square-outline'}
+                                size={20}
+                                color={isAssigned ? Colors.primary : Colors.textDisabled}
+                              />
+                              <Text style={styles.staffRowText}>{member.name}</Text>
+                            </TouchableOpacity>
+                            {isAssigned && (
+                              <TextInput
+                                style={styles.staffRateInput}
+                                placeholder="Default"
+                                placeholderTextColor={Colors.textDisabled}
+                                defaultValue={commissionRates[member.id] != null ? String(commissionRates[member.id]) : ''}
+                                onEndEditing={(e) => handleSetCommissionRate(s.id, member.id, e.nativeEvent.text)}
+                                keyboardType="decimal-pad"
+                              />
+                            )}
+                          </View>
                         );
                       })}
                     </>
@@ -200,8 +228,13 @@ const styles = StyleSheet.create({
   staffBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
   staffPanel: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.xs },
   staffPanelHint: { fontSize: 12, color: Colors.textSecondary, marginBottom: Spacing.xs },
-  staffRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6 },
+  staffRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  staffRowMain: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
   staffRowText: { fontSize: 14, color: Colors.textPrimary },
+  staffRateInput: {
+    width: 64, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, color: Colors.textPrimary, textAlign: 'right',
+  },
   addCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.sm, ...Shadows.subtle },
   input: {
     borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,

@@ -19,7 +19,9 @@ const GROUPS: { name: string; items: { label: string; route?: string }[] }[] = [
   ] },
   { name: 'Team', items: [
     { label: 'Staff', route: '/owner-settings/staff' },
-    { label: 'Schedules' }, { label: 'Payroll' }, { label: 'Permissions' },
+    { label: 'Time Off', route: '/owner-settings/time-off' },
+    { label: 'Clock In / Payroll', route: '/owner-settings/clock' },
+    { label: 'Permissions' },
   ] },
   { name: 'Growth', items: [
     { label: 'Marketing' }, { label: 'Reviews' }, { label: 'Campaigns' }, { label: 'Referrals' }, { label: 'Promotions' },

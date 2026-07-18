@@ -173,6 +173,32 @@
 - ⬜ Add-On Suggestion only appears after ≥3 real occurrences and ≥30% frequency — verify it does NOT show for a service with no real co-occurrence history (i.e., not fabricated)
 - ⬜ Live elapsed-service timer counts up correctly during an in-service appointment
 
+### B8. Staff Management (Sprint 7)
+- ⬜ Business Settings: switch staff login mode between "Shared device" and "Individual accounts" — setting persists and controls which UI shows in the Staff screen
+- ⬜ Staff screen: set a staff member's permission role (Manager/Receptionist/Stylist/Assistant) — saves and persists
+- ⬜ Staff screen: set a staff member's default commission rate — saves, rejects values outside 0–100
+- ⬜ **Shared-device mode:** set a 4-digit PIN for a staff member from the Staff screen (inline form, not `Alert.prompt`)
+- ⬜ **Individual-accounts mode:** send an invite to a staff member's email → real invite email arrives
+- ⬜ Tapping the invite link on a device with the app installed opens the app and lands on "Set Your Password" (not a broken/unmatched-route screen)
+- ⬜ Setting a password completes account linking → staff member is routed into the new staff app shell, not the customer or owner shell
+- ⬜ Staff screen shows "Account active" once an invited staff member has completed signup; shows "Invite pending" before that
+- ⬜ Services screen: set a per-service commission rate override for an assigned staff member — distinct from their default rate
+- ⬜ **Clock-in kiosk (shared-device mode):** tap a staff member, enter correct PIN → clocks in, chip shows "On clock"; tap again + PIN → clocks out
+- ⬜ Kiosk: wrong PIN is rejected, does not clock anyone in/out
+- ⬜ Kiosk: attempting to clock in a staff member who's already clocked in shows a real error, doesn't create a duplicate open shift
+- ⬜ Kiosk: recent shifts list shows correct clock-in/out times, updates after each action
+- ⬜ **Individual-accounts mode:** staff member taps Clock In/Out from their own Schedule tab — no PIN prompt (already authenticated as themselves)
+- ⬜ Staff Schedule tab: a Stylist/Assistant sees only their own upcoming appointments; a Manager/Receptionist sees the whole salon's calendar (real permission-based branching, verify both roles actually differ)
+- ⬜ Owner Time Off screen: create a direct time-off range for a staff member → auto-approved, blocks that staff's availability for every date in the range
+- ⬜ **Individual-accounts mode:** staff submits a time-off request from their own Time Off tab → appears as "Pending" on the owner's Time Off screen
+- ⬜ Owner approves a pending request → staff's Time Off tab shows "Approved", staff's availability is blocked for those dates in the booking flow
+- ⬜ Owner denies a pending request → staff's Time Off tab shows "Denied", no availability change
+- ⬜ Commission: complete a checkout for a booking with a staff member who has a rate set → a commission row is created, visible on both the owner's per-staff commission view and the staff member's own Earnings tab
+- ⬜ Commission: complete a checkout for a staff member with NO rate set anywhere → no commission row created (not a $0 row, no row at all)
+- ⬜ Commission: a booking with a per-service override rate uses that rate, not the staff member's default rate
+- ⬜ Sign out and sign back in as a staff member — lands directly in the staff shell (role persists across sessions)
+- ⬜ Log out of all devices / password change flows (existing account-security patterns) also work correctly for a staff-role account, not just customer/owner
+
 ---
 
 ## C. Known regressions to re-check every full pass
@@ -187,3 +213,5 @@ These were real bugs, caught and fixed once already — they're exactly the kind
 - ⬜ **Salon landing page fields.** `owner_phone`, `address_line1`/`address_line2`/`postal_code`, and `logo_url` (joined from `brand_studio_settings`) must all actually render — this silently regressed once already (wrong field names, `tsc` caught it but the UI bug shipped invisibly for a while first).
 - ⬜ **Cancellation push parity.** Cancel and reschedule use two different backend routes — confirm both still send their respective push after any booking-route refactor.
 - ⬜ **`require_online_payment` respected end-to-end.** A salon with pay-at-salon enabled must never route to Stripe; this was broken once by a setting that was fetched but never actually checked.
+- ⬜ **Role routing after any auth-flow change.** `_layout.tsx`'s `roleHome()` must keep routing owner → owner shell, staff → staff shell, customer → customer tabs — a change to sign-in, invite-linking, or session-refresh logic is exactly the kind of thing that could silently break this for one role while looking fine for the others.
+- ⬜ **Commission never double-charges or double-counts.** `booking_commissions` has a `UNIQUE(booking_id, staff_id)` constraint specifically so a re-finalized checkout (e.g. a webhook re-fires) upserts the existing row instead of creating a second one — verify a booking that gets finalized twice still shows exactly one commission entry.

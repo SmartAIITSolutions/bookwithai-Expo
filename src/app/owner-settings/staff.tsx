@@ -2,13 +2,21 @@ import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Switch } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { listStaff, createStaff, saveStaffAvailability, StaffMember, DayAvailability } from '@/lib/api/ownerStaff';
+import {
+  listStaff, createStaff, updateStaff, saveStaffAvailability, inviteStaff,
+  StaffMember, DayAvailability, PermissionRole,
+} from '@/lib/api/ownerStaff';
 import { setStaffOverride } from '@/lib/api/ownerDailyOps';
+import { getBusiness } from '@/lib/api/ownerBusiness';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const PERMISSION_ROLES: PermissionRole[] = ['manager', 'receptionist', 'stylist', 'assistant'];
+const ROLE_LABELS: Record<PermissionRole, string> = {
+  manager: 'Manager', receptionist: 'Receptionist', stylist: 'Stylist', assistant: 'Assistant',
+};
 
 function defaultWeek(): DayAvailability[] {
   return DAY_LABELS.map((_, i) => ({
@@ -33,10 +41,17 @@ export default function StaffScreen() {
   const [exceptionForId, setExceptionForId] = useState<string | null>(null);
   const [exceptionDate, setExceptionDate] = useState('');
   const [exceptionReason, setExceptionReason] = useState('');
+  const [staffLoginMode, setStaffLoginMode] = useState<'shared_device' | 'individual_accounts'>('shared_device');
+  const [pinDraftFor, setPinDraftFor] = useState<string | null>(null);
+  const [pinDraft, setPinDraft] = useState('');
+  const [inviteDraftFor, setInviteDraftFor] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [savingRoleFor, setSavingRoleFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const result = await listStaff();
+    const [result, businessResult] = await Promise.all([listStaff(), getBusiness()]);
     if (result.ok) setStaff(result.data.data.filter(s => s.active));
+    if (businessResult.ok) setStaffLoginMode(businessResult.data.business.staff_login_mode);
     setLoading(false);
   }, []);
 
@@ -72,6 +87,54 @@ export default function StaffScreen() {
     const result = await saveStaffAvailability(staffId, editingWeek);
     if (result.ok) { setExpandedId(null); load(); }
     else Alert.alert('Could not save hours', result.error);
+  }
+
+  async function handleSetPermissionRole(staffId: string, role: PermissionRole) {
+    setSavingRoleFor(staffId);
+    const result = await updateStaff(staffId, { permission_role: role });
+    setSavingRoleFor(null);
+    if (result.ok) load();
+    else Alert.alert('Could not update role', result.error);
+  }
+
+  async function handleSaveCommissionRate(staffId: string, value: string) {
+    const pct = value.trim() ? parseFloat(value) : null;
+    if (value.trim() && (isNaN(pct as number) || (pct as number) < 0 || (pct as number) > 100)) {
+      Alert.alert('Invalid rate', 'Enter a percentage between 0 and 100.');
+      return;
+    }
+    const result = await updateStaff(staffId, { default_commission_rate_pct: pct });
+    if (result.ok) load();
+    else Alert.alert('Could not save', result.error);
+  }
+
+  async function handleSavePin(staffId: string) {
+    if (pinDraft.length !== 4 || !/^\d{4}$/.test(pinDraft)) {
+      Alert.alert('Invalid PIN', 'Enter a 4-digit PIN.');
+      return;
+    }
+    const result = await updateStaff(staffId, { pin: pinDraft });
+    if (result.ok) {
+      setPinDraftFor(null); setPinDraft('');
+      load();
+    } else {
+      Alert.alert('Could not save PIN', result.error);
+    }
+  }
+
+  async function handleSendInvite(staffId: string) {
+    if (!inviteEmail.trim() || !inviteEmail.includes('@')) {
+      Alert.alert('Invalid email', 'Enter a valid email address.');
+      return;
+    }
+    const result = await inviteStaff(staffId, inviteEmail.trim());
+    if (result.ok) {
+      Alert.alert('Invite sent', `An invite was sent to ${inviteEmail.trim()}.`);
+      setInviteDraftFor(null); setInviteEmail('');
+      load();
+    } else {
+      Alert.alert('Could not send invite', result.error);
+    }
   }
 
   async function handleSaveException(staffId: string) {
@@ -140,6 +203,89 @@ export default function StaffScreen() {
                     <Text style={styles.addRowText}>Save hours</Text>
                   </TouchableOpacity>
 
+                  <View style={styles.roleSection}>
+                    <Text style={styles.exceptionLabel}>Role & permissions</Text>
+                    <View style={styles.roleChipRow}>
+                      {PERMISSION_ROLES.map(r => (
+                        <TouchableOpacity
+                          key={r}
+                          style={[styles.roleChip, s.permission_role === r && styles.roleChipActive]}
+                          disabled={savingRoleFor === s.id}
+                          onPress={() => handleSetPermissionRole(s.id, r)}
+                        >
+                          <Text style={[styles.roleChipText, s.permission_role === r && styles.roleChipTextActive]}>
+                            {ROLE_LABELS[r]}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={[styles.exceptionLabel, { marginTop: Spacing.sm }]}>Default commission rate (%)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g. 40"
+                      placeholderTextColor={Colors.textDisabled}
+                      defaultValue={s.default_commission_rate_pct != null ? String(s.default_commission_rate_pct) : ''}
+                      onEndEditing={(e) => handleSaveCommissionRate(s.id, e.nativeEvent.text)}
+                      keyboardType="decimal-pad"
+                    />
+
+                    {staffLoginMode === 'shared_device' ? (
+                      pinDraftFor === s.id ? (
+                        <View style={styles.inlineFormActions}>
+                          <TextInput
+                            style={[styles.input, { flex: 1 }]}
+                            placeholder="4-digit PIN"
+                            placeholderTextColor={Colors.textDisabled}
+                            value={pinDraft}
+                            onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, 4))}
+                            keyboardType="number-pad"
+                            secureTextEntry
+                            maxLength={4}
+                          />
+                          <TouchableOpacity onPress={() => { setPinDraftFor(null); setPinDraft(''); }}>
+                            <Text style={styles.cancelText}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleSavePin(s.id)}>
+                            <Text style={styles.addRowText}>Save</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity style={styles.addRow} onPress={() => setPinDraftFor(s.id)}>
+                          <Ionicons name="keypad-outline" size={16} color={Colors.primary} />
+                          <Text style={styles.addRowText}>{s.has_pin ? 'Change PIN' : 'Set a clock-in PIN'}</Text>
+                        </TouchableOpacity>
+                      )
+                    ) : s.auth_user_id ? (
+                      <Text style={styles.exceptionLabel}>Account active</Text>
+                    ) : inviteDraftFor === s.id ? (
+                      <View style={styles.inlineFormActions}>
+                        <TextInput
+                          style={[styles.input, { flex: 1 }]}
+                          placeholder="Email address"
+                          placeholderTextColor={Colors.textDisabled}
+                          value={inviteEmail}
+                          onChangeText={setInviteEmail}
+                          autoCapitalize="none"
+                          keyboardType="email-address"
+                        />
+                        <TouchableOpacity onPress={() => { setInviteDraftFor(null); setInviteEmail(''); }}>
+                          <Text style={styles.cancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleSendInvite(s.id)}>
+                          <Text style={styles.addRowText}>Invite</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity style={styles.addRow} onPress={() => setInviteDraftFor(s.id)}>
+                        <Ionicons name="mail-outline" size={16} color={Colors.primary} />
+                        <Text style={styles.addRowText}>
+                          {s.invite_status === 'invited' ? `Invite pending (${s.invite_email})` : 'Invite to create an account'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
                   {exceptionForId === s.id ? (
                     <View style={styles.exceptionForm}>
                       <Text style={styles.exceptionLabel}>Mark a specific date off (sick day, etc.)</Text>
@@ -205,6 +351,15 @@ const styles = StyleSheet.create({
   toText: { fontSize: 12, color: Colors.textSecondary },
   saveHoursButton: { alignSelf: 'flex-end', paddingTop: Spacing.xs },
   exceptionForm: { gap: Spacing.xs, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+  roleSection: { gap: Spacing.xs, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+  roleChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  roleChip: {
+    paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full,
+    backgroundColor: Colors.backgroundMain, borderWidth: 1, borderColor: Colors.border,
+  },
+  roleChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  roleChipText: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
+  roleChipTextActive: { color: Colors.textOnPrimary },
   exceptionLabel: { fontSize: 12.5, color: Colors.textSecondary },
   addCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.sm, ...Shadows.subtle },
   input: {

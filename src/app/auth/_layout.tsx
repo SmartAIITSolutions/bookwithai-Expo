@@ -10,6 +10,8 @@ export default function AuthLayout() {
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="biometrics" />
       <Stack.Screen name="pin-entry" />
+      <Stack.Screen name="staff-invite" />
+      <Stack.Screen name="staff-set-password" />
     </Stack>
   );
 }

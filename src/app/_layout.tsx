@@ -35,6 +35,17 @@ function extractSlugFromUrl(url: string): string | null {
   return match ? match[1] : null;
 }
 
+// Supabase auth links carry their tokens either as query params (PKCE
+// "code") or a URL fragment ("#access_token=...&refresh_token=...",
+// implicit flow) depending on project config -- merge both into one bag
+// so callers don't need to know which flow is active.
+function parseAuthParams(url: string): URLSearchParams {
+  const [, queryPart] = url.split('?');
+  const [, hashPart] = url.split('#');
+  const combined = [queryPart, hashPart].filter(Boolean).join('&');
+  return new URLSearchParams(combined);
+}
+
 SplashScreen.preventAutoHideAsync();
 
 // Show a banner + play sound even while the app is open in the foreground.
@@ -83,6 +94,29 @@ export default function RootLayout() {
     const slug = extractSlugFromUrl(url);
     if (slug) {
       router.push({ pathname: '/salon/[id]', params: { id: slug } });
+      return;
+    }
+    if (url.includes('auth/staff-invite')) {
+      handleStaffInviteLink(url);
+    }
+  }
+
+  async function handleStaffInviteLink(url: string) {
+    const params = parseAuthParams(url);
+    const code = params.get('code');
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    try {
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code);
+      } else if (accessToken && refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      } else {
+        return;
+      }
+      router.replace('/auth/staff-set-password');
+    } catch (e) {
+      // Invite link expired/invalid -- staff can still ask the owner to resend.
     }
   }
 
@@ -98,9 +132,12 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(owner)" />
+        <Stack.Screen name="(staff)" />
         <Stack.Screen name="owner-settings/business" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/services" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/staff" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/time-off" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/clock" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/products" options={{ headerShown: true }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="customer/merge-duplicates" options={{ headerShown: true }} />
@@ -145,7 +182,7 @@ function AuthRedirectGate() {
     if (loading) return;
     const onAuthStack = segments[0] === 'auth';
     if (user && onAuthStack) {
-      router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
+      router.replace(roleHome(role) as never);
     }
   }, [user, role, loading, segments]);
 
@@ -158,6 +195,12 @@ function AuthRedirectGate() {
   }, [user, role, loading]);
 
   return null;
+}
+
+function roleHome(role: string | null): string {
+  if (role === 'owner') return '/(owner)/dashboard';
+  if (role === 'staff') return '/(staff)/schedule';
+  return '/(tabs)/book';
 }
 
 async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
@@ -194,5 +237,5 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
     .select('role')
     .eq('id', session.user.id)
     .maybeSingle();
-  router.replace(profile?.role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
+  router.replace(roleHome(profile?.role ?? null) as never);
 }
