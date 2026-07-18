@@ -63,11 +63,11 @@ export default function SalonScreen() {
   }, [user, salon]);
 
   function handleCall() {
-    if (salon?.phone) Linking.openURL(`tel:${salon.phone}`);
+    if (salon?.owner_phone) Linking.openURL(`tel:${salon.owner_phone}`);
   }
 
   function handleDirections() {
-    const addr = [salon?.address, salon?.city, salon?.state, salon?.zip]
+    const addr = [salon?.address_line1, salon?.address_line2, salon?.city, salon?.state, salon?.postal_code]
       .filter(Boolean)
       .join(', ');
     const encoded = encodeURIComponent(addr);
@@ -121,7 +121,7 @@ export default function SalonScreen() {
   }
 
   const hours = formatHours(salon.business_hours);
-  const fullAddress = [salon.address, salon.city, salon.state, salon.zip]
+  const fullAddress = [salon.address_line1, salon.address_line2, salon.city, salon.state, salon.postal_code]
     .filter(Boolean)
     .join(', ');
 
@@ -148,7 +148,7 @@ export default function SalonScreen() {
 
         {/* Action buttons */}
         <View style={styles.actionRow}>
-          {salon.phone && (
+          {salon.owner_phone && (
             <Pressable style={styles.actionBtn} onPress={handleCall}>
               <Ionicons name="call-outline" size={20} color={Colors.primary} />
               <Text style={styles.actionBtnText}>Call</Text>

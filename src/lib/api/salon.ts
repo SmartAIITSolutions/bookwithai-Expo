@@ -4,10 +4,13 @@ export interface SalonInfo {
   id: string;
   business_name: string;
   slug: string;
-  // TODO: logo_url, address, zip, phone not in agency_clients — add when available (see MASTER.md)
   owner_phone?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
   city?: string | null;
   state?: string | null;
+  postal_code?: string | null;
+  logo_url?: string | null;
   iana_timezone?: string | null;
   business_hours?: Record<string, { open: boolean; start: string; end: string }> | null;
   cancellation_policy?: string | null;
@@ -21,14 +24,16 @@ export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> 
   const { data, error } = await supabase
     .from('agency_clients')
     .select(
-      'id, business_name, slug, owner_phone, city, state, iana_timezone, business_hours, cancellation_policy, rescheduling_policy, store_policy, require_online_payment, booking_cutoff_minutes'
+      'id, business_name, slug, owner_phone, address_line1, address_line2, city, state, postal_code, iana_timezone, business_hours, cancellation_policy, rescheduling_policy, store_policy, require_online_payment, booking_cutoff_minutes, brand_studio_settings ( logo_url )'
     )
     .eq('slug', slug)
     .single();
 
   if (error && error.code !== 'PGRST116') throw error;
   if (!data) return null;
-  return data as SalonInfo;
+
+  const { brand_studio_settings, ...rest } = data as any;
+  return { ...rest, logo_url: brand_studio_settings?.logo_url ?? null } as SalonInfo;
 }
 
 export interface StaffMember {
