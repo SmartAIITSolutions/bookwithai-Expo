@@ -448,7 +448,7 @@ Exactly the 10 confirmed real gaps surfaced by the V1/V2 audit — not the full 
 
 **Build notes (completed 2026-07-17):**
 
-All 9 items built end-to-end across both repos, `tsc --noEmit` clean in both (only pre-existing, unrelated errors remain — `SalonInfo` missing `phone`/`address`/`zip`/`logo_url` in `salon.ts`, plus a stale `theme.ts`/`Theme.ts` casing collision and two unrelated `QRScanner`/`OnboardingSlide` errors, none touched this session).
+All 9 items built end-to-end across both repos, `tsc --noEmit` clean in both. Caught and fixed one pre-existing bug in the same pass: `SalonInfo` referenced `phone`/`address`/`zip`/`logo_url`, none of which actually exist on `agency_clients` (`owner_phone`/`address_line1`+`address_line2`+`postal_code` do; `logo_url` lives on `brand_studio_settings`, now joined in with a new public-read RLS policy since it's non-sensitive branding data) — the Call/Directions buttons and salon logo had silently never worked. Two other errors (`theme.ts`/`Theme.ts` casing collision, unrelated `QRScanner`/`OnboardingSlide` errors) remain, pre-existing and untouched this session.
 
 - **Offline detection**: `useNetworkStatus` hook (`NetInfo`) + global `OfflineBanner` in `_layout.tsx`. `fetchSalonBySlug`/`fetchStaffBySalonId`/`fetchServicesBySalonId` in `salon.ts` now throw on real fetch errors instead of silently returning `null`/`[]`, so `salon/[id].tsx`, `booking/services.tsx`, `booking/staff.tsx`, and `my-booking.tsx` can tell "empty" apart from "failed" and show the existing (previously-unused) `ErrorState` with retry. `booking/datetime.tsx` already had its own inline `slotsError` retry UI — left as-is.
 - **`expo-sharing`**: ended up using React Native's built-in `Share` API instead — it handles plain-text sharing natively with no file write needed; `expo-sharing` (file-based) wasn't the right tool for a text share. Wired into `booking/confirmation.tsx` and the new `booking/receipt.tsx`.
@@ -465,6 +465,7 @@ Both repos committed locally (not pushed, per standing rule).
 ### Step 19 — Internal Testing
 - Full end-to-end flow on real Android device
 - Bug fixes only — no new features
+- **Test script: [`TESTING_CHECKLIST.md`](./TESTING_CHECKLIST.md)** — the running list of every testable behavior across both apps, built up incrementally each session since 2026-07-17. Go top to bottom on a real device before submission; don't rely on memory for what needs checking.
 
 ### Step 20 — Android Build + Google Play
 - Generate AAB (Android App Bundle)
