@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
 
   // Camera overlay
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: 'column',
   },
   overlayTop: {
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
 
   // Scanned success flash
   scannedOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(34,197,94,0.15)',
     alignItems: 'center',
     justifyContent: 'center',

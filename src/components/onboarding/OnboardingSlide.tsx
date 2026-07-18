@@ -91,7 +91,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: height * 0.55,
-    background: 'transparent',
     // Approximated in RN via a semi-transparent lavender overlay
     backgroundColor: Colors.backgroundLavender,
     opacity: 0.45,
