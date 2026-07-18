@@ -1,247 +1,231 @@
-# Pre-Submission Testing Checklist
+# Step 19 — Exhaustive Pre-Submission Test Roadmap
 
-**Purpose:** one running list of every testable behavior across both apps (customer + owner), built up as features ship so nothing has to be re-derived from memory right before Android submission (Step 19/20). This is the script for that one full pass — go top to bottom, on a real device, check every box.
+**Purpose:** the complete, screen-by-screen, button-by-button test script before Google Play Store submission. Every screen in both apps (customer mode and salon-owner mode, including the new staff-facing mode) was either freshly re-read from source (for older screens) or authored this session (for Sprints 7–8 and Step 18.7) to build this list — nothing here is guessed from memory of what a screen "probably" does.
 
-**How to keep this current:** every session that ships a feature or fixes a bug adds its test cases here before wrapping up — same discipline as the `MASTER.md` build-notes habit. Items are grouped by feature area, not by sprint, so the list stays usable as a checklist rather than a changelog. When a regression is found and fixed, its test case stays here permanently (see "Known regressions to re-check" at the bottom) — those are exactly the things that silently break again.
+**Status key:** ⬜ not yet tested · 🔵 tested during dev, not a formal pass · ✅ verified in a real pass (note the date) · 🐛 confirmed bug, tracked separately.
 
-**Status key:** ⬜ not yet tested end-to-end on a device · 🔵 tested during dev (emulator, ad hoc) but not part of a formal pass · ✅ verified in a real pass, date noted.
-
----
-
-## A. Customer App
-
-### A1. Auth & Onboarding
-- ⬜ Fresh install → onboarding slides → sign up (email) → lands on Book tab
-- ⬜ Sign up → magic link flow completes and signs in
-- ⬜ Sign in with existing email/password
-- ⬜ Forgot password → reset email → new password works
-- ⬜ Google OAuth sign-in
-- ⬜ Biometric lock: enable in Account tab → background/reopen app → Face ID/fingerprint prompt appears
-- ⬜ Biometric prompt → "Use Password Instead" fallback works
-- ⬜ Biometric prompt → "Use PIN Instead" fallback appears only when a PIN is set (`account-security.tsx`), and only after biometrics fail/are unavailable
-- ⬜ PIN entry: correct 4-digit PIN unlocks; wrong PIN shows "Incorrect PIN" and clears input
-- ⬜ Sign out (local) → app requires sign-in again but other devices stay signed in
-- ⬜ "Log out of all devices" (`/account-security`) → confirm dialog → signs out this device AND invalidates sessions elsewhere (verify: sign in on two devices, log out-all on one, other device's next request fails)
-
-### A2. Booking Flow
-- ⬜ Salon landing page loads: name, hours, policies, address, logo, phone all render (regression check — see bottom)
-- ⬜ Call button opens dialer with correct number; only shows when salon has a phone number
-- ⬜ Directions button opens maps app with correct address; only shows when address exists
-- ⬜ Select one service → Continue → staff list shows only staff assigned to that service (if any assignment exists) or all staff (if none)
-- ⬜ Select multiple services → staff list shows the **intersection** of staff who can perform all selected services
-- ⬜ Select "Any Available" staff → skips to datetime picker
-- ⬜ Datetime picker shows real open slots respecting business hours + existing bookings
-- ⬜ Datetime picker: no slots available shows a real empty state, not a blank screen
-- ⬜ Review screen: notes field, consent checkbox required before Continue
-- ⬜ Salon with `require_online_payment = false` or $0 total → booking created directly, skips Stripe, confirmation shows "Due at Salon"
-- ⬜ Salon with online payment required → Stripe PaymentSheet opens, test card completes payment, confirmation shows "Paid"
-- ⬜ Payment failure (declined test card) → real error shown, booking NOT created, can retry
-- ⬜ **Idempotency**: submit a booking, kill network right after tapping Pay/Confirm before response returns, reopen app, retry — should NOT create a duplicate booking (same `idempotency_key` reused across the retry)
-- ⬜ Confirmation screen: Add to Calendar → real calendar event created with correct time/title
-- ⬜ Confirmation screen: Get Directions opens maps
-- ⬜ Confirmation screen: Share button → native share sheet opens with correct appointment text
-- ⬜ Confirmation screen → Done → lands on My Booking tab, new booking visible
-
-### A3. My Bookings — Upcoming
-- ⬜ Upcoming confirmed booking outside cutoff window: Reschedule + Cancel buttons show
-- ⬜ Upcoming booking inside cutoff window: only "Contact Salon" shows (Call/Text via salon phone)
-- ⬜ Reschedule → datetime picker preloaded with same service/staff → new time saved, list updates
-- ⬜ Cancel → confirmation dialog shows salon's cancellation/reschedule policy text → confirms → booking removed/marked cancelled, salon owner gets a push
-- ⬜ Pull-to-refresh on My Booking list updates without a full reload
-
-### A4. My Bookings — Past
-- ⬜ Past/completed booking shows Rebook, Rate (if not yet reviewed), Receipt actions; cancelled past bookings show only Rebook
-- ⬜ Rebook → jumps to staff-selection screen prefilled with the same service, salon
-- ⬜ Rate → inline star picker expands in place (not a modal, not `Alert.prompt`) → submit → star rating saved, "Rate" button disappears on next load (backend `reviewed` flag)
-- ⬜ Rate a booking twice → second attempt is blocked server-side ("already been rated")
-- ⬜ Receipt → opens receipt screen with correct service, staff, date, price, tax, tip, total
-- ⬜ Receipt screen → Share button → native share sheet with formatted receipt text
-
-### A5. Existing Customer Summary
-- ⬜ Signed-in customer with prior bookings at a salon → salon landing page shows "Welcome back" card: visit count, total spent, last visit date
-- ⬜ Customer with an active reward/promo code at that salon → banner shows reward available
-- ⬜ Customer with a birthday within 7 days → birthday banner shows
-- ⬜ Brand-new customer at a salon (no prior bookings) → summary card does not appear at all
-- ⬜ Signed-out visitor → summary card never appears (route requires bearer auth)
-
-### A6. Account Security
-- ⬜ Change email → confirmation email sent to NEW address → clicking it completes the change → old email no longer signs in
-- ⬜ Change password: wrong current password → rejected with clear message, password NOT changed
-- ⬜ Change password: correct current password + valid new password → succeeds, can sign in with new password
-- ⬜ Set a PIN → 4 digits, mismatched confirm → rejected; matching confirm → saved
-- ⬜ Change an existing PIN → old PIN no longer works, new one does
-- ⬜ Remove PIN → confirm dialog → PIN fallback option disappears from biometrics screen
-
-### A7. Profile
-- ⬜ Upload profile photo → permission prompt (if first time) → picker → crop → uploads → avatar updates on Account tab and Profile screen
-- ⬜ Profile photo persists after app restart (public URL from `profile-photos` bucket)
-- ⬜ Set birthday (MM/DD/YYYY) → invalid format rejected with clear message → valid date saves
-- ⬜ Select pronouns chip → toggle off by tapping again → saves as null
-- ⬜ Timezone auto-detects correctly and displays
-- ⬜ Profile fields persist and reload correctly after backgrounding/restarting the app
-- ⬜ Book a single service with a specific staff member at Salon A → preference silently saved; verify at Salon B it does NOT apply (per-salon scoping) — needs direct DB check or a future "preferred" surfacing UI, since there's no visible confirmation today
-
-### A8. Offline / Error Handling
-- ⬜ Airplane mode on → red "No internet connection" banner appears at the top, app-wide
-- ⬜ Airplane mode off → banner disappears automatically
-- ⬜ Salon landing page load with no connection → `ErrorState` with "Try Again" shown, not a blank/frozen screen
-- ⬜ Services/staff picker load with no connection → same `ErrorState` + retry pattern
-- ⬜ My Booking list load with no connection → same `ErrorState` + retry pattern
-- ⬜ Datetime slot fetch failure → existing inline error message + retry (pre-existing, re-verify still works)
-- ⬜ Retry button on any `ErrorState` actually re-fetches and recovers once connection is back
-
-### A9. Push Notifications
-- ⬜ First successful booking → OS permission prompt appears right after confirmation screen
-- ⬜ Permission granted → "Booking Confirmed" push arrives as a real OS banner (not just in-app)
-- ⬜ Deny permission → Account tab toggle reflects "off", tapping it deep-links to system Settings
-- ⬜ Re-enable in system Settings → Account tab toggle reflects "on" next time the tab is focused
-- ⬜ Reschedule a booking → "Appointment Updated" push arrives
-- ⬜ Cancel a booking → "Appointment Cancelled" push arrives
-- ⬜ 24h reminder (day-before, 6pm) arrives for a tomorrow booking — needs a real overnight wait to verify
-- ⬜ 2h reminder arrives — needs a real same-day wait to verify
-- ⬜ In-app notification inbox (bell icon) shows history, unread badge count correct, tapping marks read
-- ⬜ Two devices signed into the same account both receive pushes (multi-device token support)
+**How to use this:** work through the phases in order below. Each phase is a coherent chunk of the app you can test in one sitting. Check off every line — "every button, every icon" is the standard. When you find something broken, mark it 🐛 with a one-line note rather than stopping the whole pass.
 
 ---
 
-## B. Owner App
+## Fixed before this pass started (2026-07-19)
 
-### B1. Foundation / Auth / Nav
-- ⬜ Owner account signs in → routes to owner shell (5-tab nav), not customer tabs
-- ⬜ Role detection correct for every existing real owner account (not just newly-created ones — this depends on the Sprint 2 `profiles.role='owner'` backfill matching by email)
-- ⬜ Bottom-sheet framework opens/closes cleanly across all owner screens that use it (Appointment Sheet, Checkout Sheet)
+Two Play Store submission blockers found while building this checklist, fixed immediately rather than left for later:
+- ✅ Removed the dev-only "Reset Onboarding" button (wiped AsyncStorage, explicitly marked "REMOVE BEFORE SUBMISSION" in code) — was still live in both the guest and signed-in Account screen states.
+- ✅ Added an in-app "Delete My Data" link in Account → Legal — the screen existed (`legal/delete-account.tsx`) but had no navigation path to it anywhere, a real Google Play User Data policy gap.
 
-### B2. Business Setup + Services + Staff
-- ⬜ Edit business address (line 1/2, city, state, postal code) → saves, reflects on customer-facing salon page
-- ⬜ Set a holiday/closed date → reflected in SANAA's call-handling too (shared `sanaa_holidays` table)
-- ⬜ Add/edit/archive a service → shows/disappears correctly on customer booking flow
-- ⬜ Add/edit staff member, set weekly availability → affects available datetime slots on customer side
-- ⬜ **New this session:** expand a service's "Staff" panel → toggle staff on/off → save → customer-side staff picker for that service reflects the assignment immediately
-- ⬜ Toggle all staff off a service (back to "any staff") → customer-side picker shows everyone again
-- ⬜ Morning Brief time picker saves and the cron actually respects the configured hour
+## Flagged, not yet fixed — triage these as you test
 
-### B3. Calendar + Appointments
-- ⬜ Day view: long-press + drag an appointment to a new time → saves, conflict-checked
-- ⬜ Day view: drag across staff columns → reassigns staff, conflict-checked
-- ⬜ Pinch-to-zoom on the timeline works smoothly
-- ⬜ Swipe right on an appointment → checks in; swipe left → advances state machine
-- ⬜ Live red "now" line updates in real time
-- ⬜ Walk-in flow: search/quick-create customer → pick service → auto-finds earliest open chair → books
-- ⬜ Conflict detection: attempt to double-book a staff member → real error shown, drag/walk-in reverts
-- ⬜ 3-Day / Week / Month / Agenda / Timeline views all render correctly (read-only, no drag expected)
-- ⬜ Appointment three-dot menu: no-show, duplicate, lock, restore, bulk cancel, bulk shift all work
-- ⬜ Realtime: a booking made on the customer app appears on the owner calendar within seconds, no manual refresh
+These are real findings from reading the actual code, not guesses. Decide fix-vs-accept as you hit each one during testing rather than fixing blind:
 
-### B4. Customer Directory / CRM
-- ⬜ Customer search + quick-create from Directory and from Walk-in flow
-- ⬜ Customer detail: notes CRUD (add/pin/delete)
-- ⬜ Photo/document upload to a customer record, RLS-scoped correctly (owner can't see another salon's customer media)
-- ⬜ Merge duplicate customers → combines history correctly, doesn't lose bookings
-- ⬜ Spending Timeline chart renders real data
-- ⬜ Customer Health score + AI Insights show plausible, non-fabricated values (rule-based v1, not random)
-- ⬜ Communications timeline merges email/SMS/call logs correctly for a customer with activity across all three
-- ⬜ Preferred staff field on a customer record — reflects the fire-and-forget signal from the mobile booking flow
-
-### B5. Checkout & Payments
-- ⬜ "READY FOR CHECKOUT" opens Checkout Sheet from the Appointment Sheet
-- ⬜ Add a product mid-checkout → total recalculates correctly, including tax (regression check — see bottom)
-- ⬜ Apply a discount → tax recomputes against the new subtotal, not frozen from initial preview
-- ⬜ Card payment → generates a Stripe Checkout link, customer completes on their own device, booking finalizes on webhook
-- ⬜ Cash/store-credit/mixed-tender checkout completes and records `checkout_payments` rows correctly
-- ⬜ Store credit balance updates correctly after use
-- ⬜ Refund flow issues a real refund and updates records
-- ⬜ Departure Intelligence checklist + rebook suggestion + End-of-Visit summary all show correct data
-- ⬜ Service upgrade at checkout → correct new price/service reflected in the final charge
-
-### B6. Dashboard + Notifications
-- ⬜ Dashboard Health Score + AI Insights + revenue/appointments/clients/occupancy snapshot all show real numbers
-- ⬜ Occupancy is computed from real `staff_availability`, not a placeholder
-- ⬜ New booking/cancel/reschedule/SANAA events all generate an owner push notification (all 9 call sites — regression risk if any gets missed in future changes)
-- ⬜ Notification Center list is Realtime-backed — new notification appears without manual refresh
-- ⬜ Mark-read updates badge count correctly
-- ⬜ Morning Brief cron fires once daily at the configured hour, doesn't double-send (dedup via `morning_brief_last_sent_date`)
-
-### B7. Daily Operations
-- ⬜ Business status toggle (open/closed/interrupted) with a reason — inline form, not `Alert.prompt` (regression check — see bottom)
-- ⬜ Multi-day business closures — distinct from single-day holidays, both apply correctly
-- ⬜ Business announcements post and are visible where expected
-- ⬜ Opening/closing checklist — fixed items, completion state persists per day
-- ⬜ Staff schedule overrides (single-day exception to weekly availability) affect that day's available slots only
-- ⬜ Priority-customer flag surfaces that customer first in the Waiting Queue
-- ⬜ Waiting Queue expected-wait estimate is computed from the real in-service booking's duration
-- ⬜ Daily booking capacity cap actually blocks new bookings once reached
-- ⬜ Add-On Suggestion only appears after ≥3 real occurrences and ≥30% frequency — verify it does NOT show for a service with no real co-occurrence history (i.e., not fabricated)
-- ⬜ Live elapsed-service timer counts up correctly during an in-service appointment
-
-### B8. Staff Management (Sprint 7)
-- ⬜ Business Settings: switch staff login mode between "Shared device" and "Individual accounts" — setting persists and controls which UI shows in the Staff screen
-- ⬜ Staff screen: set a staff member's permission role (Manager/Receptionist/Stylist/Assistant) — saves and persists
-- ⬜ Staff screen: set a staff member's default commission rate — saves, rejects values outside 0–100
-- ⬜ **Shared-device mode:** set a 4-digit PIN for a staff member from the Staff screen (inline form, not `Alert.prompt`)
-- ⬜ **Individual-accounts mode:** send an invite to a staff member's email → real invite email arrives
-- ⬜ Tapping the invite link on a device with the app installed opens the app and lands on "Set Your Password" (not a broken/unmatched-route screen)
-- ⬜ Setting a password completes account linking → staff member is routed into the new staff app shell, not the customer or owner shell
-- ⬜ Staff screen shows "Account active" once an invited staff member has completed signup; shows "Invite pending" before that
-- ⬜ Services screen: set a per-service commission rate override for an assigned staff member — distinct from their default rate
-- ⬜ **Clock-in kiosk (shared-device mode):** tap a staff member, enter correct PIN → clocks in, chip shows "On clock"; tap again + PIN → clocks out
-- ⬜ Kiosk: wrong PIN is rejected, does not clock anyone in/out
-- ⬜ Kiosk: attempting to clock in a staff member who's already clocked in shows a real error, doesn't create a duplicate open shift
-- ⬜ Kiosk: recent shifts list shows correct clock-in/out times, updates after each action
-- ⬜ **Individual-accounts mode:** staff member taps Clock In/Out from their own Schedule tab — no PIN prompt (already authenticated as themselves)
-- ⬜ Staff Schedule tab: a Stylist/Assistant sees only their own upcoming appointments; a Manager/Receptionist sees the whole salon's calendar (real permission-based branching, verify both roles actually differ)
-- ⬜ Owner Time Off screen: create a direct time-off range for a staff member → auto-approved, blocks that staff's availability for every date in the range
-- ⬜ **Individual-accounts mode:** staff submits a time-off request from their own Time Off tab → appears as "Pending" on the owner's Time Off screen
-- ⬜ Owner approves a pending request → staff's Time Off tab shows "Approved", staff's availability is blocked for those dates in the booking flow
-- ⬜ Owner denies a pending request → staff's Time Off tab shows "Denied", no availability change
-- ⬜ Commission: complete a checkout for a booking with a staff member who has a rate set → a commission row is created, visible on both the owner's per-staff commission view and the staff member's own Earnings tab
-- ⬜ Commission: complete a checkout for a staff member with NO rate set anywhere → no commission row created (not a $0 row, no row at all)
-- ⬜ Commission: a booking with a per-service override rate uses that rate, not the staff member's default rate
-- ⬜ Sign out and sign back in as a staff member — lands directly in the staff shell (role persists across sessions)
-- ⬜ Log out of all devices / password change flows (existing account-security patterns) also work correctly for a staff-role account, not just customer/owner
-
-### B9. CRM Depth (Sprint 8)
-- ⬜ Create a membership plan with manual billing → saves, shows in the customer detail screen's purchase chips
-- ⬜ Create a membership plan with Stripe subscription billing → real Stripe Price is created automatically (verify in Stripe dashboard), owner never has to touch Stripe directly
-- ⬜ Purchase a manual-mode membership for a customer → activates immediately, correct period-end date shown
-- ⬜ Purchase a Stripe-mode membership → owner gets a real Checkout URL, opening it lets the customer complete payment on their own device
-- ⬜ Completing a Stripe membership checkout → webhook activates the `customer_memberships` row (verify status becomes "Active" without the owner doing anything else)
-- ⬜ A Stripe membership's real renewal (next billing cycle) → `invoice.payment_succeeded` extends the period and resets the visit counter, verify without manual intervention
-- ⬜ Cancel a manual-mode membership → status becomes cancelled immediately
-- ⬜ Cancel a Stripe-mode membership → real Stripe subscription is cancelled, status updates to cancelled once the webhook confirms (not instantly)
-- ⬜ Manual-mode "Renew" button is hidden/rejected for Stripe-mode memberships (renewal is automatic there)
-- ⬜ Create a service package (e.g. "5-visit haircut bundle") → saves with correct included-visits count
-- ⬜ Grant a package to a customer → `visits_remaining` starts at the package's included_visits
-- ⬜ Redeem a package visit → decrements by 1; redeeming with 0 remaining is rejected with a real error
-- ⬜ A package with `expires_after_days` set → redeeming after expiry is rejected
-- ⬜ Add a tag to a customer (inline chip input, not `Alert.prompt`) → saves, appears immediately
-- ⬜ Tag autocomplete suggests previously-used tags from other customers at the same salon
-- ⬜ Remove a tag → disappears from the customer's chip row
-- ⬜ Filter the customer directory by tag (`?tag=`) → returns only customers with that exact tag
-- ⬜ Set a customer's referrer (search + pick an existing customer) → "Referred by" shows the correct name
-- ⬜ A customer cannot be set as their own referrer (rejected)
-- ⬜ The referrer's own customer page shows the referred customer under "Referred by this customer"
-- ⬜ Grant a referral reward → creates a real usable promo code for the REFERRER (not the referred customer), reward status becomes "granted"
-- ⬜ Attempting to grant a reward twice for the same referral is rejected
-- ⬜ Relationship Timeline shows, in chronological order: joined date, first visit, visit-count milestones (5th/10th/25th/50th/100th — only the ones actually reached), every reward unlocked, membership/package purchases, referrals made, and priority-flag grant date
-- ⬜ Relationship Timeline does NOT duplicate/conflict with the existing Service Timeline or Communication sections — verify all three coexist showing different, correct information
-- ⬜ Toggling Priority on for the first time stamps `priority_set_at` and it appears on the Relationship Timeline; toggling it off and back on again does NOT re-stamp the date
+- 🐛 **Checkout rebook checkbox may not be wired up.** In the owner Checkout Sheet, the "rebook suggestion" checkbox sets local state (`bookNext`) but that value does not appear to be included in the `submitCheckout` payload — verify whether checking it actually books a follow-up appointment, or is currently inert.
+- 🐛 **Commission rate input can visually desync from saved state.** The per-staff commission input in Services → Staff panel is an uncontrolled `TextInput` (`defaultValue`, saves on blur). An invalid entry (out of 0–100 range) is rejected server-side, but the on-screen text isn't reset — the field can show a value that was never actually saved.
+- 🐛 **Silent failures on some archive/delete actions.** `products.tsx`'s trash icon shows no error alert if `archiveProduct` fails (services.tsx does alert on failure — inconsistent). Same gap on Business Settings' closure-removal trash icon.
+- 🐛 **Merge-duplicates fetch failure is indistinguishable from "no duplicates."** If `getMergeCandidates()` fails (network/auth error), the screen shows the same empty state as a genuinely clean customer list — no distinct error message.
+- 🐛 **Receipt screen may only show one service.** `booking/receipt.tsx` takes a singular `serviceName` param, unlike Confirmation's `||`-joined multi-service list — verify a multi-service booking's receipt doesn't silently drop services.
+- 🐛 **Potential double-charge risk on Payment screen retry.** If the booking-creation POST fails *after* Stripe has already charged the card, tapping "Pay" again re-presents the PaymentSheet — verify the Stripe SDK actually prevents a second charge on a since-consumed client secret rather than assuming it does.
+- 🐛 **Biometric icon may mislabel devices with no biometric hardware.** `auth/biometrics.tsx` defaults `biometricType` to `'none'` but the icon-selection logic falls through to a fingerprint icon/label regardless — test on a device/emulator with zero biometric hardware.
+- ⚠️ **`book.tsx`'s manual salon-slug entry field is commented "DEV TOOL, replace with deep link hint for prod."** Product decision, not a bug: confirm whether to keep it as a real fallback entry method or replace before submission.
+- ⚠️ **No maximum-attempt lockout on the PIN entry screen** (`auth/pin-entry.tsx`) — unlimited guesses at a 4-digit PIN. Worth a security-review sanity check even though the underlying account still requires the real password/biometric for anything sensitive.
 
 ---
 
-## C. Known regressions to re-check every full pass
+## Testing Roadmap — phases, in order
+
+1. **Fresh install & onboarding** (Phase 1)
+2. **Customer auth** (Phase 2)
+3. **Customer booking flow, end to end** (Phase 3)
+4. **Customer My Bookings, Account, Profile** (Phase 4)
+5. **Customer offline/error handling** (Phase 5 — see Section C below, unchanged from last pass)
+6. **Owner auth & shell** (Phase 6)
+7. **Owner Dashboard** (Phase 7)
+8. **Owner Calendar — all 6 view modes, gestures, walk-in, appointment sheet, checkout** (Phase 8 — the single biggest phase)
+9. **Owner Customers list + CRM detail screen** (Phase 9)
+10. **Owner Settings — Business, Products, Services** (Phase 10)
+11. **Owner Staff Management — roles, PIN/invite, clock-in kiosk, time off** (Phase 11)
+12. **Owner CRM Depth — memberships, packages, tags, referrals, relationship timeline** (Phase 12)
+13. **Staff-facing app (individual accounts mode)** (Phase 13)
+14. **Cross-cutting regression sweep** (Phase 14 — Section D, run last, every item here has broken once before)
+
+---
+
+## Phase 1 — Fresh Install & Onboarding
+
+- ⬜ Fresh install → 4 onboarding slides render correctly (manual swipe is intentionally disabled — only Next/Skip/dots drive navigation)
+- ⬜ "Skip" (slides 1–3) jumps straight to the final CTA slide
+- ⬜ "Next" through all 3 intro slides advances correctly, progress dots update
+- ⬜ Final slide: "Get Started" → marks onboarding done, lands on `/auth`
+- ⬜ Final slide: "Sign In" → marks onboarding done, lands on `/auth/sign-in`
+- ⬜ Relaunching the app after onboarding is complete skips straight past onboarding
+- ⬜ Root `/` and `/explore` redirect stubs resolve to `/book` without a visible flash or crash
+
+## Phase 2 — Customer Auth
+
+- ⬜ "Continue with Google" opens OAuth browser sheet, completes sign-in, redirects into the app
+- ⬜ Cancelling the Google OAuth sheet returns cleanly with the button re-enabled, no error
+- ⬜ "Create an Account" / "Sign In with Email" / "Send me a magic link instead" navigate correctly
+- ⬜ "Terms" / "Privacy Policy" inline links from the Auth Welcome screen open the correct legal pages
+- ⬜ Sign-in: empty email/password → "Missing info" alert; wrong credentials → "Sign in failed" alert; correct credentials → lands on the right home screen for the account's role
+- ⬜ Eye icon toggles password visibility on both Sign In and Sign Up
+- ⬜ Sign-up: empty fields → "Missing info"; password < 8 chars → "Weak password"; valid submission → "Check your email" confirmation, routes to sign-in
+- ⬜ Magic link: empty email → alert; valid submission → "sent" state with correct echoed email, "Send again" returns to form with email preserved
+- ⬜ Forgot password: empty email → alert; valid submission → "Email sent!" state; "Back to Sign In" works (note: no resend option here, unlike magic link — confirm intentional)
+- ⬜ Biometrics screen auto-triggers the OS prompt on mount; success routes by role; cancel/fail leaves user on-screen with no error shown (confirm this silent-fail UX is acceptable)
+- ⬜ "Use PIN Instead" only appears when a PIN was previously set; "Use Password Instead" always available
+- ⬜ PIN entry: correct 4-digit PIN unlocks and routes by role; wrong PIN clears dots and shows "Incorrect PIN"; backspace works; keypad blank cell is inert
+
+## Phase 3 — Customer Booking Flow (full walkthrough)
+
+- ⬜ Salon page: loading/error(retry)/not-found states all correctly triggered; logo/initial-placeholder, hours, address, all 3 policy cards each independently conditional on data presence
+- ⬜ Call button only shows with a phone number; Directions only shows with an address; both open correctly (note: Directions is hardcoded to Apple Maps URL scheme even on Android — verify actual Android behavior)
+- ⬜ "Welcome back" summary card only shows for signed-in, existing (non-new) customers; birthday and rewards banners conditionally correct
+- ⬜ Services: category grouping, multi-select toggle, footer total price/duration, Continue only visible once ≥1 selected
+- ⬜ **Staff filtering: selecting 2+ services shows only staff who can perform ALL of them (intersection) — test explicitly with an overlap-of-one case**
+- ⬜ "Any Available" vs specific staff selection both work; preference auto-saves silently on Continue (single-service/single-staff only, not multi)
+- ⬜ DateTime: past dates disabled, month navigation correct, slot fetch loading/error/empty states, **staff name shown on slot chips only when no staff was pre-selected**
+- ⬜ **180-second hold timer**: countdown visible, selecting a new slot restarts it, letting it expire clears the selection and hides the footer
+- ⬜ Reschedule flow (from My Bookings): header/button text changes to "Reschedule"/"Confirm Reschedule", success routes to My Booking, failure preserves selection for retry
+- ⬜ Review: notes optional, consent checkbox gates the Proceed button, correct button label/behavior for both skip-payment and online-payment branches
+- ⬜ **Idempotency: retry a failed skip-payment booking submission and confirm no duplicate booking is created** (same key reused across retries)
+- ⬜ Payment (Stripe): PaymentSheet loads, Google Pay appears on a real Android build, cancel is silent (no error shown), payment failure shows retry-able error, success creates the booking and lands on Confirmation
+- ⬜ **Payment retry after a post-charge booking-creation failure — verify no double charge** (see flagged item above)
+- ⬜ Confirmation: push permission auto-requests once; Add to Calendar (permission-gated, disables after success); Get Directions (platform-specific URL); Share opens native share sheet; Done routes to My Booking with no way back to Payment/Review
+- ⬜ Receipt screen: itemized breakdown correct, Share button works, **verify multi-service bookings show all services, not just one** (see flagged item)
+- ⬜ Full happy path end-to-end, both with and without online payment required, params propagate correctly across all 6 screens with no loss
+
+## Phase 4 — Customer My Bookings, Account, Profile
+
+- ⬜ My Booking: not-signed-in / loading / error+retry / empty / populated states all correct
+- ⬜ Pull-to-refresh works without a full-screen loader flash
+- ⬜ Upcoming outside cutoff: Reschedule + Cancel (with policy text in the confirm dialog) both work
+- ⬜ Upcoming inside cutoff: only "Contact Salon" shows, Call/Text intents both work
+- ⬜ Past bookings: Rebook always available; **Rate only for completed+unreviewed, inline star picker (not Alert.prompt), submit/cancel both work, reviewed state hides Rate immediately without a refetch**; Receipt only for completed
+- ⬜ Notifications: read/unread visual states, tap-to-mark-read, **long-press deletes with zero confirmation — verify this is intentional**, realtime-independent pull-to-refresh, per-focus refetch
+- ⬜ Account tab: profile header → Profile screen; Biometric toggle (hardware/enrollment gated); Push toggle (reflects real OS permission, re-checked on focus); Legal section including the new Delete My Data link; Sign Out confirmation flow
+- ⬜ Profile: photo upload (permission-gated, crop, upload spinner), birthday format validation (**note: no calendar-validity check, e.g. "02/30" would pass the regex** — verify server catches it), pronoun single-select toggle, read-only auto-detected timezone, Save success/failure alerts
+- ⬜ Account Security: change email (weak validation, confirmation-email flow), change password (re-auths with current password first), PIN set/change/remove (inline forms, no Alert.prompt), Log Out of All Devices (global sign-out)
+- ⬜ Legal screens (Privacy/Terms/Support/Delete My Data): auto-open in-app browser, fallback "Open X" button if auto-open fails, **confirm all 4 URLs are actually live on production before submission** — dead links are a common Play Store rejection reason
+
+## Phase 5 — Customer Offline/Error Handling
+(unchanged from prior pass — see Section C below for the full list; re-run it as part of this phase)
+
+## Phase 6 — Owner Auth & Shell
+
+- ⬜ Owner account signs in → routes to the 5-tab owner shell (Dashboard/Calendar/Customers/Reports/More), not customer tabs
+- ⬜ Role detection correct for every existing real owner account, not just newly created ones
+- ⬜ Tab bar: exactly 5 tabs, correct icons/labels/active-state coloring, no 6th tab or FAB anywhere
+
+## Phase 7 — Owner Dashboard
+
+- ⬜ Loading/stuck-spinner behavior if `getDashboard()` fails (verify it doesn't hang forever silently)
+- ⬜ Header bell → Owner Notifications; search/+ icons are inert (unimplemented, confirm expected)
+- ⬜ Greeting text correct by time of day; health score expand/collapse and color thresholds (green ≥80, amber 50–79, red <80... below 50)
+- ⬜ AI Insight cards only render for non-empty entries
+- ⬜ **Daily Ops card**: status picker (Open/Closed/Interrupted) with inline reason form for Closed/Interrupted (not Alert.prompt); announcements post/dismiss; checklist tab switch + item toggle, correctly scoped to today's date
+- ⬜ **Waiting Queue**: only shows checked-in-not-started bookings, priority sorts first, live wait timer (red past 10 min), expected-wait estimate computed from the in-service booking's real duration
+- ⬜ Snapshot cards (Revenue/Appointments/Clients/Occupancy) and revenue trend arrow direction/color
+- ⬜ Next Appointment card only shows when a matching booking exists; tapping opens the Appointment Sheet
+- ⬜ Today's Timeline strip (excludes cancelled bookings) and Quick Actions row all navigate correctly
+- ⬜ No pull-to-refresh on Dashboard — confirm this is expected
+
+## Phase 8 — Owner Calendar (biggest phase — budget real time)
+
+- ⬜ Header +/bell; Yesterday/Tomorrow date nav; "Today" label logic
+- ⬜ **All 6 view mode chips switch correctly: Day, 3-Day, Week, Month, Agenda, Timeline** — only one active at a time
+- ⬜ Day-mode-only controls (staff filter row, Walk-In button, Select button, alert/gap banners) correctly hidden in all other modes
+- ⬜ Staff filter "All" vs specific staff chip filtering
+- ⬜ Gap banners (≥30 min empty spaces, max 2) tap to open Walk-In
+- ⬜ **Timeline grid: pinch-zoom (0.6x–2.4x, persists), live red "now" line (today only, within business hours), block sizing/coloring by status**
+- ⬜ **Long-press + drag to move an appointment** (time-only and cross-staff-column reassignment); conflict rejection springs the block back with an error; in-flight dim state; tap-in-place doesn't fire a spurious API call
+- ⬜ **Fling right = check-in; fling left = advance state machine one step** — both only fire when that's actually the valid next action
+- ⬜ Bulk select mode: multi-select, +15/-15 min shift, Cancel-all (with destructive confirm), failure preserves selection for retry
+- ⬜ Agenda/Timeline-strip/Month/3-Day/Week modes: correct read-only rendering, Month's day-tap jumps to Day mode, 3-Day/Week explicitly has no drag gestures (verify long-press does nothing there)
+- ⬜ **Walk-In flow**: customer search (2+ char threshold, "will be added as new" hint), service single-select, earliest-open-chair algorithm across staff, race-condition handling ("just got booked" retry message), quick-create-then-book path
+- ⬜ **Appointment Sheet**: header status pill, three-dot menu (Duplicate +7 days, Lock/Unlock, No-Show only when not already terminal, Restore only when cancelled/no-show), elapsed-service timer, add-on suggestion card, sticky action button following the exact state machine, Cancel with destructive confirm
+- ⬜ **Checkout Sheet**: checklist pass/fail banner, service upgrade swap, product add/increment, discount chips, tip chips, live-recalculating totals with color-coded Remaining, all 8 tender methods (gift card validation, store credit balance check), Complete Checkout gated on Remaining=0, success view auto-dismiss timing, **verify the rebook checkbox actually affects the outcome** (flagged above), Stripe-pending share-link path vs immediate-complete path
+
+## Phase 9 — Owner Customers List + CRM Detail Screen
+
+**List screen:**
+- ⬜ Search (name/phone/email), loading/empty states, **verify empty state doesn't misleadingly show for a no-match search vs a truly empty account**
+- ⬜ Duplicate-detection banner (singular/plural text correct) → Merge Duplicates screen
+- ⬜ **Merge Duplicates: confirmation dialog wording, per-group merge spinner, success removes the group from the list, failure alert with retry** — **treat this as genuinely destructive/irreversible per the in-app copy itself; verify booking history/notes/spend actually survive under the merged record on the backend, not just that the group disappears from this list**
+- ⬜ No pagination/infinite-scroll beyond the first 50 customers visible in this file — confirm this is/isn't a real limitation
+- ⬜ Tapping a row opens the customer detail screen
+
+**Customer Detail Screen — every section:**
+- ⬜ Header: name, VIP badge (`total_bookings >= 5`), Blocked badge, tappable Priority badge (toggles, stamps `priority_set_at` only on first grant — **verify re-toggling doesn't re-stamp the date**)
+- ⬜ **Tag row**: chips show existing tags, tap-to-remove (X icon), "+" opens inline add input (not Alert.prompt), autocomplete suggestion chips from other customers' tags at the same salon, adding/removing persists immediately
+- ⬜ Health score pill expand/collapse showing reasons
+- ⬜ Quick Actions: Book, Call, Message (SMS), Notes (scrolls to Notes section), More → Delete (destructive confirm, unlinks bookings rather than deleting them)
+- ⬜ AI Insights card (birthday-soon, dormancy nudge, high-visit referral-candidate hint) — rule-based, verify it doesn't show fabricated/impossible values
+- ⬜ Snapshot: lifetime spend, visits, avg ticket, avg tip, last visit, years as customer, cancellation %, no-show %, and the Preferred Staff picker row (saves immediately on selection)
+- ⬜ Upcoming Appointment card (single next booking) opens the Appointment Sheet
+- ⬜ Service Timeline: dotted list of past bookings, service + date only
+- ⬜ Spending Timeline: sparkline chart of completed-booking amounts
+- ⬜ **Membership section**: active memberships list (status, renewal date), "Renew" only shown for manual-billing memberships (hidden for Stripe-subscription ones — those renew automatically), "Cancel" works for both (manual = immediate; Stripe = cancels the real subscription, status updates once webhook confirms), purchase chips for each active plan — **Stripe-mode purchase hands back a real Checkout URL to open/share, verify the "Open" alert flow works**
+- ⬜ **Packages section**: active packages list (visits remaining), "Redeem a visit" decrements correctly and rejects at 0 remaining or past expiry, purchase chips grant a new package instantly
+- ⬜ Rewards: active `client_promo_codes` list, code/type/value/used-state
+- ⬜ Notes: add (with input focus scroll from Quick Actions), pin/unpin, delete
+- ⬜ Photos: upload via image picker (permission-gated), thumbnail strip, remove
+- ⬜ Documents: upload via document picker, list, remove
+- ⬜ Communication: merged email/SMS/push/call timeline with correct icons per channel
+- ⬜ **Referrals section**: "Referred by" search-and-pick (a customer cannot refer themselves — verify rejected), referrer's own page shows the referred customer under "Referred by this customer", **Grant Reward creates a real usable promo code for the REFERRER (not the referred customer)**, granting twice is rejected
+- ⬜ **Relationship Timeline**: chronological merged feed — joined date, first visit, visit-count milestones (5/10/25/50/100, only ones actually reached), every reward unlocked, membership/package purchases, referrals made, priority-grant date — **verify it doesn't duplicate what Service Timeline or Communication already show; all three should coexist showing genuinely different information**
+
+## Phase 10 — Owner Settings: Business, Products, Services
+
+- ⬜ Business Setup: name/phone/address/policy/max-bookings fields, morning brief hour chips, **staff login mode picker (shared_device vs individual_accounts)** — all save together via the bottom Save button (holidays/closures save independently via their own inline forms)
+- ⬜ Holiday Hours: add (all 3 fields required)/remove (no confirm, but DOES alert on failure), stale-value-on-cancel caveat
+- ⬜ Business Closures: add (start/end required, reason optional)/remove (no confirm, **does NOT alert on failure — silent gap**, flagged above)
+- ⬜ Products: add (name+price required, **no negative/zero price check client-side**)/archive (**no failure alert — silent gap**, flagged above), no edit-existing capability
+- ⬜ Services: add (name/duration/price/bookable-online switch)/archive (does alert on failure), no edit-existing capability
+- ⬜ **Services → per-service Staff panel** (critical, recently built): expand/collapse (only one open at a time), empty-staff-list message, checkbox toggle autosaves immediately (no explicit Save), hint text switches between "any staff" and "only selected staff" live, **commission rate input only shows for assigned staff, saves on blur, rejects out-of-0–100-range values** (verify the flagged uncontrolled-input staleness issue), re-expanding refetches fresh from server
+
+## Phase 11 — Owner Staff Management (Sprint 7)
+
+- ⬜ Staff screen: existing hours-editor/day-off-exception behavior unchanged; **new Role & Permissions block per staff**: permission role chips (Manager/Receptionist/Stylist/Assistant, autosaves), default commission rate (blur-save, 0–100 validated)
+- ⬜ **Shared-device mode**: "Set a clock-in PIN" / "Change PIN" inline form (4-digit + confirm, no Alert.prompt)
+- ⬜ **Individual-accounts mode**: "Invite to create an account" → email input → real Supabase invite email sent; row shows "Invite pending (email)" until claimed, then "Account active" once linked
+- ⬜ **Clock-in kiosk** (`owner-settings/clock.tsx`): staff chip row shows "On clock" suffix for anyone currently clocked in; tapping a staff member reveals the PIN keypad; correct PIN clocks in/out (label/color changes), wrong PIN rejected with no state change; double-clock-in and double-clock-out both rejected with real errors; recent shifts list updates after every action
+- ⬜ **Owner Time Off screen**: pending requests show Approve/Deny; direct-create form (staff picker, date range, reason) auto-approves and immediately blocks that staff's availability in the booking flow; approve/deny on a staff-submitted request updates status and (on approve) blocks availability
+- ⬜ Staff invite deep link (`bookwithai://auth/staff-invite`): tapping the real invite email link opens the app and lands on "Set Your Password" (not a broken/unmatched route)
+- ⬜ Setting a password links the account and routes into the new 4-tab staff shell, not the customer or owner shell
+- ⬜ "Team" group in owner More menu: Staff / Time Off / Clock In-Payroll all navigate correctly; "Permissions" remains an inert placeholder (no custom permission builder was built — confirm expected)
+
+## Phase 12 — Owner CRM Depth (Sprint 8)
+(Covered in full under Phase 9's Customer Detail Screen section above — this phase is the plan-management side)
+
+- ⬜ **Membership Plans screen**: add form (name, price, monthly/yearly interval, manual/Stripe billing mode chips, optional discount %, optional included visits/cycle); Stripe-mode creation actually creates a real Stripe Price (verify in the Stripe dashboard) with zero manual Stripe setup required from the owner; archive removes from the active list
+- ⬜ **Packages screen**: add form (name, price, included visits, optional expiry days); archive removes from the active list
+
+## Phase 13 — Staff-Facing App (individual accounts mode only)
+
+- ⬜ **Schedule tab**: Clock In/Out button reflects real current status (checks most recent shift), toggling works without a PIN (already authenticated as self); appointment list is **permission-aware — Stylist/Assistant see only their own bookings, Manager/Receptionist see the whole salon's** (verify with accounts of each role)
+- ⬜ **Time Off tab**: request form (start/end/reason) submits as "Pending"; list shows own requests with correct status badges; approval/denial by the owner reflects here without the staff member doing anything
+- ⬜ **Earnings tab**: total commission card + itemized list (date, rate%, amount) matches what the owner sees on the same staff member's commission view
+- ⬜ **Account tab**: shows email, Sign Out works and returns to `/auth`
+- ⬜ Sign out and sign back in as a staff member lands directly in the staff shell every time (role persists across sessions)
+- ⬜ Log out of all devices / password change (existing account-security screen) also works correctly for a staff-role account
+
+---
+
+## Section D — Cross-cutting regressions to re-check every full pass
 
 These were real bugs, caught and fixed once already — they're exactly the kind of thing that silently breaks again after an unrelated change, so they stay on the list permanently rather than being treated as "done."
 
-- ⬜ **`Alert.prompt` is iOS-only.** Any text-input dialog anywhere in the app (business status reason, holiday dates, etc.) must be an inline form, never `Alert.prompt` — verify on a real Android device, not just the emulator, since this bug hid on iOS-flavored testing before.
-- ⬜ **Tax recompute on checkout.** Adding a product or discount mid-checkout must recompute tax live against the current subtotal, not the frozen value from the initial preview call.
-- ⬜ **`profiles.role='owner'` backfill correctness.** Every real pre-existing owner account (not just new ones) must route to the owner shell, not the customer tabs — this depends on an email-match backfill that only ran once.
-- ⬜ **RLS doesn't silently zero out existing web queries.** Any new RLS policy on a previously-open table should be checked against `ExpensesView.tsx`/`AatifAgent.tsx`-style direct browser queries before shipping — confirm the web dashboard still works after any owner-app RLS change.
-- ⬜ **Idempotency key dedup.** A retried booking submission (e.g., app backgrounded mid-request, tapped Pay twice) must never create two bookings.
-- ⬜ **Salon landing page fields.** `owner_phone`, `address_line1`/`address_line2`/`postal_code`, and `logo_url` (joined from `brand_studio_settings`) must all actually render — this silently regressed once already (wrong field names, `tsc` caught it but the UI bug shipped invisibly for a while first).
-- ⬜ **Cancellation push parity.** Cancel and reschedule use two different backend routes — confirm both still send their respective push after any booking-route refactor.
-- ⬜ **`require_online_payment` respected end-to-end.** A salon with pay-at-salon enabled must never route to Stripe; this was broken once by a setting that was fetched but never actually checked.
-- ⬜ **Role routing after any auth-flow change.** `_layout.tsx`'s `roleHome()` must keep routing owner → owner shell, staff → staff shell, customer → customer tabs — a change to sign-in, invite-linking, or session-refresh logic is exactly the kind of thing that could silently break this for one role while looking fine for the others.
-- ⬜ **Commission never double-charges or double-counts.** `booking_commissions` has a `UNIQUE(booking_id, staff_id)` constraint specifically so a re-finalized checkout (e.g. a webhook re-fires) upserts the existing row instead of creating a second one — verify a booking that gets finalized twice still shows exactly one commission entry.
-- ⬜ **Next.js route-export validation.** `tsc --noEmit` does NOT catch a `route.ts` file exporting a non-HTTP-method constant (breaks Next's build-time route validator, not TypeScript) — this silently broke 3 consecutive production deploys before being caught via the Vercel dashboard directly. Run a real `npm run build` in `booking-app` after touching any route file, not just `tsc`.
-- ⬜ **New table names checked against existing ones before creating.** A `packages` table already existed (agency-level SaaS pricing tiers) when Sprint 8 needed a genuinely different "customer visit bundle" concept — a same-named `CREATE TABLE IF NOT EXISTS` would have silently no-op'd against the wrong table. Before any new migration, grep the codebase for the intended table name first.
-- ⬜ **Stripe-subscription membership state depends on webhooks arriving.** If a webhook is missed/delayed (Stripe retries, but not instantly), a `customer_memberships` row can sit in a stale status for a while — verify the Stripe CLI/dashboard event log shows successful delivery after any membership subscription test, not just that the UI eventually looked right.
+- ⬜ **`Alert.prompt` is iOS-only.** Any text-input dialog anywhere in the app must be an inline form, never `Alert.prompt` — verify on a real Android device. (Confirmed zero usages as of this pass — re-`grep -r "Alert.prompt" src/` before every future submission.)
+- ⬜ **Tax recompute on checkout.** Adding a product or discount mid-checkout must recompute tax live against the current subtotal, not the frozen preview value.
+- ⬜ **`profiles.role='owner'` backfill correctness.** Every real pre-existing owner account must route to the owner shell, not customer tabs.
+- ⬜ **RLS doesn't silently zero out existing web queries.** Any new RLS policy on a previously-open table should be checked against direct-browser-query code paths before shipping.
+- ⬜ **Idempotency key dedup.** A retried booking submission must never create two bookings.
+- ⬜ **Salon landing page fields.** `owner_phone`/address fields/`logo_url` must all actually render — this regressed once already.
+- ⬜ **Cancellation push parity.** Cancel and reschedule use two different backend routes — confirm both still send their push after any refactor.
+- ⬜ **`require_online_payment` respected end-to-end.** A pay-at-salon salon must never route to Stripe.
+- ⬜ **Role routing after any auth-flow change.** `_layout.tsx`'s `roleHome()` must keep routing owner/staff/customer correctly — now a 3-way branch, not 2.
+- ⬜ **Commission never double-charges or double-counts.** `booking_commissions`'s unique constraint must prevent a re-finalized checkout from creating a second row.
+- ⬜ **Next.js route-export validation.** `tsc --noEmit` does NOT catch a `route.ts` exporting a non-HTTP-method constant — run a real `npm run build` in `booking-app` after touching any route file.
+- ⬜ **New table names checked against existing ones before creating.** Grep the codebase for an intended table name before any new migration — a same-named `CREATE TABLE IF NOT EXISTS` silently no-ops against the wrong table.
+- ⬜ **Stripe-subscription membership state depends on webhooks arriving.** Verify the Stripe CLI/dashboard event log shows successful delivery after any membership subscription test, not just that the UI eventually looked right.
+- ⬜ **Dev-only code paths.** Re-check for any new "REMOVE BEFORE SUBMISSION" markers before every future submission — two were found and fixed this pass; more could be introduced later.
+- ⬜ **In-app path to account/data deletion.** Any new account-adjacent screen work should re-confirm the Delete My Data link is still reachable from Account → Legal.
