@@ -97,7 +97,8 @@
           "icon": "./assets/images/bwa-logo.png",
           "color": "#5B2EFF"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

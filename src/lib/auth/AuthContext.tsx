@@ -10,7 +10,7 @@ interface AuthContextValue {
   role:     UserRole | null;
   clientId: string | null;
   loading:  boolean;
-  signOut:  () => Promise<void>;
+  signOut:  (scope?: 'local' | 'global') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -64,8 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function signOut() {
-    await supabase.auth.signOut();
+  async function signOut(scope: 'local' | 'global' = 'local') {
+    await supabase.auth.signOut({ scope });
   }
 
   return (

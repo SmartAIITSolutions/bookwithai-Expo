@@ -23,6 +23,7 @@ import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
@@ -92,6 +93,7 @@ export default function RootLayout() {
     <BottomSheetModalProvider>
     <AuthProvider>
       <StatusBar style="dark" />
+      <OfflineBanner />
       <AuthRedirectGate />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
@@ -103,6 +105,8 @@ export default function RootLayout() {
         <Stack.Screen name="customer/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="customer/merge-duplicates" options={{ headerShown: true }} />
         <Stack.Screen name="owner-notifications" options={{ headerShown: true }} />
+        <Stack.Screen name="account-security" options={{ headerShown: true }} />
+        <Stack.Screen name="profile" options={{ headerShown: true }} />
         <Stack.Screen name="auth" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="notifications" />
@@ -113,6 +117,7 @@ export default function RootLayout() {
         <Stack.Screen name="booking/review" />
         <Stack.Screen name="booking/payment" />
         <Stack.Screen name="booking/confirmation" />
+        <Stack.Screen name="booking/receipt" />
         <Stack.Screen name="legal/privacy" />
         <Stack.Screen name="legal/terms" />
         <Stack.Screen name="legal/support" />

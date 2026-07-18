@@ -62,7 +62,7 @@ export default function OwnerMoreScreen() {
           </View>
         ))}
         <View style={styles.card}>
-          <TouchableOpacity style={styles.row} onPress={signOut}>
+          <TouchableOpacity style={styles.row} onPress={() => signOut()}>
             <Text style={styles.rowText}>Log Out</Text>
           </TouchableOpacity>
         </View>

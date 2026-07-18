@@ -18,8 +18,12 @@ import {
   type Service,
 } from '@/lib/api/salon';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { ErrorState } from '@/components/ErrorState';
+import { saveCustomerPreferences } from '@/lib/api/customer';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 export default function ServicesScreen() {
+  const { user } = useAuth();
   const { salonId, salonSlug, salonName, requireOnlinePayment } = useLocalSearchParams<{
     salonId: string;
     salonSlug: string;
@@ -30,17 +34,26 @@ export default function ServicesScreen() {
   const [groups, setGroups] = useState<{ category: string; items: Service[] }[]>([]);
   const [selected, setSelected] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  function load() {
+    if (!salonId) return;
+    setLoading(true);
+    setLoadError(false);
+    fetchServicesBySalonId(salonId)
+      .then((svcs) => {
+        // Filter out bundle-only and non-online-bookable
+        const bookable = svcs.filter(
+          (s) => !s.bundle_only && s.bookable_online !== false
+        );
+        setGroups(groupServicesByCategory(bookable));
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
-    if (!salonId) return;
-    fetchServicesBySalonId(salonId).then((svcs) => {
-      // Filter out bundle-only and non-online-bookable
-      const bookable = svcs.filter(
-        (s) => !s.bundle_only && s.bookable_online !== false
-      );
-      setGroups(groupServicesByCategory(bookable));
-      setLoading(false);
-    });
+    load();
   }, [salonId]);
 
   function toggleService(svc: Service) {
@@ -59,6 +72,11 @@ export default function ServicesScreen() {
   const totalMins = selected.reduce((sum, s) => sum + s.duration_minutes, 0);
 
   function handleContinue() {
+    // Fire-and-forget: a single-service booking is a clean preference
+    // signal; multi-service bookings don't map to one preferred service.
+    if (user && salonId && selected.length === 1) {
+      saveCustomerPreferences(salonId, { preferred_service_id: selected[0].id }).catch(() => {});
+    }
     router.push({
       pathname: '/booking/staff',
       params: {
@@ -95,6 +113,8 @@ export default function ServicesScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
+      ) : loadError ? (
+        <ErrorState message="Unable to load services. Please check your connection and try again." onRetry={load} />
       ) : groups.length === 0 ? (
         <View style={styles.centered}>
           <Ionicons name="cut-outline" size={48} color={Colors.textSecondary} />

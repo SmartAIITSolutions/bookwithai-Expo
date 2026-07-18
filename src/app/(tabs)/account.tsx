@@ -159,7 +159,9 @@ export default function AccountScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        <View style={styles.profileHeader}>
+        <Pressable
+          style={({ pressed }) => [styles.profileHeader, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push('/profile')}>
           <View style={styles.avatar}>
             <Text style={styles.avatarLetter}>
               {(user.user_metadata?.full_name || user.email || 'G')[0].toUpperCase()}
@@ -171,7 +173,8 @@ export default function AccountScreen() {
             </Text>
             <Text style={styles.profileEmail}>{user.email}</Text>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textDisabled} />
+        </Pressable>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Security</Text>
@@ -190,6 +193,12 @@ export default function AccountScreen() {
               thumbColor={Colors.white}
             />
           </View>
+          <Pressable
+            style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/account-security')}>
+            <Text style={styles.linkLabel}>Password, Email & PIN</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textDisabled} />
+          </Pressable>
         </View>
 
         <View style={styles.section}>

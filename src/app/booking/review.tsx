@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import * as Crypto from 'expo-crypto';
 import {
   View,
   Text,
@@ -62,6 +63,9 @@ export default function ReviewScreen() {
   const [notes, setNotes] = useState('');
   const [consented, setConsented] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
+  // One key per booking attempt at this screen -- reused across retries so a
+  // dropped-response retry doesn't create a duplicate booking server-side.
+  const idempotencyKey = useRef(Crypto.randomUUID()).current;
 
   const services = (serviceNames || '').split('||').filter(Boolean);
   const cents = parseInt(totalCents || '0', 10);
@@ -84,6 +88,7 @@ export default function ReviewScreen() {
           staffId, staffName,
           startsAt, endsAt,
           notes,
+          idempotencyKey,
         },
       });
       return;
@@ -106,6 +111,7 @@ export default function ReviewScreen() {
           customer_email: user?.email || undefined,
           customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
           auth_user_id:   user?.id || undefined,
+          idempotency_key: idempotencyKey,
         }),
       });
 

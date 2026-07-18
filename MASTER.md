@@ -23,7 +23,7 @@
 | **TOTAL Steps 1–18** | **~12–16 weeks** | **1 day** | **~11–15 weeks ahead of original estimate** |
 | 18.5 — Push Notifications (pulled forward from V2) | ~6–8 hours / 1–2 sessions | ✅ Done 2026-07-16 (same day) | Predicted completion was 2026-07-18 — 2 days ahead. Includes 6 bug fixes found during E2E testing (see build plan below). |
 | 18.6 — Customer self-serve reschedule/cancel | ~5–6 hours / 1 session | ✅ Done 2026-07-16 (same day) | New gap found during Internal Testing prep. Includes 1 follow-up fix (customer confirmation push was missing on self-serve actions) found and fixed during verification. |
-| 18.7 — V1/V2 Gap Closure | ~4–5 sessions | ⬜ Not started | New step, added 2026-07-17. The 10 confirmed real gaps found during the V1/V2 audit — see detail below. Deliberately scoped to exactly these 10 items, not the full V1/V2 checklist. |
+| 18.7 — V1/V2 Gap Closure | ~4–5 sessions | ✅ Done (2026-07-17) | 9 of 10 items built (Sign in with Apple moved to Step 21). See build notes below. |
 | 19 — Internal Testing | 1–2 sessions | 🔄 Unblocked, ready to resume | — |
 | 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
@@ -445,6 +445,22 @@ Exactly the 10 confirmed real gaps surfaced by the V1/V2 audit — not the full 
 - Item 8 (profile depth): shared `customer_profiles` table keyed by `auth_user_id` for person-level fields; `preferred_staff`/`preferred_service` stay per-salon.
 
 **This step's active build scope is 9 items** (all except Sign in with Apple), with item 3 now including the staff-service assignment model as a real prerequisite, not a simplification.
+
+**Build notes (completed 2026-07-17):**
+
+All 9 items built end-to-end across both repos, `tsc --noEmit` clean in both (only pre-existing, unrelated errors remain — `SalonInfo` missing `phone`/`address`/`zip`/`logo_url` in `salon.ts`, plus a stale `theme.ts`/`Theme.ts` casing collision and two unrelated `QRScanner`/`OnboardingSlide` errors, none touched this session).
+
+- **Offline detection**: `useNetworkStatus` hook (`NetInfo`) + global `OfflineBanner` in `_layout.tsx`. `fetchSalonBySlug`/`fetchStaffBySalonId`/`fetchServicesBySalonId` in `salon.ts` now throw on real fetch errors instead of silently returning `null`/`[]`, so `salon/[id].tsx`, `booking/services.tsx`, `booking/staff.tsx`, and `my-booking.tsx` can tell "empty" apart from "failed" and show the existing (previously-unused) `ErrorState` with retry. `booking/datetime.tsx` already had its own inline `slotsError` retry UI — left as-is.
+- **`expo-sharing`**: ended up using React Native's built-in `Share` API instead — it handles plain-text sharing natively with no file write needed; `expo-sharing` (file-based) wasn't the right tool for a text share. Wired into `booking/confirmation.tsx` and the new `booking/receipt.tsx`.
+- **Staff-service filtering**: new `service_staff` junction table (no RLS — must stay directly queryable by the anon client like `staff`/`services`), `/api/owner/services/[id]/staff` route (GET/PUT, full replace, empty = "any staff"), owner-side expandable staff-assignment panel on each service card in `owner-settings/services.tsx`. `fetchStaffBySalonId(salonId, serviceIds?)` now intersects per-service assignment sets client-side, with an unrestricted service (no assignment rows) not narrowing the result.
+- **Idempotency**: `bookings.idempotency_key` column + unique partial index; `/api/mobile/bookings` dedups on that key before insert. Mobile side generates one UUID via `expo-crypto` per visit to `booking/review.tsx` (`useRef`, so retries reuse it), passed through to both the direct-booking and post-payment booking calls.
+- **Sign in with Apple**: confirmed moved to Step 21, not touched here.
+- **Account security**: new `/account-security` screen — change email/password via `supabase.auth.updateUser()` (password change re-authenticates first), "Log out of all devices" via `signOut('global')` (added a `scope` param to `AuthContext.signOut`, default `'local'` preserves existing behavior), and a PIN fallback (`src/lib/auth/pin.ts`, SHA-256 hash in SecureStore, never plaintext) with a new `auth/pin-entry.tsx` keypad screen wired into `auth/biometrics.tsx`'s "Use PIN Instead" fallback. All inline forms — no `Alert.prompt` anywhere.
+- **Profile depth**: new `customer_profiles` table (RLS `auth.uid() = auth_user_id`) + new public `profile-photos` storage bucket (RLS write-scoped to the uploader's own `auth.uid()` folder, public read since it's just an avatar). New `src/app/profile.tsx` screen (photo via `expo-image-picker`, birthday, pronouns, timezone). Preferred staff/service ended up as a fire-and-forget signal instead of a dedicated settings picker: selecting a specific staff member or a single service during booking silently calls `/api/mobile/customer-preferences` — simpler than building a separate per-salon preference UI for what's ultimately a low-stakes convenience field.
+- **Past-appointment actions**: `my-bookings` route now also returns a `reviewed` flag (joined against `review_submissions`). `my-booking.tsx` shows Rebook (→ `booking/staff` prefilled, skips reschedule semantics) / Rate (inline star picker, no modal) / Receipt (→ new `booking/receipt.tsx`, itself shareable) on past bookings.
+- **Pull-to-refresh**: added to `my-booking.tsx`, matching the existing Notifications screen pattern (`RefreshControl` + `refreshing` state).
+
+Both repos committed locally (not pushed, per standing rule).
 
 ### Step 19 — Internal Testing
 - Full end-to-end flow on real Android device

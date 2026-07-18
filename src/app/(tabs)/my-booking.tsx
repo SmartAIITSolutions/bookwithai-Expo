@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, ActivityIndicator, Alert, Linking,
+  Pressable, ActivityIndicator, Alert, Linking, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -10,19 +10,26 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { cancelBooking } from '@/lib/api/bookingActions';
+import { submitBookingReview } from '@/lib/api/customer';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 import { API_BASE } from '@/lib/config';
+import { ErrorState } from '@/components/ErrorState';
 
 interface Booking {
   id: string;
   client_id: string;
+  customer_id: string | null;
   service_id: string | null;
   staff_id: string | null;
   starts_at: string;
   ends_at: string;
   status: string;
   price_cents: number | null;
+  tax_cents: number | null;
+  tip_cents: number | null;
+  total_charged_cents: number | null;
   notes: string | null;
+  reviewed: boolean;
   agency_clients: {
     business_name: string;
     owner_phone: string | null;
@@ -64,7 +71,12 @@ export default function MyBookingScreen() {
   const { user, loading: authLoading } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading,  setLoading]  = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [ratingId, setRatingId] = useState<string | null>(null);
+  const [ratingStars, setRatingStars] = useState(0);
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   useEffect(() => {
     if (user) fetchBookings();
@@ -73,6 +85,7 @@ export default function MyBookingScreen() {
   async function fetchBookings() {
     try {
       setLoading(true);
+      setLoadError(false);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
@@ -81,11 +94,18 @@ export default function MyBookingScreen() {
       });
       const json = await res.json();
       if (res.ok && json.data) setBookings(json.data);
+      else setLoadError(true);
     } catch (e) {
-      // silent
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await fetchBookings();
+    setRefreshing(false);
   }
 
   function handleReschedule(item: Booking) {
@@ -132,6 +152,58 @@ export default function MyBookingScreen() {
         },
       ]
     );
+  }
+
+  function handleRebook(item: Booking) {
+    router.push({
+      pathname: '/booking/staff',
+      params: {
+        salonId: item.client_id,
+        salonSlug: '',
+        salonName: item.agency_clients?.business_name ?? '',
+        requireOnlinePayment: 'true',
+        serviceIds: item.service_id ?? '',
+        serviceNames: item.services?.name ?? '',
+        totalCents: String(item.price_cents ?? 0),
+        totalMins: String((item.services?.duration_minutes ?? 60) + (item.services?.buffer_minutes ?? 0)),
+      },
+    });
+  }
+
+  function handleOpenRating(item: Booking) {
+    setRatingId(item.id);
+    setRatingStars(0);
+  }
+
+  async function handleSubmitRating() {
+    if (!ratingId || ratingStars === 0) return;
+    setSubmittingRating(true);
+    const result = await submitBookingReview(ratingId, ratingStars);
+    setSubmittingRating(false);
+    if (!result.ok) {
+      notificationError();
+      Alert.alert('Could not submit rating', result.error || 'Please try again.');
+      return;
+    }
+    notificationSuccess();
+    setRatingId(null);
+    setBookings((prev) => prev.map((b) => (b.id === ratingId ? { ...b, reviewed: true } : b)));
+  }
+
+  function handleViewReceipt(item: Booking) {
+    router.push({
+      pathname: '/booking/receipt',
+      params: {
+        salonName: item.agency_clients?.business_name ?? '',
+        startsAt: item.starts_at,
+        serviceName: item.services?.name ?? '',
+        staffName: item.staff?.name ?? '',
+        priceCents: String(item.price_cents ?? 0),
+        taxCents: String(item.tax_cents ?? 0),
+        tipCents: String(item.tip_cents ?? 0),
+        totalCents: String(item.total_charged_cents ?? item.price_cents ?? 0),
+      },
+    });
   }
 
   function handleContactSalon(item: Booking) {
@@ -182,6 +254,8 @@ export default function MyBookingScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Colors.primary} size="large" />
         </View>
+      ) : loadError && bookings.length === 0 ? (
+        <ErrorState message="Unable to load your bookings. Please check your connection and try again." onRetry={fetchBookings} />
       ) : bookings.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="calendar-outline" size={48} color={Colors.textDisabled} />
@@ -199,6 +273,7 @@ export default function MyBookingScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
           renderItem={({ item }) => {
             const isUpcoming = item.status === 'confirmed' && minutesUntil(item.starts_at) > 0;
             const cutoffMinutes = item.agency_clients?.booking_cutoff_minutes ?? 1440;
@@ -264,6 +339,59 @@ export default function MyBookingScreen() {
                         <Text style={styles.actionBtnText}>Contact Salon</Text>
                       </Pressable>
                     )}
+                  </View>
+                )}
+
+                {!isUpcoming && (
+                  <View style={styles.actionsRow}>
+                    <Pressable style={styles.actionBtn} onPress={() => handleRebook(item)}>
+                      <Ionicons name="repeat-outline" size={14} color={Colors.primary} />
+                      <Text style={styles.actionBtnText}>Rebook</Text>
+                    </Pressable>
+                    {item.status === 'completed' && !item.reviewed && (
+                      <Pressable style={styles.actionBtn} onPress={() => handleOpenRating(item)}>
+                        <Ionicons name="star-outline" size={14} color={Colors.primary} />
+                        <Text style={styles.actionBtnText}>Rate</Text>
+                      </Pressable>
+                    )}
+                    {item.status === 'completed' && (
+                      <Pressable style={styles.actionBtn} onPress={() => handleViewReceipt(item)}>
+                        <Ionicons name="receipt-outline" size={14} color={Colors.primary} />
+                        <Text style={styles.actionBtnText}>Receipt</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+
+                {ratingId === item.id && (
+                  <View style={styles.ratingPanel}>
+                    <Text style={styles.ratingLabel}>How was your visit?</Text>
+                    <View style={styles.starRow}>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Pressable key={n} onPress={() => setRatingStars(n)} hitSlop={6}>
+                          <Ionicons
+                            name={n <= ratingStars ? 'star' : 'star-outline'}
+                            size={28}
+                            color={Colors.primary}
+                          />
+                        </Pressable>
+                      ))}
+                    </View>
+                    <View style={styles.ratingActions}>
+                      <Pressable onPress={() => setRatingId(null)}>
+                        <Text style={styles.ratingCancelText}>Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.ratingSubmitBtn}
+                        onPress={handleSubmitRating}
+                        disabled={ratingStars === 0 || submittingRating}>
+                        {submittingRating ? (
+                          <ActivityIndicator color={Colors.white} size="small" />
+                        ) : (
+                          <Text style={styles.ratingSubmitText}>Submit</Text>
+                        )}
+                      </Pressable>
+                    </View>
                   </View>
                 )}
               </View>
@@ -413,5 +541,41 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.xs,
     color: Colors.error,
+  },
+
+  ratingPanel: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: Spacing.sm,
+    alignItems: 'center',
+  },
+  ratingLabel: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+  },
+  starRow: { flexDirection: 'row', gap: Spacing.sm },
+  ratingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+  },
+  ratingCancelText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  ratingSubmitBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  ratingSubmitText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+    color: Colors.white,
   },
 });

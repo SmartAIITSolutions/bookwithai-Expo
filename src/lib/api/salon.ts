@@ -26,7 +26,8 @@ export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> 
     .eq('slug', slug)
     .single();
 
-  if (error || !data) return null;
+  if (error && error.code !== 'PGRST116') throw error;
+  if (!data) return null;
   return data as SalonInfo;
 }
 
@@ -37,7 +38,10 @@ export interface StaffMember {
   role: string | null;
 }
 
-export async function fetchStaffBySalonId(salonId: string): Promise<StaffMember[]> {
+// serviceIds narrows results to staff assigned to ALL of the given services
+// (intersection), via service_staff. A service with zero assignment rows
+// means "any staff can perform it", so it doesn't narrow the set.
+export async function fetchStaffBySalonId(salonId: string, serviceIds?: string[]): Promise<StaffMember[]> {
   const { data, error } = await supabase
     .from('staff')
     .select('id, name, bio, role')
@@ -45,8 +49,30 @@ export async function fetchStaffBySalonId(salonId: string): Promise<StaffMember[
     .eq('active', true)
     .order('display_order');
 
-  if (error || !data) return [];
-  return data as StaffMember[];
+  if (error) throw error;
+  const allStaff = (data as StaffMember[]) ?? [];
+  if (!serviceIds || serviceIds.length === 0) return allStaff;
+
+  const { data: assignments, error: assignError } = await supabase
+    .from('service_staff')
+    .select('service_id, staff_id')
+    .in('service_id', serviceIds);
+  if (assignError) throw assignError;
+
+  const byService = new Map<string, Set<string>>();
+  for (const row of assignments ?? []) {
+    if (!byService.has(row.service_id)) byService.set(row.service_id, new Set());
+    byService.get(row.service_id)!.add(row.staff_id);
+  }
+
+  // Services with no assignment rows impose no restriction.
+  const restrictingSets = serviceIds
+    .map((id) => byService.get(id))
+    .filter((set): set is Set<string> => !!set && set.size > 0);
+  if (restrictingSets.length === 0) return allStaff;
+
+  const intersection = restrictingSets.reduce((acc, set) => new Set([...acc].filter((id) => set.has(id))));
+  return allStaff.filter((s) => intersection.has(s.id));
 }
 
 export interface Service {
@@ -70,8 +96,8 @@ export async function fetchServicesBySalonId(salonId: string): Promise<Service[]
     .eq('active', true)
     .order('display_order');
 
-  if (error || !data) return [];
-  return data as Service[];
+  if (error) throw error;
+  return (data as Service[]) ?? [];
 }
 
 export function formatPrice(priceCents: number, priceIsFrom?: boolean | null): string {

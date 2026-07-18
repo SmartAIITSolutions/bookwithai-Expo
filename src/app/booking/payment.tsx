@@ -56,13 +56,13 @@ function PaymentForm() {
     serviceIds, serviceNames, totalCents, totalMins,
     staffId, staffName,
     startsAt, endsAt,
-    notes,
+    notes, idempotencyKey,
   } = useLocalSearchParams<{
     salonId: string; salonSlug: string; salonName: string;
     serviceIds: string; serviceNames: string; totalCents: string; totalMins: string;
     staffId: string; staffName: string;
     startsAt: string; endsAt: string;
-    notes: string;
+    notes: string; idempotencyKey: string;
   }>();
 
   const [ready, setReady] = useState(false);
@@ -159,6 +159,7 @@ function PaymentForm() {
           customer_email: user?.email || undefined,
           customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
           auth_user_id:   user?.id || undefined,
+          idempotency_key: idempotencyKey || undefined,
         }),
       });
 

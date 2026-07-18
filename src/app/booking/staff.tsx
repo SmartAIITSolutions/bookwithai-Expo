@@ -11,7 +11,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchStaffBySalonId, type StaffMember } from '@/lib/api/salon';
+import { saveCustomerPreferences } from '@/lib/api/customer';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { ErrorState } from '@/components/ErrorState';
 
 export default function StaffScreen() {
   const { salonId, salonSlug, salonName, requireOnlinePayment, serviceIds, serviceNames, totalCents, totalMins } =
@@ -26,17 +29,26 @@ export default function StaffScreen() {
       totalMins: string;
     }>();
 
+  const { user } = useAuth();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selected, setSelected] = useState<StaffMember | null>(null);
   const [anyAvailable, setAnyAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  function load() {
+    if (!salonId) return;
+    setLoading(true);
+    setLoadError(false);
+    const ids = serviceIds ? serviceIds.split(',').filter(Boolean) : [];
+    fetchStaffBySalonId(salonId, ids)
+      .then((data) => setStaff(data))
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
-    if (!salonId) return;
-    fetchStaffBySalonId(salonId).then((data) => {
-      setStaff(data);
-      setLoading(false);
-    });
+    load();
   }, [salonId]);
 
   function handleSelectStaff(member: StaffMember) {
@@ -50,6 +62,11 @@ export default function StaffScreen() {
   }
 
   function handleContinue() {
+    // Fire-and-forget: a specific staff pick is a reasonable signal of
+    // preference for this salon. Skipped for "Any Available" (no signal).
+    if (user && salonId && selected) {
+      saveCustomerPreferences(salonId, { preferred_staff_id: selected.id }).catch(() => {});
+    }
     router.push({
       pathname: '/booking/datetime',
       params: {
@@ -89,6 +106,8 @@ export default function StaffScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
+      ) : loadError ? (
+        <ErrorState message="Unable to load staff. Please check your connection and try again." onRetry={load} />
       ) : (
         <ScrollView
           style={styles.scroll}

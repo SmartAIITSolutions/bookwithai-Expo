@@ -13,13 +13,16 @@ import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { hasPin } from '@/lib/auth/pin';
 
 export default function BiometricsScreen() {
   const { signOut, role } = useAuth();
   const [biometricType, setBiometricType] = useState<'fingerprint' | 'face' | 'none'>('none');
+  const [pinAvailable, setPinAvailable] = useState(false);
 
   useEffect(() => {
     detectBiometricType();
+    hasPin().then(setPinAvailable);
     // Auto-trigger on mount
     handleAuthenticate();
   }, []);
@@ -84,6 +87,14 @@ export default function BiometricsScreen() {
           <Ionicons name={icon} size={48} color={Colors.primary} />
           <Text style={styles.biometricLabel}>Use {label}</Text>
         </Pressable>
+
+        {pinAvailable && (
+          <Pressable
+            style={({ pressed }) => [styles.passwordBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => router.replace('/auth/pin-entry')}>
+            <Text style={styles.passwordBtnText}>Use PIN Instead</Text>
+          </Pressable>
+        )}
 
         <Pressable
           style={({ pressed }) => [styles.passwordBtn, pressed && { opacity: 0.85 }]}

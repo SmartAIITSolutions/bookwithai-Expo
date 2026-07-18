@@ -9,6 +9,7 @@ export default function AuthLayout() {
       <Stack.Screen name="magic-link" />
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="biometrics" />
+      <Stack.Screen name="pin-entry" />
     </Stack>
   );
 }

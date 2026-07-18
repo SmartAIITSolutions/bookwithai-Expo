@@ -15,6 +15,7 @@ import {
   Alert,
   Linking,
   Platform,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -129,6 +130,21 @@ export default function ConfirmationScreen() {
     router.replace('/(tabs)/my-booking');
   }
 
+  async function handleShare() {
+    const when = startsAt ? formatLongDateTime(startsAt) : '';
+    const lines = [
+      `${salonName || 'My appointment'}`,
+      when,
+      services.join(', '),
+      staffName ? `with ${staffName}` : null,
+    ].filter(Boolean);
+    try {
+      await Share.share({ message: lines.join('\n') });
+    } catch (e) {
+      // user cancelled or share sheet failed silently -- nothing to recover from
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -201,6 +217,11 @@ export default function ConfirmationScreen() {
           <Pressable style={styles.actionBtn} onPress={handleGetDirections}>
             <Ionicons name="navigate-outline" size={20} color={Colors.primary} />
             <Text style={styles.actionBtnText}>Get Directions</Text>
+          </Pressable>
+
+          <Pressable style={styles.actionBtn} onPress={handleShare}>
+            <Ionicons name="share-outline" size={20} color={Colors.primary} />
+            <Text style={styles.actionBtnText}>Share</Text>
           </Pressable>
         </View>
 

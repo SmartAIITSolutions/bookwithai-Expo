@@ -45,3 +45,12 @@ export async function archiveService(id: string) {
 export async function getAddOnSuggestion(serviceId: string) {
   return ownerFetch<{ suggestion: AddOnSuggestion | null }>(`/api/owner/services/${serviceId}/add-on-suggestion`);
 }
+
+// Empty staff_ids means "any staff can perform this service" (no restriction).
+export async function getServiceStaff(serviceId: string) {
+  return ownerFetch<{ staff_ids: string[] }>(`/api/owner/services/${serviceId}/staff`);
+}
+
+export async function setServiceStaff(serviceId: string, staffIds: string[]) {
+  return ownerFetch(`/api/owner/services/${serviceId}/staff`, { method: 'PUT', body: { staff_ids: staffIds } });
+}
