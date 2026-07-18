@@ -432,15 +432,17 @@ Exactly the 10 confirmed real gaps surfaced by the V1/V2 audit — not the full 
 3. **Staff selection filtering** — shows every active staff member regardless of the service picked.
 4. **Existing Customer Summary** — spend, last visit, reward balance, birthday recognition; entire section unbuilt.
 5. **Idempotency key on bookings/payments** — a real double-charge/double-booking risk if a request retries with no dedup.
-6. **Sign in with Apple** — only Google OAuth + email/magic-link exist today. **Blocked on a purchase decision, not code:** `MASTER.md` already notes the Apple Developer Program account ($99/yr) hasn't been bought yet ("Buy at Step 21 only, not needed until iOS submission") — Sign in with Apple needs it enabled/configured before it can be built or tested at all.
+6. **Sign in with Apple** — ~~only Google OAuth + email/magic-link exist today~~ **Moved out of this step's active scope (2026-07-17).** Confirmed via Step 20's own requirements list: this is purely an Apple App Store guideline (4.8 — apps offering third-party login must also offer Apple ID login), with zero bearing on Google Play/Android. Since the current focus is Android/Play Store, this isn't a blocker at all right now — moved to the **Step 21 (iOS/App Store) checklist**, alongside the already-deferred Apple Developer Program purchase, and built together whenever iOS submission actually starts.
 7. **Account security** — no in-account change-password/change-email, no "log out of all devices" (current sign-out is local-session only), no PIN fallback for biometrics.
 8. **Profile depth** — no photo, birthday, pronouns, timezone, preferred staff/services; only name + email today.
 9. **Past-appointment actions** — no rebook/rate/receipt actions on past bookings.
 10. **Pull-to-refresh** — only exists on the Notifications screen, missing from My Booking.
 
-**Two real decisions needed before building, not assumed:**
-- **Item 6 (Sign in with Apple)** genuinely can't be built without you first enrolling in/confirming access to the Apple Developer Program — this is a purchase/account action only you can take.
-- **Item 5 (idempotency)** is a systemic design choice, not a local fix — it touches the booking creation and payment flow end-to-end.
+**Decisions locked 2026-07-17:**
+- Item 6 (Sign in with Apple) moved to the Step 21 checklist — not part of this step's build.
+- Item 5 (idempotency): client-generated UUID per booking attempt, sent with the request; server stores it and returns the same result if it sees that UUID again instead of creating a duplicate.
+
+**This step's active build scope is now 9 items** (all except Sign in with Apple).
 
 ### Step 19 — Internal Testing
 - Full end-to-end flow on real Android device
@@ -453,6 +455,7 @@ Exactly the 10 confirmed real gaps surfaced by the V1/V2 audit — not the full 
 
 ### Step 21 — iOS Build + App Store
 - Buy Apple Developer account ($99/year) at this point
+- **Build Sign in with Apple** (moved from Step 18.7, 2026-07-17 — required by Apple guideline 4.8 since Google sign-in is offered; not needed for Android/Play Store)
 - Expo EAS cloud build (no Mac needed)
 - TestFlight internal testing
 - App Store listing + submission
