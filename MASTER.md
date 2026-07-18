@@ -23,6 +23,7 @@
 | **TOTAL Steps 1–18** | **~12–16 weeks** | **1 day** | **~11–15 weeks ahead of original estimate** |
 | 18.5 — Push Notifications (pulled forward from V2) | ~6–8 hours / 1–2 sessions | ✅ Done 2026-07-16 (same day) | Predicted completion was 2026-07-18 — 2 days ahead. Includes 6 bug fixes found during E2E testing (see build plan below). |
 | 18.6 — Customer self-serve reschedule/cancel | ~5–6 hours / 1 session | ✅ Done 2026-07-16 (same day) | New gap found during Internal Testing prep. Includes 1 follow-up fix (customer confirmation push was missing on self-serve actions) found and fixed during verification. |
+| 18.7 — V1/V2 Gap Closure | ~4–5 sessions | ⬜ Not started | New step, added 2026-07-17. The 10 confirmed real gaps found during the V1/V2 audit — see detail below. Deliberately scoped to exactly these 10 items, not the full V1/V2 checklist. |
 | 19 — Internal Testing | 1–2 sessions | 🔄 Unblocked, ready to resume | — |
 | 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
@@ -421,6 +422,25 @@ bookwithai-expo/
 - Haptic feedback, status bar, safe areas, keyboard handling
 - Android back button, skeleton loaders, transitions
 - Packages needed: `expo-haptics`
+
+### Step 18.7 — V1/V2 Gap Closure (added 2026-07-17)
+
+Exactly the 10 confirmed real gaps surfaced by the V1/V2 audit — not the full checklist. Each was verified in code, not guessed.
+
+1. **Offline/connectivity detection** — no `NetInfo` (or similar) anywhere; several "no internet" error states are genuinely unbuilt.
+2. **`expo-sharing`** — "share appointment" doesn't exist.
+3. **Staff selection filtering** — shows every active staff member regardless of the service picked.
+4. **Existing Customer Summary** — spend, last visit, reward balance, birthday recognition; entire section unbuilt.
+5. **Idempotency key on bookings/payments** — a real double-charge/double-booking risk if a request retries with no dedup.
+6. **Sign in with Apple** — only Google OAuth + email/magic-link exist today. **Blocked on a purchase decision, not code:** `MASTER.md` already notes the Apple Developer Program account ($99/yr) hasn't been bought yet ("Buy at Step 21 only, not needed until iOS submission") — Sign in with Apple needs it enabled/configured before it can be built or tested at all.
+7. **Account security** — no in-account change-password/change-email, no "log out of all devices" (current sign-out is local-session only), no PIN fallback for biometrics.
+8. **Profile depth** — no photo, birthday, pronouns, timezone, preferred staff/services; only name + email today.
+9. **Past-appointment actions** — no rebook/rate/receipt actions on past bookings.
+10. **Pull-to-refresh** — only exists on the Notifications screen, missing from My Booking.
+
+**Two real decisions needed before building, not assumed:**
+- **Item 6 (Sign in with Apple)** genuinely can't be built without you first enrolling in/confirming access to the Apple Developer Program — this is a purchase/account action only you can take.
+- **Item 5 (idempotency)** is a systemic design choice, not a local fix — it touches the booking creation and payment flow end-to-end.
 
 ### Step 19 — Internal Testing
 - Full end-to-end flow on real Android device
