@@ -429,20 +429,22 @@ Exactly the 10 confirmed real gaps surfaced by the V1/V2 audit — not the full 
 
 1. **Offline/connectivity detection** — no `NetInfo` (or similar) anywhere; several "no internet" error states are genuinely unbuilt.
 2. **`expo-sharing`** — "share appointment" doesn't exist.
-3. **Staff selection filtering** — shows every active staff member regardless of the service picked.
+3. **Staff selection filtering** — shows every active staff member regardless of the service picked. **Scope note (2026-07-17):** this can't actually be built as originally scoped — verified there's no staff-to-service assignment anywhere, on web or mobile (today's model assumes any active staff can do any service). Expanded to include building that mapping first, on both platforms: a new junction table + UI in the web dashboard's Services/Staff screens, then the mobile filter reads from it.
 4. **Existing Customer Summary** — spend, last visit, reward balance, birthday recognition; entire section unbuilt.
 5. **Idempotency key on bookings/payments** — a real double-charge/double-booking risk if a request retries with no dedup.
 6. **Sign in with Apple** — ~~only Google OAuth + email/magic-link exist today~~ **Moved out of this step's active scope (2026-07-17).** Confirmed via Step 20's own requirements list: this is purely an Apple App Store guideline (4.8 — apps offering third-party login must also offer Apple ID login), with zero bearing on Google Play/Android. Since the current focus is Android/Play Store, this isn't a blocker at all right now — moved to the **Step 21 (iOS/App Store) checklist**, alongside the already-deferred Apple Developer Program purchase, and built together whenever iOS submission actually starts.
 7. **Account security** — no in-account change-password/change-email, no "log out of all devices" (current sign-out is local-session only), no PIN fallback for biometrics.
-8. **Profile depth** — no photo, birthday, pronouns, timezone, preferred staff/services; only name + email today.
+8. **Profile depth** — no photo, birthday, pronouns, timezone, preferred staff/services; only name + email today. **Scope note (2026-07-17):** since a customer can hold separate `customers` rows per salon (confirmed multi-salon identity), profile fields that are genuinely about the *person* (photo, birthday, pronouns, timezone) go on a new `customer_profiles` table keyed by `auth_user_id` — set once, shared across every salon. `preferred_staff`/`preferred_service` stay per-salon on the existing `customers` row, since those are salon-specific by nature.
 9. **Past-appointment actions** — no rebook/rate/receipt actions on past bookings.
 10. **Pull-to-refresh** — only exists on the Notifications screen, missing from My Booking.
 
 **Decisions locked 2026-07-17:**
 - Item 6 (Sign in with Apple) moved to the Step 21 checklist — not part of this step's build.
 - Item 5 (idempotency): client-generated UUID per booking attempt, sent with the request; server stores it and returns the same result if it sees that UUID again instead of creating a duplicate.
+- Item 3 (staff filtering): build the missing staff-service assignment model first (both platforms), then filter by it.
+- Item 8 (profile depth): shared `customer_profiles` table keyed by `auth_user_id` for person-level fields; `preferred_staff`/`preferred_service` stay per-salon.
 
-**This step's active build scope is now 9 items** (all except Sign in with Apple).
+**This step's active build scope is 9 items** (all except Sign in with Apple), with item 3 now including the staff-service assignment model as a real prerequisite, not a simplification.
 
 ### Step 19 — Internal Testing
 - Full end-to-end flow on real Android device
