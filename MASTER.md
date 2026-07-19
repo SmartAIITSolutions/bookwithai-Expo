@@ -218,6 +218,8 @@
 - Health features: none — not a health/fitness/medical app.
 - Government apps / COVID-19 contact tracing / news apps: not applicable.
 
+**First real submission milestone (2026-07-19): Internal Testing release live.** Uploaded build `6ebcba68` (versionCode 3) to Play Console's Internal testing track. Tester list created (dhanani.farheen.46@gmail.com, testclient@gmail.com, chimeandshine@gmail.com). Release status: "Available to internal testers." One benign warning (no R8/Proguard deobfuscation mapping file uploaded — doesn't block rollout, just means future crash reports would show obfuscated symbol names; not a submission blocker, revisit if crash reporting is added later). This is the real production build running for the first time outside dev/Expo Go — next step is installing it on-device via the tester opt-in link and using it to close out the remaining Functional Reliability items before promoting to Production.
+
 **Standing-rule correction (2026-07-18):** partway through this pass, the user re-stated the strict collaboration rules (no code changes without per-change permission, no assumptions, verify-before-reporting, three-strike debug stop, MASTER.md kept current in the same commit as the code) after a stretch of testing-pass work where fixes were made and committed without asking each time, and this file wasn't updated in that commit. This entry itself is the correction. Going forward: explain the issue, propose the fix, get an explicit yes before writing any code.
 
 ---
