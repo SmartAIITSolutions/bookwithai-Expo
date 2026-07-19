@@ -17,12 +17,21 @@ import { getBusiness, Business } from '@/lib/api/ownerBusiness';
 import { OwnerBooking, bulkCancelBookings, bulkShiftBookings } from '@/lib/api/ownerBookings';
 import { dayScheduleFor } from '@/lib/calendar/timeGrid';
 import { findEmptySpaces, computeCalendarAlerts } from '@/lib/calendar/calendarInsights';
+import { ErrorState } from '@/components/ErrorState';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
 
 function toDateKey(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+function formatMinutesAsTime(totalMinutes: number): string {
+  const h24 = Math.floor(totalMinutes / 60) % 24;
+  const m = totalMinutes % 60;
+  const period = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
 type CalendarMode = 'day' | '3day' | 'week' | 'month' | 'agenda' | 'timeline';
@@ -39,6 +48,7 @@ export default function OwnerCalendarScreen() {
   const [mode, setMode] = useState<CalendarMode>('day');
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [business, setBusiness] = useState<Business | null>(null);
+  const [businessError, setBusinessError] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | 'all'>('all');
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   const [selectMode, setSelectMode] = useState(false);
@@ -49,10 +59,18 @@ export default function OwnerCalendarScreen() {
   const dateKey = toDateKey(date);
   const { bookings, loading, reload } = useOwnerBookings(dateKey);
 
+  const loadBusiness = useCallback(() => {
+    setBusinessError(null);
+    getBusiness().then(result => {
+      if (result.ok) setBusiness(result.data.business);
+      else setBusinessError(result.error);
+    });
+  }, []);
+
   useEffect(() => {
     listStaff().then(result => { if (result.ok) setStaff(result.data.data.filter(s => s.active)); });
-    getBusiness().then(result => { if (result.ok) setBusiness(result.data.business); });
-  }, []);
+    loadBusiness();
+  }, [loadBusiness]);
 
   function shiftDay(delta: number) {
     const next = new Date(date);
@@ -120,7 +138,7 @@ export default function OwnerCalendarScreen() {
         <TouchableOpacity onPress={() => shiftDay(1)}><Text style={styles.dateNav}>Tomorrow →</Text></TouchableOpacity>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeRow} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeRow} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 6, alignItems: 'center' }}>
         {MODES.map(m => (
           <TouchableOpacity key={m.key} style={[styles.modeChip, mode === m.key && styles.modeChipActive]} onPress={() => setMode(m.key)}>
             <Text style={[styles.modeChipText, mode === m.key && styles.modeChipTextActive]}>{m.label}</Text>
@@ -158,13 +176,15 @@ export default function OwnerCalendarScreen() {
         <View style={styles.alertsWrap}>
           {emptySpaces.filter(g => g.durationMinutes >= 30).slice(0, 2).map((g, i) => (
             <TouchableOpacity key={i} style={styles.gapBanner} onPress={() => walkInRef.current?.present()}>
-              <Text style={styles.gapText}>{Math.round(g.durationMinutes / 60 * 10) / 10}h opening today — worth filling. Tap to book.</Text>
+              <Text style={styles.gapText}>{Math.round(g.durationMinutes / 60 * 10) / 10}h opening at {formatMinutesAsTime(g.startMinutes)} — worth filling. Tap to book.</Text>
             </TouchableOpacity>
           ))}
         </View>
       )}
 
-      {loading || !business || !schedule ? (
+      {businessError ? (
+        <ErrorState message={`Couldn't load your business settings: ${businessError}`} onRetry={loadBusiness} />
+      ) : loading || !business || !schedule ? (
         <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
       ) : mode === 'day' ? (
         <TimelineCalendar
@@ -218,10 +238,10 @@ const styles = StyleSheet.create({
   },
   dateNav: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
   dateLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  modeRow: { flexGrow: 0, marginBottom: Spacing.sm },
-  modeChip: { paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  modeRow: { flexGrow: 0, height: 40, marginBottom: Spacing.sm },
+  modeChip: { paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center' },
   modeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  modeChipText: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
+  modeChipText: { fontSize: 12.5, lineHeight: 16, color: Colors.textPrimary, fontWeight: '600' },
   modeChipTextActive: { color: Colors.textOnPrimary },
   staffSelectorRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,

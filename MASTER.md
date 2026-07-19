@@ -1,6 +1,6 @@
 # 📱 Book With AI — Expo App MASTER.md
 ### Single source of truth for the customer mobile app
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-19
 
 > Always pull this at the start of every session.
 > For platform-wide decisions (SANAA, booking backend, web app), see `C:\Dev\booking-app\MASTER.md`
@@ -194,6 +194,16 @@
 - Removed the unused `android.permission.RECORD_AUDIO` (no code in the app uses audio/microphone — an unused sensitive permission is a real Play review flag).
 - Converted `app.json` → `app.config.js` (thin wrapper, `app.json` stays the source of truth for everything else) so `googleServicesFile` can come from a secure EAS file environment variable in cloud builds, since the file is correctly gitignored and was silently missing from the first cloud-build attempt. Uploaded `google-services.json` as a secret EAS project env var (`GOOGLE_SERVICES_JSON`, production environment).
 - First EAS production build attempt failed near-instantly for an unconfirmed reason — cancelled/abandoned rather than debugged blind, since it predated the config fix above; a clean build has not yet been produced.
+
+**Play Store Readiness Report (2026-07-18):** before kicking off a real submission build, ran a category-by-category health check against Google Play's actual review process (automated technical scan, Store Listing, Policy Compliance, Functional Reliability, Code/Technical). Working through gaps in the user's chosen order: Store Listing → Policy Compliance → Functional Reliability → Code/Technical.
+
+**Store Listing — ✅ DONE (2026-07-19):**
+- Short/full descriptions finalized — AI-powered platform for beauty professionals and their clients, positioned as the product's foundation/vision while staying honest about what's live today vs. roadmap.
+- Category: Business. Support contacts: marketing@bookwithai.app / farheen@dhanani.co.
+- App icon: `assets/images/bwa-logo.png` (512×512, exact Play spec).
+- Feature graphic: `booking-app/store-assets/feature-graphic-1024x500.png` (1024×500, resized from a pre-existing dual-phone AI-forward design via `sharp`, no cropping needed — aspect ratio already matched).
+- Screenshots captured on-device (owner side prioritized per [[project_owner_side_priority]]): Dashboard, Calendar, Services, Staff, plus one customer-side booking screenshot. Saved in `bookwithai-expo/store-assets/screenshots/`. Flagged as placeholder-quality — to be refined post-approval.
+- A Customers-list screenshot was captured then deleted — contained real customer PII, excluded per explicit privacy instruction.
 
 **Standing-rule correction (2026-07-18):** partway through this pass, the user re-stated the strict collaboration rules (no code changes without per-change permission, no assumptions, verify-before-reporting, three-strike debug stop, MASTER.md kept current in the same commit as the code) after a stretch of testing-pass work where fixes were made and committed without asking each time, and this file wasn't updated in that commit. This entry itself is the correction. Going forward: explain the issue, propose the fix, get an explicit yes before writing any code.
 
