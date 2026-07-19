@@ -205,6 +205,7 @@
 - Feature graphic: `booking-app/store-assets/feature-graphic-1024x500.png` (1024×500, resized from a pre-existing dual-phone AI-forward design via `sharp`, no cropping needed — aspect ratio already matched).
 - Screenshots captured on-device (owner side prioritized per [[project_owner_side_priority]]): Dashboard, Calendar, Services, Staff, plus one customer-side booking screenshot. Saved in `bookwithai-expo/store-assets/screenshots/`. Flagged as placeholder-quality — to be refined post-approval.
 - A Customers-list screenshot was captured then deleted — contained real customer PII, excluded per explicit privacy instruction.
+- Play Console app shell created (package `app.bookwithai.app`, Free). All of the above uploaded live into Main store listing (2026-07-19). Store Listing category is fully submitted, not just drafted.
 
 **Standing-rule correction (2026-07-18):** partway through this pass, the user re-stated the strict collaboration rules (no code changes without per-change permission, no assumptions, verify-before-reporting, three-strike debug stop, MASTER.md kept current in the same commit as the code) after a stretch of testing-pass work where fixes were made and committed without asking each time, and this file wasn't updated in that commit. This entry itself is the correction. Going forward: explain the issue, propose the fix, get an explicit yes before writing any code.
 
