@@ -11,7 +11,11 @@ export const Colors = {
   goldSoft: '#E7C96A',
 
   // ── Backgrounds ──────────────────────────────────────
-  backgroundMain: '#FFFFFF',
+  // App-wide standard as of 2026-07: every screen's base is a light
+  // lavender wash (not white), with white cards/surfaces on top for
+  // contrast. backgroundSection/backgroundLavender stay paler than this
+  // so a "highlighted" card still reads as lighter than the screen base.
+  backgroundMain: '#EAE2FF',
   backgroundSection: '#F7F3FF',
   backgroundLavender: '#F7F3FF',
 
@@ -20,8 +24,11 @@ export const Colors = {
   card: '#FFFFFF',
 
   // ── Text ─────────────────────────────────────────────
-  textPrimary: '#222222',
-  textSecondary: '#666666',
+  // Pushed to true black (from the original #222222) so text pops clearly
+  // against the lavender background instead of the lavender dominating.
+  // textDisabled stays muted on purpose -- that's the point of "disabled".
+  textPrimary: '#000000',
+  textSecondary: '#333333',
   textDisabled: '#999999',
   textOnPrimary: '#FFFFFF',
 

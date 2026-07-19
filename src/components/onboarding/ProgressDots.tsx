@@ -20,7 +20,7 @@ export function ProgressDots({ count, activeIndex }: ProgressDotsProps) {
 function Dot({ active }: { active: boolean }) {
   const style = useAnimatedStyle(() => ({
     width: withTiming(active ? 20 : 8, { duration: 300 }),
-    backgroundColor: withTiming(active ? Colors.primary : '#D8D3E8', { duration: 300 }),
+    backgroundColor: withTiming(active ? Colors.gold : '#D8D3E8', { duration: 300 }),
   }));
 
   return <Animated.View style={[styles.dot, style]} />;

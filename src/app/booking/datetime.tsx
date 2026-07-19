@@ -199,6 +199,10 @@ export default function DateTimeScreen() {
     ...Array(firstDay).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
+  // Pad to a full final week so every row has exactly 7 cells.
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: (number | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
 
   const holdDisplay = holdSeconds !== null
     ? `${Math.floor(holdSeconds / 60)}:${String(holdSeconds % 60).padStart(2, '0')}`
@@ -240,43 +244,47 @@ export default function DateTimeScreen() {
             ))}
           </View>
 
-          {/* Date cells */}
-          <View style={styles.calGrid}>
-            {cells.map((day, idx) => {
-              if (!day) return <View key={idx} style={styles.calCell} />;
-              const cellDate = new Date(viewYear, viewMonth, day);
-              const isPast = cellDate < today;
-              const isSelected =
-                selectedDate?.getDate() === day &&
-                selectedDate?.getMonth() === viewMonth &&
-                selectedDate?.getFullYear() === viewYear;
-              const isToday =
-                day === today.getDate() &&
-                viewMonth === today.getMonth() &&
-                viewYear === today.getFullYear();
+          {/* Date cells — explicit weekly rows so columns always line up with the day labels */}
+          <View>
+            {weeks.map((week, weekIdx) => (
+              <View key={weekIdx} style={styles.calGridRow}>
+                {week.map((day, idx) => {
+                  if (!day) return <View key={idx} style={styles.calCell} />;
+                  const cellDate = new Date(viewYear, viewMonth, day);
+                  const isPast = cellDate < today;
+                  const isSelected =
+                    selectedDate?.getDate() === day &&
+                    selectedDate?.getMonth() === viewMonth &&
+                    selectedDate?.getFullYear() === viewYear;
+                  const isToday =
+                    day === today.getDate() &&
+                    viewMonth === today.getMonth() &&
+                    viewYear === today.getFullYear();
 
-              return (
-                <Pressable
-                  key={idx}
-                  style={[
-                    styles.calCell,
-                    isSelected && styles.calCellSelected,
-                    isToday && !isSelected && styles.calCellToday,
-                    isPast && styles.calCellPast,
-                  ]}
-                  onPress={() => !isPast && setSelectedDate(cellDate)}
-                  disabled={isPast}>
-                  <Text style={[
-                    styles.calCellText,
-                    isSelected && styles.calCellTextSelected,
-                    isPast && styles.calCellTextPast,
-                    isToday && !isSelected && styles.calCellTextToday,
-                  ]}>
-                    {day}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                  return (
+                    <Pressable
+                      key={idx}
+                      style={[
+                        styles.calCell,
+                        isSelected && styles.calCellSelected,
+                        isToday && !isSelected && styles.calCellToday,
+                        isPast && styles.calCellPast,
+                      ]}
+                      onPress={() => !isPast && setSelectedDate(cellDate)}
+                      disabled={isPast}>
+                      <Text style={[
+                        styles.calCellText,
+                        isSelected && styles.calCellTextSelected,
+                        isPast && styles.calCellTextPast,
+                        isToday && !isSelected && styles.calCellTextToday,
+                      ]}>
+                        {day}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
           </View>
         </View>
 
@@ -421,9 +429,8 @@ const styles = StyleSheet.create({
     width: CELL_SIZE,
     textAlign: 'center',
   },
-  calGrid: {
+  calGridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-around',
   },
   calCell: {

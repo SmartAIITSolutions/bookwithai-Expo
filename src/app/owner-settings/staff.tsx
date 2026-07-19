@@ -137,6 +137,29 @@ export default function StaffScreen() {
     }
   }
 
+  function handleRemoveStaff(s: StaffMember) {
+    Alert.alert(
+      `Remove ${s.name}?`,
+      "They'll no longer appear in scheduling or booking. This doesn't delete their past appointment or commission history.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await updateStaff(s.id, { active: false });
+            if (result.ok) {
+              setExpandedId(null);
+              load();
+            } else {
+              Alert.alert('Could not remove staff member', result.error);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   async function handleSaveException(staffId: string) {
     if (!exceptionDate.trim()) { Alert.alert('Missing date', 'Enter a date (YYYY-MM-DD).'); return; }
     const result = await setStaffOverride(staffId, { date: exceptionDate.trim(), is_working: false, reason: exceptionReason.trim() || undefined });
@@ -302,6 +325,11 @@ export default function StaffScreen() {
                       <Text style={styles.addRowText}>Add a day-off exception</Text>
                     </TouchableOpacity>
                   )}
+
+                  <TouchableOpacity style={styles.removeRow} onPress={() => handleRemoveStaff(s)}>
+                    <Ionicons name="person-remove-outline" size={16} color={Colors.error} />
+                    <Text style={styles.removeRowText}>Remove staff member</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -368,6 +396,11 @@ const styles = StyleSheet.create({
   },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
   addRowText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  removeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.sm,
+    marginTop: Spacing.xs, borderTopWidth: 1, borderTopColor: Colors.border,
+  },
+  removeRowText: { fontSize: 14, color: Colors.error, fontWeight: '600' },
   inlineFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg, paddingTop: 2 },
   cancelText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
 });

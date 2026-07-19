@@ -53,9 +53,6 @@ export function OnboardingSlide({
 
   return (
     <View style={styles.slide}>
-      {/* Background lavender glow from top */}
-      <View style={styles.lavenderGlow} />
-
       {/* Hero area */}
       <Animated.View style={[styles.heroContainer, heroAnimStyle]}>
         {heroImage ? (
@@ -70,6 +67,7 @@ export function OnboardingSlide({
       {/* Text content */}
       <Animated.View entering={FadeIn.duration(600)} style={styles.textBlock}>
         <Text style={styles.headline}>{headline}</Text>
+        <View style={styles.goldRule} />
         <Text style={styles.subtext}>{subtext}</Text>
       </Animated.View>
     </View>
@@ -84,16 +82,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.backgroundMain,
     paddingHorizontal: Spacing.xl,
-  },
-  lavenderGlow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: height * 0.55,
-    // Approximated in RN via a semi-transparent lavender overlay
-    backgroundColor: Colors.backgroundLavender,
-    opacity: 0.45,
   },
   heroContainer: {
     width: width * 0.82,
@@ -135,6 +123,12 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'center',
     lineHeight: 34 * 1.2,
+  },
+  goldRule: {
+    width: 32,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.gold,
   },
   subtext: {
     fontFamily: FontFamily.soraMedium,

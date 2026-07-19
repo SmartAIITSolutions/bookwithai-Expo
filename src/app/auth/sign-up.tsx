@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { isValidEmail, isValidPhone, getPasswordError } from '@/lib/validation';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 export default function SignUpScreen() {
@@ -17,13 +18,25 @@ export default function SignUpScreen() {
   const [showPass, setShowPass] = useState(false);
   const [loading,  setLoading]  = useState(false);
 
-  async function handleSignUp() {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Missing info', 'Please fill in your name, email and password.');
-      return;
+  function getFormErrors(): string[] {
+    const errors: string[] = [];
+    if (!name.trim()) errors.push('Full name is required.');
+    if (!email.trim()) errors.push('Email is required.');
+    else if (!isValidEmail(email)) errors.push('Enter a valid email address.');
+    if (!phone.trim()) errors.push('Phone number is required.');
+    else if (!isValidPhone(phone)) errors.push('Enter a valid phone number.');
+    if (!password.trim()) errors.push('Password is required.');
+    else {
+      const pwError = getPasswordError(password);
+      if (pwError) errors.push(pwError);
     }
-    if (password.length < 8) {
-      Alert.alert('Weak password', 'Password must be at least 8 characters.');
+    return errors;
+  }
+
+  async function handleSignUp() {
+    const errors = getFormErrors();
+    if (errors.length > 0) {
+      Alert.alert('Please fix the following', errors.join('\n'));
       return;
     }
     try {
@@ -32,7 +45,7 @@ export default function SignUpScreen() {
         email:    email.trim(),
         password: password.trim(),
         options: {
-          data: { full_name: name.trim(), phone: phone.trim() || undefined },
+          data: { full_name: name.trim(), phone: phone.trim() },
         },
       });
       if (error) throw error;
@@ -91,10 +104,13 @@ export default function SignUpScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+              {email.length > 0 && !isValidEmail(email) && (
+                <Text style={styles.errorText}>Please enter a valid email address.</Text>
+              )}
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Phone (optional)</Text>
+              <Text style={styles.label}>Phone *</Text>
               <TextInput
                 style={styles.input}
                 value={phone}
@@ -103,6 +119,9 @@ export default function SignUpScreen() {
                 placeholderTextColor={Colors.textDisabled}
                 keyboardType="phone-pad"
               />
+              {phone.length > 0 && !isValidPhone(phone) && (
+                <Text style={styles.errorText}>Please enter a valid phone number.</Text>
+              )}
             </View>
 
             <View style={styles.fieldGroup}>
@@ -126,6 +145,14 @@ export default function SignUpScreen() {
                   />
                 </Pressable>
               </View>
+              {password.length > 0 && getPasswordError(password) && (
+                <Text style={styles.errorText}>{getPasswordError(password)}</Text>
+              )}
+              {password.length === 0 && (
+                <Text style={styles.hintText}>
+                  At least 8 characters, with an uppercase letter, a lowercase letter, and a number.
+                </Text>
+              )}
             </View>
           </View>
 
@@ -138,6 +165,13 @@ export default function SignUpScreen() {
               : <Text style={styles.submitBtnText}>Create Account</Text>
             }
           </Pressable>
+
+          <Text style={styles.legalText}>
+            By creating an account, you agree to our{' '}
+            <Text style={styles.legalLink} onPress={() => router.push('/legal/terms')}>Terms</Text>
+            {' '}and{' '}
+            <Text style={styles.legalLink} onPress={() => router.push('/legal/privacy')}>Privacy Policy</Text>.
+          </Text>
 
           <Pressable style={styles.switchBtn} onPress={() => router.replace('/auth/sign-in')}>
             <Text style={styles.switchText}>Already have an account? <Text style={styles.switchLink}>Sign in</Text></Text>
@@ -180,6 +214,16 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
+  errorText: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: Colors.error,
+  },
+  hintText: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: Colors.textDisabled,
+  },
   input: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.md,
@@ -195,14 +239,13 @@ const styles = StyleSheet.create({
   passwordInput: { flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 },
   eyeBtn: {
     backgroundColor: Colors.white,
+    alignSelf: 'stretch',
     borderWidth: 1,
     borderLeftWidth: 0,
     borderColor: Colors.border,
     borderTopRightRadius: BorderRadius.md,
     borderBottomRightRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    height: '100%',
     justifyContent: 'center',
   },
 
@@ -217,6 +260,18 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
     color: Colors.white,
+  },
+
+  legalText: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: FontSize.sm * 1.6,
+  },
+  legalLink: {
+    color: Colors.primary,
+    fontFamily: FontFamily.soraSemiBold,
   },
 
   switchBtn: { alignItems: 'center' },

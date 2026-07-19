@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { isValidEmail } from '@/lib/validation';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 export default function SignInScreen() {
@@ -16,8 +17,19 @@ export default function SignInScreen() {
   const [loading,  setLoading]  = useState(false);
 
   async function handleSignIn() {
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() && !password.trim()) {
       Alert.alert('Missing info', 'Please enter your email and password.');
+      return;
+    }
+    if (!email.trim()) {
+      Alert.alert('Missing info', 'Please enter your email.');
+      return;
+    }
+    if (!password.trim()) {
+      Alert.alert('Missing info', 'Please enter your password.');
+      return;
+    }
+    if (!isValidEmail(email)) {
       return;
     }
     try {
@@ -64,6 +76,9 @@ export default function SignInScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+              {email.length > 0 && !isValidEmail(email) && (
+                <Text style={styles.errorText}>Please enter a valid email address.</Text>
+              )}
             </View>
 
             <View style={styles.fieldGroup}>
@@ -149,6 +164,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
+  errorText: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: Colors.error,
+  },
   input: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.md,
@@ -164,14 +184,13 @@ const styles = StyleSheet.create({
   passwordInput: { flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 },
   eyeBtn: {
     backgroundColor: Colors.white,
+    alignSelf: 'stretch',
     borderWidth: 1,
     borderLeftWidth: 0,
     borderColor: Colors.border,
     borderTopRightRadius: BorderRadius.md,
     borderBottomRightRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    height: '100%',
     justifyContent: 'center',
   },
   forgotText: {

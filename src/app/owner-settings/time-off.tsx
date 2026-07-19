@@ -4,9 +4,25 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { listTimeOff, createTimeOff, decideTimeOff, TimeOffEntry } from '@/lib/api/ownerTimeOff';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
+import { CalendarDatePicker } from '@/components/owner/CalendarDatePicker';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatDateDisplay(dateStr: string): string {
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return dateStr;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${DAY_NAMES[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function todayDateStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 function statusColor(status: TimeOffEntry['status']) {
   if (status === 'approved') return Colors.success;
@@ -23,6 +39,7 @@ export default function TimeOffScreen() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+  const [openField, setOpenField] = useState<'start' | 'end' | null>(null);
   const [saving, setSaving] = useState(false);
   const [decidingId, setDecidingId] = useState<string | null>(null);
 
@@ -36,15 +53,19 @@ export default function TimeOffScreen() {
   useEffect(() => { load(); }, [load]);
 
   async function handleCreate() {
-    if (!staffId || !startDate.trim() || !endDate.trim()) {
-      Alert.alert('Missing info', 'Staff member, start date, and end date are all required.');
+    const missing: string[] = [];
+    if (!staffId) missing.push('staff member');
+    if (!startDate.trim()) missing.push('start date');
+    if (!endDate.trim()) missing.push('end date');
+    if (missing.length > 0) {
+      Alert.alert('Missing info', `Please select a ${missing.join(', ')}.`);
       return;
     }
     setSaving(true);
-    const result = await createTimeOff({ staff_id: staffId, start_date: startDate.trim(), end_date: endDate.trim(), reason: reason.trim() || undefined });
+    const result = await createTimeOff({ staff_id: staffId!, start_date: startDate.trim(), end_date: endDate.trim(), reason: reason.trim() || undefined });
     setSaving(false);
     if (result.ok) {
-      setAdding(false); setStaffId(null); setStartDate(''); setEndDate(''); setReason('');
+      setAdding(false); setStaffId(null); setStartDate(''); setEndDate(''); setReason(''); setOpenField(null);
       load();
     } else {
       Alert.alert('Could not save', result.error);
@@ -134,11 +155,44 @@ export default function TimeOffScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={startDate} onChangeText={setStartDate} />
-              <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={endDate} onChangeText={setEndDate} />
+              <Text style={styles.fieldLabel}>Start date</Text>
+              <TouchableOpacity
+                style={styles.dateField}
+                onPress={() => setOpenField(openField === 'start' ? null : 'start')}
+              >
+                <Text style={startDate ? styles.dateFieldText : styles.dateFieldPlaceholder}>
+                  {startDate ? formatDateDisplay(startDate) : 'Select date'}
+                </Text>
+                <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
+              </TouchableOpacity>
+              {openField === 'start' && (
+                <CalendarDatePicker
+                  value={startDate}
+                  minDate={todayDateStr()}
+                  onChange={(d) => { setStartDate(d); if (endDate && endDate < d) setEndDate(d); setOpenField(null); }}
+                />
+              )}
+
+              <Text style={styles.fieldLabel}>End date</Text>
+              <TouchableOpacity
+                style={styles.dateField}
+                onPress={() => setOpenField(openField === 'end' ? null : 'end')}
+              >
+                <Text style={endDate ? styles.dateFieldText : styles.dateFieldPlaceholder}>
+                  {endDate ? formatDateDisplay(endDate) : 'Select date'}
+                </Text>
+                <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
+              </TouchableOpacity>
+              {openField === 'end' && (
+                <CalendarDatePicker
+                  value={endDate}
+                  minDate={startDate || todayDateStr()}
+                  onChange={(d) => { setEndDate(d); setOpenField(null); }}
+                />
+              )}
               <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={Colors.textDisabled} value={reason} onChangeText={setReason} />
               <View style={styles.inlineFormActions}>
-                <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { setAdding(false); setOpenField(null); }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 <TouchableOpacity onPress={handleCreate} disabled={saving}>
                   {saving ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
                 </TouchableOpacity>
@@ -182,6 +236,13 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
   chipTextActive: { color: Colors.textOnPrimary },
   input: { borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 10, fontSize: 15, color: Colors.textPrimary },
+  dateField: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 10,
+  },
+  dateFieldText: { fontSize: 15, color: Colors.textPrimary },
+  dateFieldPlaceholder: { fontSize: 15, color: Colors.textDisabled },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
   addRowText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
   inlineFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg, paddingTop: 2 },

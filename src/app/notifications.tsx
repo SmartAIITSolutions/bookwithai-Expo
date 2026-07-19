@@ -55,6 +55,9 @@ export default function NotificationsScreen() {
       setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
       await markNotificationRead(item.id);
     }
+    if (item.booking_id) {
+      router.push({ pathname: '/(tabs)/my-booking', params: { highlightBookingId: item.booking_id } });
+    }
   }
 
   async function handleDelete(item: NotificationItem) {

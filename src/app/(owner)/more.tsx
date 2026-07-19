@@ -59,7 +59,13 @@ export default function OwnerMoreScreen() {
                   style={[styles.row, i > 0 && styles.rowBorder]}
                 >
                   <Text style={[styles.rowText, !item.route && styles.rowTextDisabled]}>{item.label}</Text>
-                  {item.route && <Ionicons name="chevron-forward" size={16} color={Colors.textDisabled} />}
+                  {item.route ? (
+                    <Ionicons name="chevron-forward" size={16} color={Colors.textDisabled} />
+                  ) : (
+                    <View style={styles.soonBadge}>
+                      <Text style={styles.soonBadgeText}>Coming Soon</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -99,4 +105,15 @@ const styles = StyleSheet.create({
   rowBorder: { borderTopWidth: 1, borderTopColor: Colors.border },
   rowText: { fontSize: 15, color: Colors.textPrimary },
   rowTextDisabled: { color: Colors.textDisabled },
+  soonBadge: {
+    backgroundColor: Colors.backgroundLavender,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  soonBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
 });

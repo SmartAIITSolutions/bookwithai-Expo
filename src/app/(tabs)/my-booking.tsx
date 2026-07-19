@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   Pressable, ActivityIndicator, Alert, Linking, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -69,6 +69,7 @@ function minutesUntil(startsAt: string): number {
 
 export default function MyBookingScreen() {
   const { user, loading: authLoading } = useAuth();
+  const { highlightBookingId } = useLocalSearchParams<{ highlightBookingId?: string }>();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,10 +78,22 @@ export default function MyBookingScreen() {
   const [ratingId, setRatingId] = useState<string | null>(null);
   const [ratingStars, setRatingStars] = useState(0);
   const [submittingRating, setSubmittingRating] = useState(false);
+  const listRef = useRef<FlatList<Booking>>(null);
 
   useEffect(() => {
     if (user) fetchBookings();
   }, [user]);
+
+  // Scroll to and highlight the booking a notification tap was pointing at.
+  useEffect(() => {
+    if (!highlightBookingId || bookings.length === 0) return;
+    const index = bookings.findIndex((b) => b.id === highlightBookingId);
+    if (index >= 0) {
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+      });
+    }
+  }, [highlightBookingId, bookings]);
 
   async function fetchBookings() {
     try {
@@ -269,19 +282,22 @@ export default function MyBookingScreen() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={bookings}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          onScrollToIndexFailed={() => {}}
           renderItem={({ item }) => {
             const isUpcoming = item.status === 'confirmed' && minutesUntil(item.starts_at) > 0;
             const cutoffMinutes = item.agency_clients?.booking_cutoff_minutes ?? 1440;
             const withinCutoff = minutesUntil(item.starts_at) >= cutoffMinutes;
             const isActioning = actioningId === item.id;
+            const isHighlighted = item.id === highlightBookingId;
 
             return (
-              <View style={styles.card}>
+              <View style={[styles.card, isHighlighted && styles.cardHighlighted]}>
                 <View style={styles.cardTop}>
                   <Text style={styles.salonName}>
                     {item.agency_clients?.business_name ?? 'Salon'}
@@ -464,6 +480,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     ...Shadows.card,
+  },
+  cardHighlighted: {
+    borderColor: Colors.primary,
+    borderWidth: 2,
   },
   cardTop: {
     flexDirection: 'row',

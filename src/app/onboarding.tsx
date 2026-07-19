@@ -76,8 +76,11 @@ export default function OnboardingScreen() {
         ref={scrollRef}
         horizontal
         pagingEnabled
-        scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => {
+          const index = Math.round(e.nativeEvent.contentOffset.x / width);
+          setActiveIndex(index);
+        }}
         style={styles.scroll}>
         {SLIDES.map((slide, i) => (
           <OnboardingSlide

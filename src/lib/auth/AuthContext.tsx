@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -31,12 +31,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [clientId, setClientId] = useState<string | null>(null);
   const [loading,  setLoading]  = useState(true);
 
+  // Guards against a stale/overlapping loadProfile call (e.g. from a sign-out
+  // still in flight) resolving after a newer one and clobbering the correct
+  // role -- only the most recently requested userId is allowed to write state.
+  const latestProfileRequest = useRef<string | null>(null);
+
   async function loadProfile(userId: string) {
-    const { data } = await supabase
+    latestProfileRequest.current = userId;
+    const { data, error } = await supabase
       .from('profiles')
       .select('role, client_id')
       .eq('id', userId)
       .maybeSingle();
+
+    if (latestProfileRequest.current !== userId) return; // superseded by a newer request
+
+    if (error) {
+      console.error('AuthContext: failed to load profile role', error);
+    }
     setRole((data?.role as UserRole) ?? 'customer');
     setClientId(data?.client_id ?? null);
   }
@@ -57,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         await loadProfile(session.user.id);
       } else {
+        latestProfileRequest.current = null;
         setRole(null);
         setClientId(null);
       }

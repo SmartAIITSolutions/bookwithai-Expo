@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
+import { isValidEmail } from '@/lib/validation';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 export default function MagicLinkScreen() {
@@ -18,6 +19,9 @@ export default function MagicLinkScreen() {
   async function handleSend() {
     if (!email.trim()) {
       Alert.alert('Enter your email', 'Please type your email address to receive a magic link.');
+      return;
+    }
+    if (!isValidEmail(email)) {
       return;
     }
     try {
@@ -84,6 +88,9 @@ export default function MagicLinkScreen() {
                   autoCorrect={false}
                   autoFocus
                 />
+                {email.length > 0 && !isValidEmail(email) && (
+                  <Text style={styles.errorText}>Please enter a valid email address.</Text>
+                )}
               </View>
 
               <Pressable
@@ -133,6 +140,11 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
+  },
+  errorText: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: Colors.error,
   },
   input: {
     backgroundColor: Colors.white,

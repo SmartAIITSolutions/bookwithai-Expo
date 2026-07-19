@@ -39,8 +39,6 @@ export function Slide4Final({ onGetStarted, onSignIn }: Slide4FinalProps) {
 
   return (
     <View style={styles.slide}>
-      <View style={styles.lavenderGlow} />
-
       {/* Logo + glow */}
       <View style={styles.logoWrapper}>
         <Animated.View style={[styles.glow, glowStyle]} />
@@ -84,15 +82,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundMain,
     paddingHorizontal: Spacing.xl,
     gap: Spacing.xl,
-  },
-  lavenderGlow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '55%',
-    backgroundColor: Colors.backgroundLavender,
-    opacity: 0.45,
   },
   logoWrapper: {
     alignItems: 'center',

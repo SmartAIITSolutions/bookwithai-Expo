@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable,
   ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
@@ -28,6 +28,8 @@ export default function AccountSecurityScreen() {
   const [savingPin, setSavingPin] = useState(false);
 
   const [signingOutAll, setSigningOutAll] = useState(false);
+
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     hasPin().then(setPinSet);
@@ -133,8 +135,8 @@ export default function AccountSecurityScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ title: 'Account Security', headerBackTitle: 'Account' }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Change email */}
           <View style={styles.section}>
@@ -193,6 +195,7 @@ export default function AccountSecurityScreen() {
                   placeholderTextColor={Colors.textDisabled}
                   value={pinDraft}
                   onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, 4))}
+                  onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                   keyboardType="number-pad"
                   secureTextEntry
                   maxLength={4}
@@ -203,6 +206,7 @@ export default function AccountSecurityScreen() {
                   placeholderTextColor={Colors.textDisabled}
                   value={pinConfirm}
                   onChangeText={(t) => setPinConfirm(t.replace(/\D/g, '').slice(0, 4))}
+                  onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                   keyboardType="number-pad"
                   secureTextEntry
                   maxLength={4}

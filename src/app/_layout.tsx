@@ -98,6 +98,10 @@ export default function RootLayout() {
     }
     if (url.includes('auth/staff-invite')) {
       handleStaffInviteLink(url);
+      return;
+    }
+    if (url.includes('auth/reset-password')) {
+      handlePasswordRecoveryLink(url);
     }
   }
 
@@ -117,6 +121,25 @@ export default function RootLayout() {
       router.replace('/auth/staff-set-password');
     } catch (e) {
       // Invite link expired/invalid -- staff can still ask the owner to resend.
+    }
+  }
+
+  async function handlePasswordRecoveryLink(url: string) {
+    const params = parseAuthParams(url);
+    const code = params.get('code');
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    try {
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code);
+      } else if (accessToken && refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      } else {
+        return;
+      }
+      router.replace('/auth/reset-password');
+    } catch (e) {
+      // Reset link expired/invalid -- user can request a new one from Forgot Password.
     }
   }
 
