@@ -44,6 +44,17 @@ Two Play Store submission blockers found while building this checklist, fixed im
 - ✅ **Calendar's Day/3-Day/Week/Month/Agenda/Timeline mode-selector tabs were visually squished/overlapping live on device** (confirmed not just a screenshot artifact) — the horizontal `ScrollView`'s `contentContainerStyle` had no `alignItems: 'center'` and `modeRow` had no explicit height, so the pill row's cross-axis sizing was ambiguous. Fixed with `alignItems: 'center'` on the content container, an explicit `height: 40` on `modeRow`, `justifyContent: 'center'` on each chip, and an explicit `lineHeight` on the chip text. **Retested and confirmed clean on device.**
 - ✅ **The two gap-filling banners ("0.5h opening today — worth filling") looked like an exact duplicate** — confirmed via code that `findEmptySpaces()` cannot actually produce duplicate entries (single pass over sorted bookings, each gap has distinct start/end times); these were two genuinely different real gaps that happened to both be 30 minutes long. The banner text only showed duration, not *when*, making distinct gaps indistinguishable. Fixed by adding the actual start time to the message (e.g. "0.5h opening at 11:00 AM"). **Retested and confirmed showing distinct times (8:30 AM and 11:00 AM) on device.**
 
+## Fixed, awaiting next build (found during real-device Phase 2 testing, 2026-07-19)
+
+- ✅ **Google Sign-In stranded the user on the web app instead of returning to the mobile app.** Two stacked root causes, both confirmed live on real device: (1) Supabase's Redirect URLs allow-list only had the web callback (`https://bookwithai.app/api/auth/callback`), missing the mobile app's custom scheme (`bookwithai://auth/callback`) — Supabase silently falls back to the Site URL when the requested `redirectTo` isn't allow-listed, landing the user on the web app instead. Fixed by adding `bookwithai://auth/callback` to the allow-list (Supabase Dashboard config, not code). (2) After fixing that, the redirect back into the app hit Expo Router's auto-navigation with no matching route at `auth/callback`, showing "Unmatched Route." Fixed by adding `src/app/auth/callback.tsx` — a minimal loading-spinner landing screen matching the existing pattern used for the staff-invite deep link (`auth/staff-invite.tsx`); the actual code exchange already happens in `handleGoogleSignIn()` via `WebBrowser.openAuthSessionAsync`, this just gives Router somewhere to land while `AuthRedirectGate` picks up the new session. **Needs retest on the next build** — this app has no EAS Update/OTA configured, so the route-file fix can't be verified until a full rebuild.
+
+## Fixed, awaiting next build (real-device Phase 6-8 findings, 2026-07-19)
+
+- ✅ **Tab bar (Book/My Booking/Account, and equivalents for owner/staff shells) hidden under the phone's system gesture navigation bar.** Confirmed live on a real device (Z Fold 7). Root cause: all three tab layouts (`(tabs)/_layout.tsx`, `(owner)/_layout.tsx`, `(staff)/_layout.tsx`) hardcoded `tabBarStyle.height`/`paddingBottom` with no awareness of the device's bottom safe-area inset — recent Android versions enforce edge-to-edge display by default, so the system nav bar overlays the app instead of reserving its own space. Not caught earlier since prior testing used an emulator configured with 3-button nav (a fixed opaque bar, not an overlay). Fixed by adding `useSafeAreaInsets()` to all three layouts and folding `insets.bottom` into height/padding. **Needs retest on next build.**
+- ✅ **Owner Calendar header's "+" and notifications-bell icons genuinely don't work on a real device** (Search confirmed still an intentional stub, unrelated). Root cause: same class of bug as above but at the top of the screen — `OwnerScreenHeader.tsx` (shared by Calendar/Dashboard/Customers/Reports/More) had no safe-area-inset handling, so its icon row rendered too close to the top and was likely partially under the status bar's touch-intercepting region on the Fold 7, while the lower, unaffected "Walk-In" button (calling the identical `walkInRef.current?.present()`) worked fine. Fixed by adding `useSafeAreaInsets()` to `OwnerScreenHeader.tsx` and folding `insets.top` into its top padding — fixes all 5 screens that use this shared header at once. **Needs retest on next build.**
+- ℹ️ **Not a bug, confirmed correct:** Walk-In flow's "every staff member is busy" message when the salon is closed and there are no working staff to find a chair for — this is the intended behavior, verified against real "salon closed" state.
+- ✅ **Check-In / No-Show / other Appointment Sheet actions appeared to do nothing — status label never changed.** Confirmed live: backend update succeeds (booking correctly showed "Late" once time passed, and pulling down to refresh did reflect changes), but the open sheet doesn't visually update. Root cause, verified in code: `calendar.tsx` sets `selectedBooking` once on open and never re-syncs it — `handleChanged()` correctly calls `reload()` (refetches fresh `bookings`), but the sheet keeps rendering the stale object it opened with. Not a Realtime/backend issue — `useOwnerBookings.ts`'s Supabase Realtime subscription is a separate mechanism for reflecting *other* sessions' changes, unrelated to this same-session staleness bug. Fixed with a `useEffect` that re-derives `selectedBooking` from the live `bookings` array by id whenever it updates. **Needs retest on next build.**
+
 ## Flagged, not yet fixed — triage these as you test
 
 These are real findings from reading the actual code, not guesses. Decide fix-vs-accept as you hit each one during testing rather than fixing blind:
@@ -91,13 +102,7 @@ The emulator has no real biometric hardware, so these can only be confirmed on a
 
 ## Phase 1 — Fresh Install & Onboarding
 
-- ⬜ Fresh install → 4 onboarding slides render correctly (manual swipe is intentionally disabled — only Next/Skip/dots drive navigation)
-- ⬜ "Skip" (slides 1–3) jumps straight to the final CTA slide
-- ⬜ "Next" through all 3 intro slides advances correctly, progress dots update
-- ⬜ Final slide: "Get Started" → marks onboarding done, lands on `/auth`
-- ⬜ Final slide: "Sign In" → marks onboarding done, lands on `/auth/sign-in`
-- ⬜ Relaunching the app after onboarding is complete skips straight past onboarding
-- ⬜ Root `/` and `/explore` redirect stubs resolve to `/book` without a visible flash or crash
+- ✅ Onboarding flow confirmed working end-to-end on real device, 2026-07-19 (real production build, not dev mode)
 
 ## Phase 2 — Customer Auth
 

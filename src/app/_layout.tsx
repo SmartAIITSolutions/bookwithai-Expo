@@ -204,9 +204,11 @@ function AuthRedirectGate() {
   const pushRegistered = useRef(false);
 
   useEffect(() => {
+    console.log('[DIAG] AuthRedirectGate effect', { loading, hasUser: !!user, role, segments });
     if (loading) return;
     const onAuthStack = segments[0] === 'auth';
     if (user && onAuthStack) {
+      console.log('[DIAG] AuthRedirectGate: redirecting', { role, dest: roleHome(role) });
       router.replace(roleHome(role) as never);
     }
   }, [user, role, loading, segments]);
@@ -232,9 +234,11 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
   // Splash stays visible for this entire decision chain -- hiding it early
   // exposed the app's default route (customer tabs) for however long the
   // async checks below took, before the real destination was known.
+  console.log('[DIAG] handleSplashDone: start');
 
   // 1. Check onboarding
   const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
+  console.log('[DIAG] handleSplashDone: onboarding check', { onboardingDone });
   if (!onboardingDone) {
     setSplashVisible(false);
     router.replace('/onboarding');
@@ -243,6 +247,7 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
 
   // 2. Auth is mandatory — no session, no entry
   const { data: { session } } = await supabase.auth.getSession();
+  console.log('[DIAG] handleSplashDone: session check', { hasSession: !!session, userId: session?.user?.id });
   if (!session) {
     setSplashVisible(false);
     router.replace('/auth');
@@ -254,6 +259,7 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
   if (biometricsEnabled === 'true') {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled   = await LocalAuthentication.isEnrolledAsync();
+    console.log('[DIAG] handleSplashDone: biometrics check', { hasHardware, isEnrolled });
     if (hasHardware && isEnrolled) {
       setSplashVisible(false);
       router.replace('/auth/biometrics');
@@ -262,11 +268,12 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
   }
 
   // 4. Signed in, no biometrics lock — route by role
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', session.user.id)
     .maybeSingle();
+  console.log('[DIAG] handleSplashDone: profile fetch', { profile, error: profileError?.message, dest: roleHome(profile?.role ?? null) });
   setSplashVisible(false);
   router.replace(roleHome(profile?.role ?? null) as never);
 }

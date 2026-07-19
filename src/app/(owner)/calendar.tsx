@@ -59,6 +59,16 @@ export default function OwnerCalendarScreen() {
   const dateKey = toDateKey(date);
   const { bookings, loading, reload } = useOwnerBookings(dateKey);
 
+  // Keep the open Appointment Sheet's booking in sync with fresh data --
+  // without this, actions like Check-In/No-Show correctly update the
+  // backend and refetch `bookings`, but the sheet keeps rendering the
+  // stale object it was opened with, looking like the action did nothing.
+  useEffect(() => {
+    if (!selectedBooking) return;
+    const fresh = bookings.find(b => b.id === selectedBooking.id);
+    if (fresh && fresh !== selectedBooking) setSelectedBooking(fresh);
+  }, [bookings, selectedBooking]);
+
   const loadBusiness = useCallback(() => {
     setBusinessError(null);
     getBusiness().then(result => {

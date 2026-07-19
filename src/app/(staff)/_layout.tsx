@@ -1,12 +1,14 @@
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Theme';
 
 // Staff mode (individual_accounts login, Sprint 7) — a deliberately lean
 // shell, not a role-branched copy of the owner app's 5 tabs. Real,
 // simple, useful for what a staff member actually needs day-to-day.
 export default function StaffTabsLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1 }}>
       <Tabs
@@ -18,8 +20,8 @@ export default function StaffTabsLayout() {
             backgroundColor: Colors.navBackground,
             borderTopColor: Colors.border,
             borderTopWidth: 1,
-            height: 60,
-            paddingBottom: 8,
+            height: 60 + insets.bottom,
+            paddingBottom: 8 + insets.bottom,
             paddingTop: 6,
           },
           tabBarLabelStyle: {

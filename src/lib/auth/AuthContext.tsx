@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const latestProfileRequest = useRef<string | null>(null);
 
   async function loadProfile(userId: string) {
+    console.log('[DIAG] loadProfile: start', { userId });
     latestProfileRequest.current = userId;
     const { data, error } = await supabase
       .from('profiles')
@@ -44,26 +45,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (latestProfileRequest.current !== userId) return; // superseded by a newer request
+    console.log('[DIAG] loadProfile: query result', { userId, data, error: error?.message });
+
+    if (latestProfileRequest.current !== userId) {
+      console.log('[DIAG] loadProfile: superseded, dropping result', { userId, latest: latestProfileRequest.current });
+      return; // superseded by a newer request
+    }
 
     if (error) {
       console.error('AuthContext: failed to load profile role', error);
     }
-    setRole((data?.role as UserRole) ?? 'customer');
+    const resolvedRole = (data?.role as UserRole) ?? 'customer';
+    console.log('[DIAG] loadProfile: setting role', { userId, resolvedRole, clientId: data?.client_id ?? null });
+    setRole(resolvedRole);
     setClientId(data?.client_id ?? null);
   }
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('[DIAG] getSession (initial): result', { hasSession: !!session, userId: session?.user?.id });
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) await loadProfile(session.user.id);
       setLoading(false);
+      console.log('[DIAG] getSession (initial): setLoading(false) called');
     });
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('[DIAG] onAuthStateChange fired', { event: _event, hasSession: !!session, userId: session?.user?.id });
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -74,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setClientId(null);
       }
       setLoading(false);
+      console.log('[DIAG] onAuthStateChange: setLoading(false) called', { event: _event });
     });
 
     return () => subscription.unsubscribe();

@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Theme';
 
 // Salon-owner mode — 5-tab shell, Phase 0.1 (locked 2026-07-16).
@@ -8,6 +9,7 @@ import { Colors } from '@/constants/Theme';
 // Reports · More. No floating action button — primary actions live inside
 // each screen, never floating over content.
 export default function OwnerTabsLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1 }}>
       <Tabs
@@ -19,8 +21,8 @@ export default function OwnerTabsLayout() {
             backgroundColor: Colors.navBackground,
             borderTopColor: Colors.border,
             borderTopWidth: 1,
-            height: 60,
-            paddingBottom: 8,
+            height: 60 + insets.bottom,
+            paddingBottom: 8 + insets.bottom,
             paddingTop: 6,
           },
           tabBarLabelStyle: {

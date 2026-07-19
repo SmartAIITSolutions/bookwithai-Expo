@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
@@ -15,8 +16,9 @@ interface OwnerScreenHeaderProps {
 }
 
 export function OwnerScreenHeader({ title, onSearchPress, onCreatePress, onNotificationsPress }: OwnerScreenHeaderProps) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { paddingTop: insets.top + Spacing.lg }]}>
       <Text style={styles.title}>{title}</Text>
       <View style={styles.actions}>
         <TouchableOpacity onPress={onSearchPress} style={styles.iconButton} hitSlop={8}>
@@ -39,7 +41,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
   },
   title: {
