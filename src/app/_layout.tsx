@@ -229,11 +229,14 @@ function roleHome(role: string | null): string {
 }
 
 async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
-  setSplashVisible(false);
+  // Splash stays visible for this entire decision chain -- hiding it early
+  // exposed the app's default route (customer tabs) for however long the
+  // async checks below took, before the real destination was known.
 
   // 1. Check onboarding
   const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
   if (!onboardingDone) {
+    setSplashVisible(false);
     router.replace('/onboarding');
     return;
   }
@@ -241,6 +244,7 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
   // 2. Auth is mandatory — no session, no entry
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
+    setSplashVisible(false);
     router.replace('/auth');
     return;
   }
@@ -251,6 +255,7 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled   = await LocalAuthentication.isEnrolledAsync();
     if (hasHardware && isEnrolled) {
+      setSplashVisible(false);
       router.replace('/auth/biometrics');
       return;
     }
@@ -262,5 +267,6 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
     .select('role')
     .eq('id', session.user.id)
     .maybeSingle();
+  setSplashVisible(false);
   router.replace(roleHome(profile?.role ?? null) as never);
 }
