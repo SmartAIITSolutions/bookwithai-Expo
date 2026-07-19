@@ -1,6 +1,6 @@
 # 📱 Book With AI — Expo App MASTER.md
 ### Single source of truth for the customer mobile app
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-19 (build fix)
 
 > Always pull this at the start of every session.
 > For platform-wide decisions (SANAA, booking backend, web app), see `C:\Dev\booking-app\MASTER.md`
@@ -194,6 +194,7 @@
 - Removed the unused `android.permission.RECORD_AUDIO` (no code in the app uses audio/microphone — an unused sensitive permission is a real Play review flag).
 - Converted `app.json` → `app.config.js` (thin wrapper, `app.json` stays the source of truth for everything else) so `googleServicesFile` can come from a secure EAS file environment variable in cloud builds, since the file is correctly gitignored and was silently missing from the first cloud-build attempt. Uploaded `google-services.json` as a secret EAS project env var (`GOOGLE_SERVICES_JSON`, production environment).
 - First EAS production build attempt failed near-instantly for an unconfirmed reason — cancelled/abandoned rather than debugged blind, since it predated the config fix above; a clean build has not yet been produced.
+- **Root-caused and fixed (2026-07-19):** pulled the actual build error via `eas build:view --json` — `EAS_BUILD_MISSING_GOOGLE_SERVICES_JSON_ERROR`. Cause: `eas.json`'s `production` build profile never declared `"environment": "production"`, so EAS Build didn't inject that environment's secrets (including the `GOOGLE_SERVICES_JSON` file env var) at build time, and `app.config.js` fell back to the gitignored local-only path. Fixed by adding `"environment": "production"` to the profile. Verified with a fresh build (`6ebcba68-acfb-4cbd-bab7-b9e89c0f24ce`) — **status `finished`, real signed `.aab` produced, versionCode auto-incremented to 3.** This clears the Code/Technical hard blocker; a real submittable build now exists.
 
 **Play Store Readiness Report (2026-07-18):** before kicking off a real submission build, ran a category-by-category health check against Google Play's actual review process (automated technical scan, Store Listing, Policy Compliance, Functional Reliability, Code/Technical). Working through gaps in the user's chosen order: Store Listing → Policy Compliance → Functional Reliability → Code/Technical.
 

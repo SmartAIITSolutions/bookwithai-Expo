@@ -41,7 +41,7 @@ export default function SignUpScreen() {
     }
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email:    email.trim(),
         password: password.trim(),
         options: {
@@ -49,11 +49,12 @@ export default function SignUpScreen() {
         },
       });
       if (error) throw error;
-      Alert.alert(
-        'Check your email',
-        'We sent you a confirmation link. Tap it to activate your account.',
-        [{ text: 'OK', onPress: () => router.replace('/auth/sign-in') }]
-      );
+      // Account creation doesn't require email confirmation to sign in --
+      // if signUp already returned a session, AuthRedirectGate picks it up
+      // and routes home automatically. Otherwise fall back to sign-in.
+      if (!data.session) {
+        router.replace('/auth/sign-in');
+      }
     } catch (e: any) {
       Alert.alert('Sign up failed', e.message || 'Something went wrong. Please try again.');
     } finally {
