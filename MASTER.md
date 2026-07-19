@@ -207,6 +207,17 @@
 - A Customers-list screenshot was captured then deleted — contained real customer PII, excluded per explicit privacy instruction.
 - Play Console app shell created (package `app.bookwithai.app`, Free). All of the above uploaded live into Main store listing (2026-07-19). Store Listing category is fully submitted, not just drafted.
 
+**Policy Compliance — ✅ DONE (2026-07-19):** completed the full Policy → App content checklist live in Play Console, answered per what was actually verified in the codebase (not guessed):
+- Privacy policy: `https://www.dhanani.co/privacy.html` (verified live, HTTP 200).
+- App access: provided both a salon-owner test account (`testclient@gmail.com`) and a customer test account (`chimeandshine@gmail.com`), noted biometric app-lock is optional/off-by-default.
+- Ads: No ads.
+- Content ratings: All other app types (not game/social), no violence/sexual/profanity/drugs/gambling/UGC content, digital purchases yes, online content yes (dynamic salon/service listings) — landed on Everyone/Everyone 10+.
+- Target audience: 18 and over only.
+- Data safety: full data-type walkthrough — Name/Email/Phone/User IDs/Purchase history collected (required, account management + app functionality); User payment info collected + shared with Stripe (app functionality, fraud prevention); Photos + Calendar events + Device IDs collected (optional, app functionality). No location, contacts, health, messages, audio, files, or app-activity/analytics data collected — verified via code search, no analytics/crash SDK exists in the project. No advertising ID used.
+- Financial features: corrected mid-flow after seeing the actual form — "doesn't provide any financial features" is the accurate answer (Stripe checkout for real-world services is standard e-commerce, not a financial product/wallet), not "Facilitates payments" as originally assumed in the readiness report.
+- Health features: none — not a health/fitness/medical app.
+- Government apps / COVID-19 contact tracing / news apps: not applicable.
+
 **Standing-rule correction (2026-07-18):** partway through this pass, the user re-stated the strict collaboration rules (no code changes without per-change permission, no assumptions, verify-before-reporting, three-strike debug stop, MASTER.md kept current in the same commit as the code) after a stretch of testing-pass work where fixes were made and committed without asking each time, and this file wasn't updated in that commit. This entry itself is the correction. Going forward: explain the issue, propose the fix, get an explicit yes before writing any code.
 
 ---
