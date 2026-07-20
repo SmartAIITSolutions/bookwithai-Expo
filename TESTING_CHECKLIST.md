@@ -14,6 +14,10 @@ Two Play Store submission blockers found while building this checklist, fixed im
 - ✅ Removed the dev-only "Reset Onboarding" button (wiped AsyncStorage, explicitly marked "REMOVE BEFORE SUBMISSION" in code) — was still live in both the guest and signed-in Account screen states.
 - ✅ Added an in-app "Delete My Data" link in Account → Legal — the screen existed (`legal/delete-account.tsx`) but had no navigation path to it anywhere, a real Google Play User Data policy gap.
 
+## Fixed live (2026-07-20)
+
+- ✅ **In-app "Support" link pointed to `bookwithai.app/support`, which wasn't a real page and wasn't in `middleware.ts`'s public allow-list** — same class of bug as the earlier missing delete-account page. Unauthenticated visitors were silently redirected to `/login` instead of seeing support info; a real Google Play rejection risk (dead/broken link from the app). Built a real public Support page (`booking-app/src/app/(app)/support/page.tsx` — contact email, common questions, link to Delete My Data) and added `/support` to the allow-list. Deployed to production and **confirmed live and working.**
+
 ## Fixed, not yet retested (2026-07-19, end of session)
 
 - ✅ **Google Sign-In still spun forever after real Google consent completed** (confirmed live on production build -- got the "you shared account data" email from Google, app never picked it up). Root cause: `WebBrowser.openAuthSessionAsync()`'s resolved result was never firing on Android, because the app's own deep-link handling (the same system that used to show "Unmatched Route" for this exact URL, then landed on the `auth/callback.tsx` spinner after that fix) was claiming the redirect intent first, leaving `openAuthSessionAsync()`'s promise permanently unresolved. Fixed by moving the actual code exchange out of `handleGoogleSignIn()` (`auth/index.tsx`) and into `_layout.tsx`'s central `handleDeepLink()`, the same proven-reliable path already used for staff invites and password resets -- `handleGoogleSignIn()` now just opens the browser and doesn't depend on its return value. **Confirmed working live (2026-07-20).**
