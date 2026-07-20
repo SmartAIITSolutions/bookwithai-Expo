@@ -102,6 +102,35 @@ export default function RootLayout() {
     }
     if (url.includes('auth/reset-password')) {
       handlePasswordRecoveryLink(url);
+      return;
+    }
+    if (url.includes('auth/callback')) {
+      handleGoogleOAuthCallback(url);
+    }
+  }
+
+  // Google Sign-In's redirect target. Deliberately does NOT rely on
+  // WebBrowser.openAuthSessionAsync()'s resolved result (auth/index.tsx) --
+  // on Android that promise can hang forever if this app's own deep-link
+  // handling claims the redirect first, which is exactly what was
+  // happening. This handler is the same proven-reliable path already used
+  // for staff invites and password resets. No explicit navigation needed
+  // afterward -- AuthRedirectGate picks up the new session and routes by
+  // role automatically, same as any other sign-in method.
+  async function handleGoogleOAuthCallback(url: string) {
+    const params = parseAuthParams(url);
+    const code = params.get('code');
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    try {
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code);
+      } else if (accessToken && refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      }
+    } catch (e) {
+      // Redirect had no valid code/tokens, or the code was already
+      // consumed -- nothing to recover here, user can just retry sign-in.
     }
   }
 

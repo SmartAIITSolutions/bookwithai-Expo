@@ -30,15 +30,13 @@ export default function AuthWelcomeScreen() {
       if (error) throw error;
       if (!data.url) throw new Error('No OAuth URL returned');
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      if (result.type === 'success') {
-        const url = result.url;
-        const params = new URL(url);
-        const code = params.searchParams.get('code');
-        if (code) {
-          await supabase.auth.exchangeCodeForSession(code);
-        }
-      }
+      // Opens the browser for sign-in. Deliberately not relying on this
+      // promise's resolved result for the actual code exchange -- on
+      // Android it can hang forever if the app's own deep-link handling
+      // (_layout.tsx's handleDeepLink) claims the redirect first. That
+      // handler does the real exchangeCodeForSession() independently and
+      // reliably, the same way staff invites and password resets work.
+      await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     } catch (e: any) {
       Alert.alert('Sign in failed', e.message || 'Could not sign in with Google.');
     } finally {
