@@ -18,6 +18,17 @@ Two Play Store submission blockers found while building this checklist, fixed im
 
 - ✅ **In-app "Support" link pointed to `bookwithai.app/support`, which wasn't a real page and wasn't in `middleware.ts`'s public allow-list** — same class of bug as the earlier missing delete-account page. Unauthenticated visitors were silently redirected to `/login` instead of seeing support info; a real Google Play rejection risk (dead/broken link from the app). Built a real public Support page (`booking-app/src/app/(app)/support/page.tsx` — contact email, common questions, link to Delete My Data) and added `/support` to the allow-list. Deployed to production and **confirmed live and working.**
 
+## Full real-device confirmation pass on production build versionCode 8 (2026-07-20)
+
+Everything below tested live on a real phone against the actual Play Store Internal Testing build, not dev mode:
+
+- ✅ **All customer auth paths**: Google OAuth, Magic Link, email sign-in, and create-account — all working cleanly, no dead-ends.
+- ✅ **All 4 legal links** (Privacy, Terms, Support, Delete My Data) working on both customer and owner sides.
+- ✅ **Full customer booking flow end-to-end**: browse → book → pay → confirmation, including Add to Calendar, Get Directions, and Share all working.
+- ✅ **Owner Google OAuth sign-in lands correctly on the owner dashboard** — no recurrence of the customer-side routing glitch, across a real device confirmation (the `AuthContext.tsx` `loading`-state fix is holding).
+- ✅ **Full checkout flow**: Check-In → Start → Finish → Ready for Checkout → Complete Checkout, confirmation email received on completion.
+- 🐛 **Confirmed again, still open: booking notifications don't reach the Android system tray.** In-app (My Booking list + notification bell) correctly reflect new bookings, but no OS-level push notification appears. Not a submission blocker (in-app notifications work), but a real gap — needs investigation into push token registration / notification channel setup / server-side send before this can be called fully fixed.
+
 ## Fixed, not yet retested (2026-07-19, end of session)
 
 - ✅ **Google Sign-In still spun forever after real Google consent completed** (confirmed live on production build -- got the "you shared account data" email from Google, app never picked it up). Root cause: `WebBrowser.openAuthSessionAsync()`'s resolved result was never firing on Android, because the app's own deep-link handling (the same system that used to show "Unmatched Route" for this exact URL, then landed on the `auth/callback.tsx` spinner after that fix) was claiming the redirect intent first, leaving `openAuthSessionAsync()`'s promise permanently unresolved. Fixed by moving the actual code exchange out of `handleGoogleSignIn()` (`auth/index.tsx`) and into `_layout.tsx`'s central `handleDeepLink()`, the same proven-reliable path already used for staff invites and password resets -- `handleGoogleSignIn()` now just opens the browser and doesn't depend on its return value. **Confirmed working live (2026-07-20).**
