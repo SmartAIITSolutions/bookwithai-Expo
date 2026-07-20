@@ -2,10 +2,11 @@ import { QRScanner } from '@/components/scanner/QRScanner';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { QrCode, Sparkles } from 'lucide-react-native';
+import { QrCode } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import {
   Animated,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,13 +21,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  BlurMask,
   Canvas,
   Circle,
-  Group,
-  Path,
   RadialGradient,
-  Skia,
   vec,
 } from '@shopify/react-native-skia';
 
@@ -90,11 +87,12 @@ export default function BookScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.backgroundBottom} />
 
-      <LinearGradient
-        colors={[COLORS.backgroundTop, COLORS.backgroundMiddle, COLORS.backgroundBottom]}
-        locations={[0, 0.5, 1]}
-        style={styles.screen}>
-        <BackgroundDecorations />
+      <View style={styles.screen}>
+        <Image
+          source={require('@/assets/images/book-screen-bg.png')}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
 
         <KeyboardAvoidingView
           style={styles.flex}
@@ -118,10 +116,11 @@ export default function BookScreen() {
                       />
                     </Circle>
                   </Canvas>
-                  <Text style={[styles.logoLetter, compact && styles.logoLetterCompact]}>
-                    B
-                  </Text>
-                  <Sparkles size={16} color={COLORS.goldLight} style={styles.logoSparkle} />
+                  <Image
+                    source={require('@/assets/images/bwa-gold-logo.png')}
+                    style={[styles.logoImage, compact && styles.logoImageCompact]}
+                    resizeMode="contain"
+                  />
                 </View>
 
                 <Text style={styles.brandTop}>
@@ -253,7 +252,7 @@ export default function BookScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </LinearGradient>
+      </View>
 
       <Modal
         visible={scannerOpen}
@@ -263,78 +262,6 @@ export default function BookScreen() {
         <QRScanner onClose={() => setScannerOpen(false)} />
       </Modal>
     </SafeAreaView>
-  );
-}
-
-function BackgroundDecorations() {
-  const { width: W, height: H } = useWindowDimensions();
-
-  const purpleTopArc = Skia.Path.MakeFromSVGString(
-    `M ${-W * 0.15} ${H * 0.42} Q ${W * 0.05} ${H * 0.1} ${W * 0.5} ${-H * 0.02}`,
-  )!;
-  const goldRightArc = Skia.Path.MakeFromSVGString(
-    `M ${W * 1.05} ${H * 0.28} Q ${W * 0.78} ${H * 0.55} ${W * 1.02} ${H * 0.88}`,
-  )!;
-  const purpleBottomArc = Skia.Path.MakeFromSVGString(
-    `M ${-W * 0.1} ${H * 0.72} Q ${W * 0.12} ${H * 0.95} ${W * 0.45} ${H * 1.05}`,
-  )!;
-
-  return (
-    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Group>
-        <Circle cx={W * 0.1} cy={H * 0.12} r={230}>
-          <RadialGradient
-            c={vec(W * 0.1, H * 0.12)}
-            r={230}
-            colors={['rgba(139,74,255,0.35)', 'rgba(139,74,255,0)']}
-          />
-        </Circle>
-        <Circle cx={W * 1.0} cy={H * 0.4} r={210}>
-          <RadialGradient
-            c={vec(W * 1.0, H * 0.4)}
-            r={210}
-            colors={['rgba(212,175,55,0.22)', 'rgba(212,175,55,0)']}
-          />
-        </Circle>
-        <Circle cx={W * 0.0} cy={H * 0.9} r={220}>
-          <RadialGradient
-            c={vec(W * 0.0, H * 0.9)}
-            r={220}
-            colors={['rgba(123,63,228,0.3)', 'rgba(123,63,228,0)']}
-          />
-        </Circle>
-      </Group>
-
-      <Group>
-        <Path path={purpleTopArc} style="stroke" strokeWidth={7} color="rgba(191,132,255,0.85)">
-          <BlurMask blur={14} style="normal" />
-        </Path>
-        <Path path={goldRightArc} style="stroke" strokeWidth={6} color="rgba(244,215,122,0.8)">
-          <BlurMask blur={16} style="normal" />
-        </Path>
-        <Path path={purpleBottomArc} style="stroke" strokeWidth={6} color="rgba(155,92,255,0.7)">
-          <BlurMask blur={15} style="normal" />
-        </Path>
-      </Group>
-
-      <Group>
-        <Path path={purpleTopArc} style="stroke" strokeWidth={1.6} color="rgba(230,210,255,0.9)" />
-        <Path path={goldRightArc} style="stroke" strokeWidth={1.4} color="rgba(255,240,190,0.9)" />
-      </Group>
-
-      <Group>
-        {[
-          { x: W * 0.82, y: H * 0.24, r: 1.8 },
-          { x: W * 0.88, y: H * 0.28, r: 1.2 },
-          { x: W * 0.9, y: H * 0.55, r: 1.5 },
-          { x: W * 0.12, y: H * 0.82, r: 1.3 },
-        ].map((d, i) => (
-          <Circle key={i} cx={d.x} cy={d.y} r={d.r} color="rgba(244,215,122,0.9)">
-            <BlurMask blur={2} style="normal" />
-          </Circle>
-        ))}
-      </Group>
-    </Canvas>
   );
 }
 
@@ -371,16 +298,9 @@ const styles = StyleSheet.create({
 
   logoGlow: { position: 'absolute', width: 150, height: 150 },
 
-  logoLetter: {
-    color: COLORS.goldLight,
-    fontFamily: PLAYFAIR,
-    fontSize: 76,
-    lineHeight: 84,
-  },
+  logoImage: { width: 108, height: 72 },
 
-  logoLetterCompact: { fontSize: 66, lineHeight: 74 },
-
-  logoSparkle: { position: 'absolute', top: 8, right: 26 },
+  logoImageCompact: { width: 92, height: 61 },
 
   brandTop: {
     color: COLORS.white,
