@@ -15,6 +15,7 @@ import {
   TimelineEvent, ReferredByInfo, ReferredInfo,
 } from '@/lib/api/ownerRelationship';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
+import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
 import { SpendingSparkline } from '@/components/owner/SpendingSparkline';
 import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
@@ -51,6 +52,7 @@ export default function CustomerDetailScreen() {
   const [healthExpanded, setHealthExpanded] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
+  const checkoutRef = useRef<CheckoutSheetHandle>(null);
   const scrollRef = useRef<ScrollView>(null);
   const noteInputRef = useRef<TextInput>(null);
   const [notesSectionY, setNotesSectionY] = useState(0);
@@ -666,7 +668,17 @@ export default function CustomerDetailScreen() {
         </Section>
       </ScrollView>
 
-      <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={() => { sheetRef.current?.dismiss(); load(); }} />
+      <AppointmentSheet
+        ref={sheetRef}
+        booking={selectedBooking}
+        onChanged={() => { sheetRef.current?.dismiss(); load(); }}
+        onReadyForCheckout={() => checkoutRef.current?.present()}
+      />
+      <CheckoutSheet
+        ref={checkoutRef}
+        booking={selectedBooking}
+        onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); load(); }}
+      />
     </View>
   );
 }

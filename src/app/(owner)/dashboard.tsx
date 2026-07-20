@@ -5,6 +5,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { AIInsightSlot } from '@/components/owner/AIInsightSlot';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
+import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
 import { DailyOpsCard } from '@/components/owner/DailyOpsCard';
 import { WaitingQueue } from '@/components/owner/WaitingQueue';
 import { getDashboard, DashboardData } from '@/lib/api/ownerDashboard';
@@ -37,6 +38,7 @@ export default function OwnerDashboardScreen() {
   const [healthExpanded, setHealthExpanded] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
+  const checkoutRef = useRef<CheckoutSheetHandle>(null);
 
   const now = new Date();
   const todayKey = now.toISOString().slice(0, 10);
@@ -145,7 +147,17 @@ export default function OwnerDashboardScreen() {
           </View>
         </ScrollView>
       )}
-      <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={() => { sheetRef.current?.dismiss(); load(); }} />
+      <AppointmentSheet
+        ref={sheetRef}
+        booking={selectedBooking}
+        onChanged={() => { sheetRef.current?.dismiss(); load(); }}
+        onReadyForCheckout={() => checkoutRef.current?.present()}
+      />
+      <CheckoutSheet
+        ref={checkoutRef}
+        booking={selectedBooking}
+        onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); load(); }}
+      />
     </View>
   );
 }

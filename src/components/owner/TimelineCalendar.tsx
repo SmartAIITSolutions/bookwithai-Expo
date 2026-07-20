@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, RefreshControl } from 'react-native';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring,
@@ -28,9 +28,11 @@ interface TimelineCalendarProps {
   weekSchedule: WeekSchedule | null;
   onOpenBooking: (b: OwnerBooking) => void;
   onChanged: () => void;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
-export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged }: TimelineCalendarProps) {
+export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, refreshing, onRefresh }: TimelineCalendarProps) {
   const zoom = useSharedValue(1);
   const [committedZoom, setCommittedZoom] = useState(1);
 
@@ -69,7 +71,11 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
 
   return (
     <GestureDetector gesture={pinch}>
-      <ScrollView contentContainerStyle={{ flexDirection: 'row' }}>
+      <ScrollView
+        contentContainerStyle={{ flexDirection: 'row' }}
+        refreshControl={
+          onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} /> : undefined
+        }>
         {/* Time gutter */}
         <View style={{ width: TIME_GUTTER, height: totalHeight }}>
           {labels.map(l => (

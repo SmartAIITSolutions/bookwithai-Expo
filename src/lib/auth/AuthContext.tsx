@@ -75,6 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('[DIAG] onAuthStateChange fired', { event: _event, hasSession: !!session, userId: session?.user?.id });
+      // `loading` may already be false from a previous settled auth state --
+      // reset it here so consumers (AuthRedirectGate) don't act on a stale
+      // `role` while this event's loadProfile() is still in flight. This was
+      // the real root cause of the owner-routing-to-customer-tabs bug: a
+      // slow profile fetch left a multi-second window where loading=false
+      // but role hadn't been refreshed yet.
+      setLoading(true);
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {

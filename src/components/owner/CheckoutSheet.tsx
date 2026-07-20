@@ -1,6 +1,5 @@
-import { forwardRef, useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, Share } from 'react-native';
-import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, Share, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine } from '@/lib/api/ownerCheckout';
@@ -20,11 +19,28 @@ interface CheckoutSheetProps {
   onDone: () => void;
 }
 
+export interface CheckoutSheetHandle {
+  present: () => void;
+  dismiss: () => void;
+}
+
 // Phase 0.6 Checkout Mode. Deliberately not a separate POS screen — this
 // sheet is what the appointment sheet hands off to when the sticky bar
 // reaches "READY FOR CHECKOUT."
-export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
+//
+// Built on React Native's own Modal rather than @gorhom/bottom-sheet --
+// the library silently failed to open here (present() called, ref valid,
+// data loaded, but the modal's internal state never transitioned; matches
+// known open issues in @gorhom/bottom-sheet v5 around animation-timing
+// races). Plain Modal has no such issue and needs no external library.
+export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>(
   function CheckoutSheet({ booking, onDone }, ref) {
+    const [visible, setVisible] = useState(false);
+    useImperativeHandle(ref, () => ({
+      present: () => setVisible(true),
+      dismiss: () => setVisible(false),
+    }), []);
+
     const { clientId } = useAuth();
     const [preview, setPreview] = useState<CheckoutPreview | null>(null);
     const [catalog, setCatalog] = useState<Product[]>([]);
@@ -54,6 +70,7 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
         listProducts(),
         listServices(),
       ]);
+      console.log('[DIAG] CheckoutSheet: load() result', { previewOk: previewResult.ok, previewError: !previewResult.ok ? previewResult.error : undefined });
       if (previewResult.ok) setPreview(previewResult.data);
       if (productsResult.ok) setCatalog(productsResult.data.data);
       if (servicesResult.ok) setServices(servicesResult.data.data.filter(s => s.active && s.id !== booking.service_id));
@@ -72,9 +89,9 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
 
     if (!booking || !preview) {
       return (
-        <BottomSheetModal ref={ref} snapPoints={['85%']}>
+        <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="60%">
           <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
-        </BottomSheetModal>
+        </SheetModal>
       );
     }
 
@@ -142,11 +159,9 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
       await Share.share({ message: `Please complete your payment here: ${url}` });
     }
 
-    const renderBackdrop = (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />;
-
     if (result?.status === 'awaiting_card_payment' && result.payment_url) {
       return (
-        <BottomSheetModal ref={ref} snapPoints={['50%']} backdropComponent={renderBackdrop}>
+        <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="50%">
           <View style={styles.content}>
             <Text style={styles.sectionTitle}>Card payment</Text>
             <Text style={styles.hint}>Send this link to the customer to complete payment on their own device.</Text>
@@ -157,25 +172,25 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
               <Text style={styles.doneText}>Done for now</Text>
             </TouchableOpacity>
           </View>
-        </BottomSheetModal>
+        </SheetModal>
       );
     }
 
     if (result?.status === 'completed') {
       return (
-        <BottomSheetModal ref={ref} snapPoints={['45%']}>
+        <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="45%">
           <View style={styles.content}>
             <Text style={styles.successTitle}>✅ Payment collected</Text>
             <Text style={styles.successLine}>✅ Receipt sent</Text>
             <Text style={styles.successLine}>✅ Loyalty updated</Text>
             <Text style={styles.successLine}>{preview.rebook_suggestion ? '✅ Next appointment suggested' : 'Not booked'}</Text>
           </View>
-        </BottomSheetModal>
+        </SheetModal>
       );
     }
 
     return (
-      <BottomSheetModal ref={ref} snapPoints={['90%']} backdropComponent={renderBackdrop}>
+      <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="90%">
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.sectionTitle}>Checkout</Text>
 
@@ -324,10 +339,29 @@ export const CheckoutSheet = forwardRef<BottomSheetModal, CheckoutSheetProps>(
             {submitting ? <ActivityIndicator color={Colors.textOnPrimary} /> : <Text style={styles.primaryButtonText}>Complete Checkout</Text>}
           </TouchableOpacity>
         </ScrollView>
-      </BottomSheetModal>
+      </SheetModal>
     );
   }
 );
+
+// Plain-Modal bottom sheet: dark backdrop (tap to dismiss) + a rounded
+// panel sliding up from the bottom, capped at maxHeight so short content
+// (loading/success states) doesn't stretch to fill the screen.
+function SheetModal({ visible, onRequestClose, maxHeight, children }: {
+  visible: boolean; onRequestClose: () => void; maxHeight: `${number}%`; children: React.ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onRequestClose}>
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.backdrop} onPress={onRequestClose} />
+        <View style={[styles.sheetPanel, { maxHeight }]}>
+          <View style={styles.grabber} />
+          {children}
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return <View style={styles.section}><Text style={styles.subTitle}>{title}</Text>{children}</View>;
@@ -343,7 +377,11 @@ function TotalRow({ label, value, bold, color }: { label: string; value: number;
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheetPanel: { backgroundColor: Colors.card, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm },
+  grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Spacing.xs },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 200 },
   content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing['2xl'] },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
   subTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: Colors.textSecondary, marginBottom: 4 },

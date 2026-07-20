@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,6 @@ import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { checkIn, startService, completeService, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
 import { getAddOnSuggestion, AddOnSuggestion } from '@/lib/api/ownerServices';
 import { bookingStatusColor, nextAction } from '@/lib/calendar/bookingStatus';
-import { CheckoutSheet } from './CheckoutSheet';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
@@ -15,6 +14,7 @@ import { Shadows } from '@/constants/Shadows';
 interface AppointmentSheetProps {
   booking: OwnerBooking | null;
   onChanged: () => void;
+  onReadyForCheckout: () => void;
 }
 
 function elapsedLabel(startedAt: string, durationMinutes: number): string {
@@ -28,13 +28,12 @@ function elapsedLabel(startedAt: string, durationMinutes: number): string {
 // calendar stays visible behind this; closing it returns exactly where the
 // owner was, no navigation. Rises to ~85% via snapPoints.
 export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetProps>(
-  function AppointmentSheet({ booking, onChanged }, ref) {
+  function AppointmentSheet({ booking, onChanged, onReadyForCheckout }, ref) {
     const [working, setWorking] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [addOn, setAddOn] = useState<AddOnSuggestion | null>(null);
     const [, forceTick] = useState(0);
     const snapPoints = useMemo(() => ['85%'], []);
-    const checkoutRef = useRef<BottomSheetModal>(null);
 
     const renderBackdrop = useCallback(
       (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />,
@@ -75,15 +74,13 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       if (action.label === 'CHECK IN') runAction(checkIn);
       else if (action.label === 'START SERVICE') runAction(startService);
       else if (action.label === 'MARK SERVICE COMPLETE') runAction(completeService);
-      else if (action.label === 'READY FOR CHECKOUT') checkoutRef.current?.present();
+      else if (action.label === 'READY FOR CHECKOUT') {
+        console.log('[DIAG] Ready for Checkout pressed', { bookingId: booking?.id });
+        onReadyForCheckout();
+      }
       else if (action.label === 'BOOK NEXT APPOINTMENT') {
         if (booking?.customer_id) router.push(`/customer/${booking.customer_id}` as never);
       }
-    }
-
-    function handleCheckoutDone() {
-      checkoutRef.current?.dismiss();
-      onChanged();
     }
 
     function handleCancel() {
@@ -227,7 +224,6 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
             </TouchableOpacity>
           )}
         </BottomSheetView>
-        <CheckoutSheet ref={checkoutRef} booking={booking} onDone={handleCheckoutDone} />
       </BottomSheetModal>
     );
   }

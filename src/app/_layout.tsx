@@ -208,8 +208,14 @@ function AuthRedirectGate() {
     if (loading) return;
     const onAuthStack = segments[0] === 'auth';
     if (user && onAuthStack) {
-      console.log('[DIAG] AuthRedirectGate: redirecting', { role, dest: roleHome(role) });
+      console.log('[DIAG] AuthRedirectGate: redirecting to home', { role, dest: roleHome(role) });
       router.replace(roleHome(role) as never);
+    } else if (!user && !onAuthStack) {
+      // Covers sign-out from any screen -- without this, a signed-out user
+      // stays stuck on their last screen until a force-close/reopen
+      // triggers the cold-start check in handleSplashDone instead.
+      console.log('[DIAG] AuthRedirectGate: redirecting to /auth after sign-out');
+      router.replace('/auth');
     }
   }, [user, role, loading, segments]);
 

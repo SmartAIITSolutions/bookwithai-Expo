@@ -5,6 +5,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
+import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
 import { WalkInSheet } from '@/components/owner/WalkInSheet';
 import { TimelineCalendar } from '@/components/owner/TimelineCalendar';
 import { AgendaView } from '@/components/owner/AgendaView';
@@ -55,9 +56,17 @@ export default function OwnerCalendarScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const sheetRef = useRef<BottomSheetModal>(null);
   const walkInRef = useRef<BottomSheetModal>(null);
+  const checkoutRef = useRef<CheckoutSheetHandle>(null);
 
   const dateKey = toDateKey(date);
   const { bookings, loading, reload } = useOwnerBookings(dateKey);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  }, [reload]);
 
   // Keep the open Appointment Sheet's booking in sync with fresh data --
   // without this, actions like Check-In/No-Show correctly update the
@@ -107,6 +116,17 @@ export default function OwnerCalendarScreen() {
     reload();
   }, [reload]);
 
+  const handleReadyForCheckout = useCallback(() => {
+    sheetRef.current?.dismiss();
+    checkoutRef.current?.present();
+  }, []);
+
+  const handleCheckoutDone = useCallback(() => {
+    checkoutRef.current?.dismiss();
+    sheetRef.current?.dismiss();
+    reload();
+  }, [reload]);
+
   const handleWalkInBooked = useCallback(() => {
     walkInRef.current?.dismiss();
     reload();
@@ -140,7 +160,14 @@ export default function OwnerCalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <OwnerScreenHeader title="Calendar" onCreatePress={() => walkInRef.current?.present()} onNotificationsPress={() => router.push('/owner-notifications' as never)} />
+      <OwnerScreenHeader
+        title="Calendar"
+        onCreatePress={() => {
+          console.log('[DIAG] Calendar header + pressed', { walkInRefIsNull: walkInRef.current == null });
+          walkInRef.current?.present();
+        }}
+        onNotificationsPress={() => router.push('/owner-notifications' as never)}
+      />
 
       <View style={styles.dateRow}>
         <TouchableOpacity onPress={() => shiftDay(-1)}><Text style={styles.dateNav}>← Yesterday</Text></TouchableOpacity>
@@ -205,6 +232,8 @@ export default function OwnerCalendarScreen() {
           weekSchedule={business.week_schedule}
           onOpenBooking={openBooking}
           onChanged={reload}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
         />
       ) : mode === 'agenda' ? (
         <AgendaView bookings={visibleBookings} onOpen={openBooking} />
@@ -225,7 +254,8 @@ export default function OwnerCalendarScreen() {
         </View>
       )}
 
-      <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={handleChanged} />
+      <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={handleChanged} onReadyForCheckout={handleReadyForCheckout} />
+      <CheckoutSheet ref={checkoutRef} booking={selectedBooking} onDone={handleCheckoutDone} />
       <WalkInSheet ref={walkInRef} staff={staff} todaysBookings={bookings} onBooked={handleWalkInBooked} />
     </View>
   );
