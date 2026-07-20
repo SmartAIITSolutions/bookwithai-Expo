@@ -251,6 +251,13 @@
 
 ---
 
+**Apple App Store process researched end-to-end (2026-07-20), before starting iOS work — two real findings, both acted on:**
+1. **Our existing account-deletion approach (web page + mailto) would fail Apple review.** Guideline 5.1.1(v) requires in-app-initiated deletion and explicitly rejects email/support-flow-only processes for apps outside regulated industries (finance/healthcare — salon booking doesn't qualify). **Fixed proactively**: built a real `DELETE /api/mobile/account` endpoint (`booking-app`) and rebuilt `legal/delete-account.tsx` as a genuine in-app flow (typed "DELETE" confirmation, no `Alert.prompt`). Needs a live end-to-end test before fully verified.
+2. **"Sign in with Apple" is likely NOT required**, contradicting the earlier assumption behind moving it to Step 21. Apple's 2024 policy revision only mandates it for apps that *exclusively* use third-party/social login — since the app already has its own email+password system, it likely qualifies for the exemption. Held off on building it per your direction; revisit only if Apple's review specifically flags it.
+- No mandatory long testing window for iOS (unlike Android's new 14-day/12-tester rule) — TestFlight only needs one quick "Beta App Review" for external testers. Review itself is typically 24–48 hours.
+- Real-money Stripe payments for salon appointments should be exempt from Apple's In-App Purchase requirement (real-world service, same category as Uber/OpenTable) — worth having a one-line explanation ready in App Review notes in case a reviewer is unsure.
+- Confirmed: EAS Build/Submit needs no Mac — iOS compiles on Expo's macOS cloud runners, submission works from Windows.
+
 ## 🔒 ALL LOCKED DECISIONS
 
 | Decision | What Was Decided | Date Locked |
