@@ -208,7 +208,7 @@ export default function AccountScreen() {
             { label: 'Privacy Policy',   route: '/legal/privacy' },
             { label: 'Terms of Service', route: '/legal/terms' },
             { label: 'Support',          route: '/legal/support' },
-            { label: 'Delete My Data',   route: '/legal/delete-account' },
+            { label: 'Delete My Account', route: '/legal/delete-account' },
           ].map(({ label, route }) => (
             <Pressable
               key={route}

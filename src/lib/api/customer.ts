@@ -55,6 +55,16 @@ export async function saveCustomerPreferences(
   return { ok: true };
 }
 
+export async function deleteAccount(): Promise<{ ok: boolean; error?: string }> {
+  const headers = await authHeaders();
+  if (!headers) return { ok: false, error: 'Not signed in.' };
+
+  const res = await fetch(`${API_BASE}/api/mobile/account`, { method: 'DELETE', headers });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: json.error || 'Could not delete account.' };
+  return { ok: true };
+}
+
 export async function submitBookingReview(
   bookingId: string,
   stars: number,
