@@ -1,6 +1,6 @@
 # 📱 Book With AI — Expo App MASTER.md
 ### Single source of truth for the customer mobile app
-**Last updated:** 2026-07-19 (build fix)
+**Last updated:** 2026-07-20 (submission timeline revised)
 
 > Always pull this at the start of every session.
 > For platform-wide decisions (SANAA, booking backend, web app), see `C:\Dev\booking-app\MASTER.md`
@@ -24,8 +24,8 @@
 | 18.5 — Push Notifications (pulled forward from V2) | ~6–8 hours / 1–2 sessions | ✅ Done 2026-07-16 (same day) | Predicted completion was 2026-07-18 — 2 days ahead. Includes 6 bug fixes found during E2E testing (see build plan below). |
 | 18.6 — Customer self-serve reschedule/cancel | ~5–6 hours / 1 session | ✅ Done 2026-07-16 (same day) | New gap found during Internal Testing prep. Includes 1 follow-up fix (customer confirmation push was missing on self-serve actions) found and fixed during verification. |
 | 18.7 — V1/V2 Gap Closure | ~4–5 sessions | ✅ Done (2026-07-17) | 9 of 10 items built (Sign in with Apple moved to Step 21). See build notes below. |
-| 19 — Internal Testing | 1–2 sessions | 🔄 In progress (started 2026-07-17, continued 2026-07-18) | Exhaustive 13-phase test roadmap built; Phases 1–9 of 13 tested live (customer auth/booking/account + owner Dashboard/Calendar/Customers/Settings/Staff/Time Off). Multiple real bugs found and fixed, including two genuine Play Store submission blockers. Full detail in Step 19 build notes below and `TESTING_CHECKLIST.md`. Not yet complete — Phases 10–13 (Business/Products/Services settings depth, CRM depth, Staff app, final regression sweep) remain. |
-| 20 — Android / Google Play | 3–7 days (Google review) | ⬜ | Review wait time unchanged |
+| 19 — Internal Testing | 1–2 sessions | 🔄 In progress (2026-07-17 → 2026-07-20, 4 sessions so far) | Exhaustive 13-phase test roadmap built; Phases 1–9 of 13 tested live, all core rejection-risk flows (auth, booking, payment, owner checkout) now confirmed working on the real production build. Many real bugs found and fixed — including the checkout total-outage bug and the recurring owner-routing race, both genuinely hard, multi-attempt fixes. Phases 10–13 (Business/Products/Services settings depth, CRM depth, Staff app, final regression sweep) still not walked. ~2–3 sessions over original estimate — legitimate scope growth from real bugs found, not slippage. |
+| 20 — Android / Google Play | 3–7 days (Google review) | 🔄 In progress — revised estimate: **~16–24 days total**, not 3–7 | **Original estimate didn't account for a real requirement discovered this week**: new personal Google Play developer accounts must run a Closed Testing release with 12+ opted-in testers, active continuously for 14 days, before Production access even unlocks — then a *second* review happens for the actual Production application. Real pipeline: Closed Testing review (1–3 days, submitted 2026-07-19) → mandatory 14-day/12-tester window (running in parallel with continued dev work) → apply for Production → second review (1–7 days) → live. This ~13–17 extra days is a Google policy requirement neither of us could have priced in upfront, not a pace problem on our end. |
 | 21 — iOS / App Store | 1–7 days (Apple review) | ⬜ | Review wait time unchanged |
 | **Salon Owner App — Sprint 0** (Foundation shell: role-aware auth, 5-tab owner nav, design tokens, bottom-sheet dependency) | 4–6 days, predicted 2026-07-25 | ✅ Done 2026-07-17 (8 days ahead) | Full sprint schedule + reasoning lives in `booking-app/MASTER.md` § SALON OWNER APP — FULL ROADMAP → Sprint Schedule. `profiles` table migration applied to prod via Supabase CLI (`supabase db push`) after installing the CLI and repairing its migration ledger — see that file's Sprint 0 build note for the full story, including a pre-existing duplicate-migration-timestamp bug it surfaced (still open, unrelated to this sprint). |
 | **Salon Owner App — Sprint 1** (Business Setup + Services + Staff Foundation) | 5–7 days, predicted 2026-08-04 | ✅ Done 2026-07-17 (18 days ahead) | New screens: `owner-settings/{business,services,staff}.tsx`, reachable from More → Settings/Services/Staff. Business Setup includes address + holiday hours (the two Phase 1 gaps found in the audit). Staff screen includes a simple weekly-hours editor. Full build notes in `booking-app/MASTER.md`. |
@@ -37,6 +37,18 @@
 
 > The 12–16 week original estimate was based on a human developer working a few sessions per week.
 > AI-assisted coding collapsed the build time to a single day. Store review timelines remain the same — those are Google and Apple's clocks, not ours.
+
+### How far behind are we, really? (updated 2026-07-20)
+
+**Every actual build step (1–18.7, both apps) has finished dramatically ahead of schedule** — the whole feature-build phase for both the customer app and all 6 owner-app sprints landed weeks to months ahead of their original per-sprint estimates. That part of the plan is not behind; it's the opposite.
+
+**Where the real time is going now is Step 19 (Internal Testing) and Step 20 (Play Store submission) — and for two different reasons:**
+
+1. **Step 19 is running ~2–3 sessions over its original 1–2 session estimate.** This is legitimate scope growth, not slippage: real-device testing surfaced genuinely serious bugs (a total checkout outage, a recurring auth-routing race, a broken Google Sign-In flow, hidden UI under system nav bars) that a lighter test pass would have missed and that would have caused real rejections or a broken launch. Fixing them properly — including two bugs that took multiple diagnostic attempts each — was the right call, not a detour.
+
+2. **Step 20's original "3–7 days" review estimate didn't know about a real Google Play policy requirement**: new personal developer accounts must run a Closed Testing release with 12+ opted-in testers for 14 continuous days before Production access even unlocks, then go through a second review to actually publish. This adds a **hard, unavoidable ~13–17 extra days** that has nothing to do with our pace — it's Google's clock, discovered only once we reached that step in Play Console. Submission for Closed Testing review went in 2026-07-19; the 14-day tester window starts once 12+ people actually opt in, and Production submission follows after that.
+
+**Bottom line:** building both apps finished ~2+ months ahead of the original plan. The realistic new finish line — accounting for the newly-discovered mandatory testing window — is roughly **2026-08-04 to 2026-08-12** for Android to go fully live, assuming the 12-tester threshold is hit soon and no review comes back requesting changes. That's later than the original "3–7 days" Step 20 estimate implied, but it's a policy discovery, not lost time from how the work itself has gone.
 
 ---
 
