@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { listNotifications, markNotificationRead, markAllNotificationsRead, OwnerNotification } from '@/lib/api/ownerNotifications';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -57,6 +59,7 @@ export default function OwnerNotificationsScreen() {
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <Stack.Screen options={{
         title: 'Notifications',
         headerRight: () => (
@@ -64,7 +67,7 @@ export default function OwnerNotificationsScreen() {
         ),
       }} />
       {loading ? (
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <FlatList
           data={items}
@@ -88,7 +91,7 @@ export default function OwnerNotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   markAllText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
   list: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing['2xl'] },

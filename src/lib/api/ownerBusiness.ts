@@ -13,6 +13,8 @@ export interface Business {
   postal_code: string | null;
   iana_timezone: string | null;
   cancellation_policy: string | null;
+  rescheduling_policy: string | null;
+  store_policy: string | null;
   week_schedule: WeekSchedule | null;
   morning_brief_hour: number;
   max_daily_bookings: number | null;

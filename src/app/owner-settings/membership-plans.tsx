@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Switch } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { listMembershipPlans, createMembershipPlan, updateMembershipPlan, MembershipPlan, BillingMode, BillingInterval } from '@/lib/api/ownerMemberships';
 import { Colors } from '@/constants/Colors';
@@ -59,9 +61,10 @@ export default function MembershipPlansScreen() {
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <Stack.Screen options={{ title: 'Membership Plans', headerBackTitle: 'More' }} />
       {loading ? (
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {plans.length === 0 && !adding && (
@@ -119,7 +122,7 @@ export default function MembershipPlansScreen() {
               <View style={styles.inlineFormActions}>
                 <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -136,7 +139,7 @@ export default function MembershipPlansScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing['2xl'] },
   emptyHint: { fontSize: 14, color: Colors.textSecondary, marginBottom: Spacing.sm },

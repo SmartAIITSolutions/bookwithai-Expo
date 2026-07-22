@@ -4,6 +4,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import {
+  Sora_300Light,
   Sora_400Regular,
   Sora_500Medium,
   Sora_600SemiBold,
@@ -34,6 +35,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
+import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
@@ -72,6 +74,7 @@ const BIOMETRICS_KEY    = 'bwa_biometrics_enabled';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
+    Sora_300Light,
     Sora_400Regular,
     Sora_500Medium,
     Sora_600SemiBold,
@@ -88,10 +91,21 @@ export default function RootLayout() {
   });
 
   const [splashVisible, setSplashVisible] = useState(true);
+  const [splashReady, setSplashReady] = useState(false);
 
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  // Kicks off as soon as fonts are ready, in parallel with the SplashOverlay's
+  // grow/glow animation -- the animation loops indefinitely until this chain
+  // actually resolves and navigates, so slow networks just see a longer
+  // glow instead of a blank screen or a stale fixed-duration splash.
+  useEffect(() => {
+    if (fontsLoaded) {
+      handleSplashDone(setSplashReady);
     }
   }, [fontsLoaded]);
 
@@ -192,10 +206,16 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
     <BottomSheetModalProvider>
     <AuthProvider>
+    <FavoritesProvider>
       <StatusBar style="dark" />
       <OfflineBanner />
       <AuthRedirectGate />
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade_from_bottom',
+          animationDuration: 650,
+        }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(owner)" />
         <Stack.Screen name="(staff)" />
@@ -226,11 +246,12 @@ export default function RootLayout() {
         <Stack.Screen name="legal/privacy" />
         <Stack.Screen name="legal/terms" />
         <Stack.Screen name="legal/support" />
-        <Stack.Screen name="legal/delete-account" />
+        <Stack.Screen name="legal/delete-account" options={{ headerShown: true }} />
       </Stack>
       {splashVisible && fontsLoaded && (
-        <SplashOverlay onDone={() => handleSplashDone(setSplashVisible)} />
+        <SplashOverlay ready={splashReady} onDone={() => setSplashVisible(false)} />
       )}
+    </FavoritesProvider>
     </AuthProvider>
     </BottomSheetModalProvider>
     </GestureHandlerRootView>
@@ -250,6 +271,17 @@ function AuthRedirectGate() {
     console.log('[DIAG] AuthRedirectGate effect', { loading, hasUser: !!user, role, segments });
     if (loading) return;
     const onAuthStack = segments[0] === 'auth';
+    // The owner sign-up wizard calls supabase.auth.signUp() partway through
+    // its own flow (step 3), which establishes a session and makes `user`
+    // truthy immediately -- well before the wizard's own follow-up
+    // `profiles.role = 'owner'` update commits. Without this guard, this
+    // effect would fire on that stale 'customer' role (the DB trigger's
+    // default) and yank the new owner into customer tabs mid-wizard, before
+    // they ever reach the business-profile/hours/Stripe steps. The wizard
+    // manages its own navigation to the owner dashboard once it's actually
+    // done, via router.replace('/(owner)/dashboard').
+    const onOwnerSignupWizard = segments[0] === 'auth' && segments[1] === 'owner-signup';
+    if (onOwnerSignupWizard) return;
     if (user && onAuthStack) {
       console.log('[DIAG] AuthRedirectGate: redirecting to home', { role, dest: roleHome(role) });
       router.replace(roleHome(role) as never);
@@ -279,18 +311,19 @@ function roleHome(role: string | null): string {
   return '/(tabs)/book';
 }
 
-async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
-  // Splash stays visible for this entire decision chain -- hiding it early
-  // exposed the app's default route (customer tabs) for however long the
-  // async checks below took, before the real destination was known.
+async function handleSplashDone(setSplashReady: (v: boolean) => void) {
+  // The SplashOverlay keeps growing/glowing (and looping) for this entire
+  // decision chain -- marking it ready early would fade it out and expose
+  // the app's default route for however long the async checks below took,
+  // before the real destination was known.
   console.log('[DIAG] handleSplashDone: start');
 
   // 1. Check onboarding
   const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
   console.log('[DIAG] handleSplashDone: onboarding check', { onboardingDone });
   if (!onboardingDone) {
-    setSplashVisible(false);
     router.replace('/onboarding');
+    setSplashReady(true);
     return;
   }
 
@@ -298,8 +331,8 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
   const { data: { session } } = await supabase.auth.getSession();
   console.log('[DIAG] handleSplashDone: session check', { hasSession: !!session, userId: session?.user?.id });
   if (!session) {
-    setSplashVisible(false);
     router.replace('/auth');
+    setSplashReady(true);
     return;
   }
 
@@ -310,8 +343,8 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
     const isEnrolled   = await LocalAuthentication.isEnrolledAsync();
     console.log('[DIAG] handleSplashDone: biometrics check', { hasHardware, isEnrolled });
     if (hasHardware && isEnrolled) {
-      setSplashVisible(false);
       router.replace('/auth/biometrics');
+      setSplashReady(true);
       return;
     }
   }
@@ -323,6 +356,6 @@ async function handleSplashDone(setSplashVisible: (v: boolean) => void) {
     .eq('id', session.user.id)
     .maybeSingle();
   console.log('[DIAG] handleSplashDone: profile fetch', { profile, error: profileError?.message, dest: roleHome(profile?.role ?? null) });
-  setSplashVisible(false);
   router.replace(roleHome(profile?.role ?? null) as never);
+  setSplashReady(true);
 }

@@ -1,19 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  View, Text, StyleSheet, TextInput, Pressable,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { hasPin, setPin, clearPin } from '@/lib/auth/pin';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 export default function AccountSecurityScreen() {
   const { user, signOut } = useAuth();
-
   const [newEmail, setNewEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
 
@@ -133,36 +142,49 @@ export default function AccountSecurityScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: 'Account Security', headerBackTitle: 'Account' }} />
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: 'Account Security',
+          headerBackTitle: 'Account',
+          headerStyle: { backgroundColor: '#09000F' },
+          headerTintColor: '#F4D77A',
+          headerTitleStyle: { color: '#FFFFFF' },
+        }}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Change email */}
-          <View style={styles.section}>
+          <BlurView intensity={90} tint="dark" style={styles.section}>
+            <CardOverlay />
             <Text style={styles.sectionTitle}>Change Email</Text>
             <Text style={styles.sectionDesc}>Current: {user?.email}</Text>
             <TextInput
               style={styles.input}
               placeholder="New email address"
-              placeholderTextColor={Colors.textDisabled}
+              placeholderTextColor="rgba(255,255,255,0.4)"
               value={newEmail}
               onChangeText={setNewEmail}
               autoCapitalize="none"
               keyboardType="email-address"
             />
             <Pressable style={styles.primaryBtn} onPress={handleSaveEmail} disabled={savingEmail}>
-              {savingEmail ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.primaryBtnText}>Update Email</Text>}
+              {savingEmail ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Update Email</Text>}
             </Pressable>
-          </View>
+          </BlurView>
 
           {/* Change password */}
-          <View style={styles.section}>
+          <BlurView intensity={90} tint="dark" style={styles.section}>
+            <CardOverlay />
             <Text style={styles.sectionTitle}>Change Password</Text>
             <TextInput
               style={styles.input}
               placeholder="Current password"
-              placeholderTextColor={Colors.textDisabled}
+              placeholderTextColor="rgba(255,255,255,0.4)"
               value={currentPassword}
               onChangeText={setCurrentPassword}
               secureTextEntry
@@ -170,18 +192,19 @@ export default function AccountSecurityScreen() {
             <TextInput
               style={styles.input}
               placeholder="New password (min 8 characters)"
-              placeholderTextColor={Colors.textDisabled}
+              placeholderTextColor="rgba(255,255,255,0.4)"
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
             />
             <Pressable style={styles.primaryBtn} onPress={handleSavePassword} disabled={savingPassword}>
-              {savingPassword ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.primaryBtnText}>Update Password</Text>}
+              {savingPassword ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Update Password</Text>}
             </Pressable>
-          </View>
+          </BlurView>
 
           {/* PIN fallback */}
-          <View style={styles.section}>
+          <BlurView intensity={90} tint="dark" style={styles.section}>
+            <CardOverlay />
             <Text style={styles.sectionTitle}>PIN Fallback</Text>
             <Text style={styles.sectionDesc}>
               A 4-digit PIN you can use to unlock the app if biometrics fail.
@@ -192,7 +215,7 @@ export default function AccountSecurityScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="New 4-digit PIN"
-                  placeholderTextColor={Colors.textDisabled}
+                  placeholderTextColor="rgba(255,255,255,0.4)"
                   value={pinDraft}
                   onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, 4))}
                   onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
@@ -203,7 +226,7 @@ export default function AccountSecurityScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm PIN"
-                  placeholderTextColor={Colors.textDisabled}
+                  placeholderTextColor="rgba(255,255,255,0.4)"
                   value={pinConfirm}
                   onChangeText={(t) => setPinConfirm(t.replace(/\D/g, '').slice(0, 4))}
                   onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
@@ -216,7 +239,7 @@ export default function AccountSecurityScreen() {
                     <Text style={styles.cancelText}>Cancel</Text>
                   </Pressable>
                   <Pressable style={styles.primaryBtnSmall} onPress={handleSavePin} disabled={savingPin}>
-                    {savingPin ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.primaryBtnText}>Save PIN</Text>}
+                    {savingPin ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Save PIN</Text>}
                   </Pressable>
                 </View>
               </>
@@ -232,70 +255,73 @@ export default function AccountSecurityScreen() {
                 )}
               </View>
             )}
-          </View>
+          </BlurView>
 
           {/* Sign out everywhere */}
-          <View style={styles.section}>
+          <BlurView intensity={90} tint="dark" style={styles.section}>
+            <CardOverlay />
             <Text style={styles.sectionTitle}>Sessions</Text>
             <Pressable style={styles.dangerBtnFull} onPress={handleSignOutAllDevices} disabled={signingOutAll}>
-              <Ionicons name="log-out-outline" size={18} color={Colors.error} />
+              <Ionicons name="log-out-outline" size={18} color="#F09595" />
               {signingOutAll ? (
-                <ActivityIndicator color={Colors.error} />
+                <BreathingHeart size={18} color="#F09595" />
               ) : (
                 <Text style={styles.dangerBtnFullText}>Log Out of All Devices</Text>
               )}
             </Pressable>
-          </View>
+          </BlurView>
 
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   scroll: { padding: Spacing.xl, gap: Spacing.xl },
 
   section: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
+    padding: 18,
+    borderRadius: 24,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     gap: Spacing.sm,
-    ...Shadows.subtle,
   },
   sectionTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#F4D77A',
   },
   sectionDesc: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     marginBottom: Spacing.xs,
   },
   input: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 10,
     fontSize: FontSize.base,
     fontFamily: FontFamily.sora,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   primaryBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     alignItems: 'center',
     marginTop: Spacing.xs,
   },
   primaryBtnSmall: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
@@ -304,7 +330,7 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.white,
+    color: '#09000F',
   },
   inlineActions: {
     flexDirection: 'row',
@@ -316,44 +342,48 @@ const styles = StyleSheet.create({
   cancelText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
   },
   secondaryBtn: {
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(212,175,55,0.1)',
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
   },
   secondaryBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.primary,
+    color: '#F4D77A',
   },
   dangerBtn: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(226,74,74,0.1)',
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(226,74,74,0.4)',
   },
   dangerBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.error,
+    color: '#F09595',
   },
   dangerBtnFull: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(226,74,74,0.1)',
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.error,
+    borderColor: 'rgba(226,74,74,0.5)',
   },
   dangerBtnFullText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.error,
+    color: '#F09595',
   },
 });

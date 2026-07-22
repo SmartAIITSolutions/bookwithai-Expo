@@ -1,20 +1,23 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-  Platform,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { rescheduleBooking } from '@/lib/api/bookingActions';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface TimeSlot {
@@ -73,7 +76,6 @@ export default function DateTimeScreen() {
 
   const isRescheduling = !!rescheduleBookingId;
   const [rescheduling, setRescheduling] = useState(false);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -209,11 +211,14 @@ export default function DateTimeScreen() {
     : null;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{isRescheduling ? 'Reschedule' : 'Date & Time'}</Text>
@@ -226,14 +231,15 @@ export default function DateTimeScreen() {
 
         {/* ── Calendar ── */}
         <View style={styles.calCard}>
+          <CardOverlay />
           {/* Month nav */}
           <View style={styles.calHeader}>
             <Pressable onPress={prevMonth} style={styles.calNavBtn}>
-              <Ionicons name="chevron-back" size={20} color={Colors.textPrimary} />
+              <Ionicons name="chevron-back" size={20} color="#F4D77A" />
             </Pressable>
             <Text style={styles.calMonth}>{MONTHS[viewMonth]} {viewYear}</Text>
             <Pressable onPress={nextMonth} style={styles.calNavBtn}>
-              <Ionicons name="chevron-forward" size={20} color={Colors.textPrimary} />
+              <Ionicons name="chevron-forward" size={20} color="#F4D77A" />
             </Pressable>
           </View>
 
@@ -297,11 +303,11 @@ export default function DateTimeScreen() {
 
             {loadingSlots ? (
               <View style={styles.slotsCentered}>
-                <ActivityIndicator color={Colors.primary} />
+                <BreathingHeart size={18} color="#F4D77A" />
               </View>
             ) : slotsError ? (
               <View style={styles.slotsCentered}>
-                <Ionicons name="calendar-outline" size={36} color={Colors.textSecondary} />
+                <Ionicons name="calendar-outline" size={36} color="rgba(255,255,255,0.4)" />
                 <Text style={styles.slotsEmptyText}>{slotsError}</Text>
               </View>
             ) : (
@@ -332,7 +338,7 @@ export default function DateTimeScreen() {
         {/* Hold timer */}
         {holdDisplay && (
           <View style={styles.holdBanner}>
-            <Ionicons name="time-outline" size={16} color={Colors.warning} />
+            <Ionicons name="time-outline" size={16} color="#F4D77A" />
             <Text style={styles.holdText}>
               Slot held for <Text style={styles.holdTimer}>{holdDisplay}</Text> — complete your booking soon
             </Text>
@@ -351,26 +357,28 @@ export default function DateTimeScreen() {
           </View>
           <Pressable style={styles.continueBtn} onPress={handleContinue} disabled={rescheduling}>
             {rescheduling ? (
-              <ActivityIndicator color={Colors.white} />
+              <BreathingHeart size={18} color="#09000F" />
             ) : (
               <>
                 <Text style={styles.continueBtnText}>
                   {isRescheduling ? 'Confirm Reschedule' : 'Review Booking'}
                 </Text>
-                <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+                <Ionicons name="chevron-forward" size={18} color="#09000F" />
               </>
             )}
           </Pressable>
         </View>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const CELL_SIZE = 38;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
 
   header: {
     flexDirection: 'row',
@@ -378,19 +386,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(212,175,55,0.25)',
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   headerSub: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     marginTop: 2,
   },
 
@@ -398,12 +406,12 @@ const styles = StyleSheet.create({
 
   // Calendar
   calCard: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.card,
+    borderColor: 'rgba(212,175,55,0.5)',
+    overflow: 'hidden',
   },
   calHeader: {
     flexDirection: 'row',
@@ -415,7 +423,7 @@ const styles = StyleSheet.create({
   calMonth: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   calDayLabels: {
     flexDirection: 'row',
@@ -425,7 +433,7 @@ const styles = StyleSheet.create({
   calDayLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: 'rgba(212,175,55,0.7)',
     width: CELL_SIZE,
     textAlign: 'center',
   },
@@ -442,11 +450,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   calCellSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
   },
   calCellToday: {
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: '#F4D77A',
   },
   calCellPast: {
     opacity: 0.3,
@@ -454,17 +462,17 @@ const styles = StyleSheet.create({
   calCellText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   calCellTextSelected: {
-    color: Colors.white,
+    color: '#09000F',
     fontFamily: FontFamily.soraSemiBold,
   },
   calCellTextPast: {
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.4)',
   },
   calCellTextToday: {
-    color: Colors.primary,
+    color: '#F4D77A',
     fontFamily: FontFamily.soraSemiBold,
   },
 
@@ -475,7 +483,7 @@ const styles = StyleSheet.create({
   slotsTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     marginBottom: Spacing.md,
   },
   slotsCentered: {
@@ -487,7 +495,7 @@ const styles = StyleSheet.create({
   slotsEmptyText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     textAlign: 'center',
   },
   slotsGrid: {
@@ -496,35 +504,35 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   slotChip: {
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: 'rgba(212,175,55,0.5)',
     minWidth: 90,
     alignItems: 'center',
   },
   slotChipSelected: {
-    backgroundColor: '#FAF8FF',
-    borderColor: Colors.primary,
+    backgroundColor: 'rgba(212,175,55,0.15)',
+    borderColor: '#F4D77A',
   },
   slotTime: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   slotTimeSelected: {
-    color: Colors.primary,
+    color: '#F4D77A',
   },
   slotStaff: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   slotStaffSelected: {
-    color: Colors.primary,
+    color: '#F4D77A',
   },
 
   // Hold banner
@@ -532,22 +540,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: 'rgba(212,175,55,0.1)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginTop: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: 'rgba(212,175,55,0.5)',
   },
   holdText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     flex: 1,
   },
   holdTimer: {
     fontFamily: FontFamily.soraSemiBold,
-    color: Colors.warning,
+    color: '#F4D77A',
   },
 
   // Footer
@@ -556,9 +564,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.white,
+    backgroundColor: '#09000F',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(212,175,55,0.25)',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
     paddingBottom: 32,
@@ -570,27 +578,26 @@ const styles = StyleSheet.create({
   footerTime: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   footerStaff: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     marginTop: 2,
   },
   continueBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    ...Shadows.button,
   },
   continueBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.white,
+    color: '#09000F',
   },
 });

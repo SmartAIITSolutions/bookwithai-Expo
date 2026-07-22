@@ -65,6 +65,16 @@ export async function deleteAccount(): Promise<{ ok: boolean; error?: string }> 
   return { ok: true };
 }
 
+export async function fetchMembershipStatus(): Promise<boolean> {
+  const headers = await authHeaders();
+  if (!headers) return false;
+
+  const res = await fetch(`${API_BASE}/api/mobile/membership-status`, { headers });
+  if (!res.ok) return false;
+  const json = await res.json();
+  return json.has_active_membership === true;
+}
+
 export async function submitBookingReview(
   bookingId: string,
   stars: number,

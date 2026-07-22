@@ -3,6 +3,7 @@
 
 export const FontFamily = {
   // Body, UI, labels, buttons
+  soraLight: 'Sora_300Light',
   sora: 'Sora_400Regular',
   soraMedium: 'Sora_500Medium',
   soraSemiBold: 'Sora_600SemiBold',

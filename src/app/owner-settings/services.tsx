@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Switch } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { listServices, createService, archiveService, getServiceStaff, setServiceStaff, Service } from '@/lib/api/ownerServices';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
@@ -108,9 +110,10 @@ export default function ServicesScreen() {
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <Stack.Screen options={{ title: 'Services', headerBackTitle: 'More' }} />
       {loading ? (
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {services.length === 0 && !adding && (
@@ -138,7 +141,7 @@ export default function ServicesScreen() {
               {expandedServiceId === s.id && (
                 <View style={styles.staffPanel}>
                   {staffLoading ? (
-                    <ActivityIndicator color={Colors.primary} />
+                    <BreathingHeart size={18} color={Colors.primary} />
                   ) : staff.length === 0 ? (
                     <Text style={styles.staffPanelHint}>Add staff members first to assign them here.</Text>
                   ) : (
@@ -197,7 +200,7 @@ export default function ServicesScreen() {
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -214,7 +217,7 @@ export default function ServicesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing['2xl'] },
   emptyHint: { fontSize: 14, color: Colors.textSecondary, marginBottom: Spacing.sm },

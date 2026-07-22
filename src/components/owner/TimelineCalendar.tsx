@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, RefreshControl } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring,
 } from 'react-native-reanimated';
+import { InvisibleRefreshControl } from '@/components/PullToRefreshHeart';
 import { OwnerBooking, updateBooking, checkIn, startService, completeService } from '@/lib/api/ownerBookings';
 import { StaffMember } from '@/lib/api/ownerStaff';
 import { bookingStatusColor, nextAction } from '@/lib/calendar/bookingStatus';
 import { WeekSchedule, dayScheduleFor, gridBoundsMinutes, minutesSinceMidnight, hourLabels, snapMinutes } from '@/lib/calendar/timeGrid';
-import { Colors } from '@/constants/Colors';
+import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
+import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
 
 const HOUR_HEIGHT_DEFAULT = 64; // px per 60 minutes at zoom = 1
 const COLUMN_WIDTH = 160;
@@ -28,11 +29,12 @@ interface TimelineCalendarProps {
   weekSchedule: WeekSchedule | null;
   onOpenBooking: (b: OwnerBooking) => void;
   onChanged: () => void;
+  onFillSlot?: () => void;
   refreshing?: boolean;
   onRefresh?: () => void;
 }
 
-export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, refreshing, onRefresh }: TimelineCalendarProps) {
+export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, onFillSlot, refreshing, onRefresh }: TimelineCalendarProps) {
   const zoom = useSharedValue(1);
   const [committedZoom, setCommittedZoom] = useState(1);
 
@@ -72,9 +74,10 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   return (
     <GestureDetector gesture={pinch}>
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{ flexDirection: 'row' }}
         refreshControl={
-          onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} /> : undefined
+          onRefresh ? <InvisibleRefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined
         }>
         {/* Time gutter */}
         <View style={{ width: TIME_GUTTER, height: totalHeight }}>
@@ -85,7 +88,10 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
           ))}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flex: 1 }}>
           <View style={{ height: totalHeight }}>
             {/* Gridlines */}
             <View style={styles.gridBackground}>
@@ -102,23 +108,30 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
             })()}
 
             <View style={{ flexDirection: 'row' }}>
-              {columns.map((col, colIndex) => (
-                <View key={col.id ?? 'all'} style={{ width: COLUMN_WIDTH, height: totalHeight, borderRightWidth: 1, borderRightColor: Colors.border }}>
-                  {columns.length > 1 && <Text style={styles.columnLabel}>{col.label}</Text>}
-                  {bookings.filter(b => columnForBooking(b) === colIndex).map(b => (
-                    <AppointmentBlock
-                      key={b.id}
-                      booking={b}
-                      gridStart={gridStart}
-                      pxPerMinute={pxPerMinute}
-                      columns={columns}
-                      colIndex={colIndex}
-                      onOpen={() => onOpenBooking(b)}
-                      onChanged={onChanged}
-                    />
-                  ))}
-                </View>
-              ))}
+              {columns.map((col, colIndex) => {
+                const colBookings = bookings.filter(b => columnForBooking(b) === colIndex && b.status !== 'cancelled');
+                const gaps = onFillSlot ? findEmptySpaces(colBookings, schedule, 30) : [];
+                return (
+                  <View key={col.id ?? 'all'} style={{ width: COLUMN_WIDTH, height: totalHeight, borderRightWidth: 1, borderRightColor: P.border }}>
+                    {columns.length > 1 && <Text style={styles.columnLabel}>{col.label}</Text>}
+                    {gaps.filter(g => g.durationMinutes >= 30).map((g, gi) => (
+                      <OpenSlotBlock key={gi} gap={g} gridStart={gridStart} pxPerMinute={pxPerMinute} onPress={onFillSlot!} />
+                    ))}
+                    {colBookings.map(b => (
+                      <AppointmentBlock
+                        key={b.id}
+                        booking={b}
+                        gridStart={gridStart}
+                        pxPerMinute={pxPerMinute}
+                        columns={columns}
+                        colIndex={colIndex}
+                        onOpen={() => onOpenBooking(b)}
+                        onChanged={onChanged}
+                      />
+                    ))}
+                  </View>
+                );
+              })}
             </View>
           </View>
         </ScrollView>
@@ -223,26 +236,52 @@ function AppointmentBlock({
     opacity: busy ? 0.6 : 1,
   }));
 
+  const { label } = bookingStatusColor(booking);
+
   return (
     <GestureDetector gesture={composed}>
       <Animated.View style={[styles.block, { top: baseTop, height, borderLeftColor: color }, animatedStyle]}>
         <Text style={styles.blockCustomer} numberOfLines={1}>{booking.customer?.name ?? 'Customer'}</Text>
         {height > 40 && <Text style={styles.blockMeta} numberOfLines={1}>{booking.service?.name ?? 'Service'}</Text>}
+        {height > 56 && (
+          <View style={[styles.blockBadge, { backgroundColor: color + '26', borderColor: color }]}>
+            <Text style={[styles.blockBadgeText, { color }]}>{label}</Text>
+          </View>
+        )}
       </Animated.View>
     </GestureDetector>
   );
 }
 
+function OpenSlotBlock({ gap, gridStart, pxPerMinute, onPress }: { gap: EmptySpace; gridStart: number; pxPerMinute: number; onPress: () => void }) {
+  const top = (gap.startMinutes - gridStart) * pxPerMinute;
+  const height = Math.max(28, gap.durationMinutes * pxPerMinute);
+  return (
+    <Pressable onPress={onPress} style={[styles.openBlock, { top, height }]}>
+      <Text style={styles.openBlockText}>+ Open Slot</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  hourLabel: { position: 'absolute', fontSize: 11, color: Colors.textSecondary, right: 6, width: TIME_GUTTER - 6, textAlign: 'right' },
+  hourLabel: { position: 'absolute', fontSize: 11, color: P.textDisabled, right: 6, width: TIME_GUTTER - 6, textAlign: 'right' },
   gridBackground: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: Colors.border },
-  nowLine: { position: 'absolute', left: 0, height: 2, backgroundColor: Colors.error, zIndex: 5 },
-  columnLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textAlign: 'center', paddingVertical: 4 },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: P.border },
+  nowLine: { position: 'absolute', left: 0, height: 2, backgroundColor: P.error, zIndex: 5 },
+  columnLabel: { fontSize: 11, fontWeight: '700', color: P.textSecondary, textAlign: 'center', paddingVertical: 4 },
   block: {
-    position: 'absolute', left: 4, right: 4, backgroundColor: Colors.card,
-    borderRadius: BorderRadius.sm, borderLeftWidth: 3, padding: 6, ...Shadows.subtle,
+    position: 'absolute', left: 4, right: 4, backgroundColor: P.card,
+    borderRadius: BorderRadius.sm, borderLeftWidth: 3, padding: 6,
+    borderWidth: 1, borderColor: P.border,
   },
-  blockCustomer: { fontSize: 12.5, fontWeight: '700', color: Colors.textPrimary },
-  blockMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  blockCustomer: { fontSize: 12.5, fontWeight: '700', color: P.textPrimary },
+  blockMeta: { fontSize: 11, color: P.textSecondary, marginTop: 1 },
+  blockBadge: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.full, borderWidth: 1 },
+  blockBadgeText: { fontSize: 9.5, fontWeight: '700' },
+  openBlock: {
+    position: 'absolute', left: 4, right: 4, borderRadius: BorderRadius.sm,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: P.accentGold,
+    backgroundColor: 'rgba(255,200,87,0.06)', alignItems: 'center', justifyContent: 'center',
+  },
+  openBlockText: { fontSize: 11, fontWeight: '700', color: P.accentGold },
 });

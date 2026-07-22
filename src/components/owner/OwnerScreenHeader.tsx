@@ -1,8 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
-import { Spacing } from '@/constants/Spacing';
+import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 // Shared top bar for every primary owner-mode screen — Phase 0.1: Universal
 // Search and Universal Create live here, present everywhere, not per-screen.
@@ -22,13 +21,13 @@ export function OwnerScreenHeader({ title, onSearchPress, onCreatePress, onNotif
       <Text style={styles.title}>{title}</Text>
       <View style={styles.actions}>
         <TouchableOpacity onPress={onSearchPress} style={styles.iconButton} hitSlop={8}>
-          <Ionicons name="search-outline" size={20} color={Colors.textPrimary} />
+          <Ionicons name="search-outline" size={20} color="#F4D77A" />
         </TouchableOpacity>
         <TouchableOpacity onPress={onNotificationsPress} style={styles.iconButton} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={20} color={Colors.textPrimary} />
+          <Ionicons name="notifications-outline" size={20} color="#F4D77A" />
         </TouchableOpacity>
         <TouchableOpacity onPress={onCreatePress} style={styles.iconButton} hitSlop={8}>
-          <Ionicons name="add" size={22} color={Colors.textPrimary} />
+          <Ionicons name="add" size={22} color="#F4D77A" />
         </TouchableOpacity>
       </View>
     </View>
@@ -44,9 +43,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+    fontFamily: FontFamily.frauncesBold,
+    fontSize: FontSize.xl,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(212,175,55,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
   },
   actions: {
     flexDirection: 'row',

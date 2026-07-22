@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,11 +62,14 @@ export default function StaffTimeOffScreen() {
       {loading ? (
         <View style={styles.loadingContainer}><ActivityIndicator color={Colors.primary} size="large" /></View>
       ) : (
+        <View style={{ flex: 1 }}>
+        <RefreshHeartOverlay refreshing={refreshing} />
         <FlatList
+          style={{ flex: 1 }}
           data={entries}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
           ListHeaderComponent={
             requesting ? (
               <View style={styles.requestCard}>
@@ -101,6 +105,7 @@ export default function StaffTimeOffScreen() {
             </View>
           )}
         />
+        </View>
       )}
     </SafeAreaView>
   );

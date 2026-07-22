@@ -6,24 +6,26 @@
  * - Get Directions via Linking to maps
  */
 import { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Alert,
-  Linking,
-  Platform,
-  Share,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Linking, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import * as Calendar from 'expo-calendar/legacy';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurMask, Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
 import { notificationSuccess } from '@/hooks/usePressHaptic';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 function formatPrice(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
@@ -146,12 +148,29 @@ export default function ConfirmationScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* Success icon */}
-        <View style={styles.successCircle}>
-          <Ionicons name="checkmark" size={48} color={Colors.white} />
+        <View style={styles.successWrap}>
+          <Canvas style={styles.successGlow} pointerEvents="none">
+            <Circle cx={60} cy={60} r={60}>
+              <RadialGradient
+                c={vec(60, 60)}
+                r={60}
+                colors={['rgba(212,175,55,0.35)', 'rgba(212,175,55,0)']}
+              />
+            </Circle>
+            <Circle cx={60} cy={60} r={48} style="stroke" strokeWidth={2} color="#F4D77A">
+              <BlurMask blur={6} style="solid" />
+            </Circle>
+          </Canvas>
+          <View style={styles.successCircle}>
+            <Ionicons name="checkmark" size={48} color="#09000F" />
+          </View>
         </View>
 
         <Text style={styles.headline}>You're all booked!</Text>
@@ -166,21 +185,22 @@ export default function ConfirmationScreen() {
 
         {/* Details card */}
         <View style={styles.detailCard}>
+          <CardOverlay />
           <Text style={styles.detailCardTitle}>{salonName}</Text>
 
           <View style={styles.detailRow}>
-            <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+            <Ionicons name="calendar-outline" size={18} color="#F4D77A" />
             <Text style={styles.detailText}>{startsAt ? formatLongDateTime(startsAt) : '—'}</Text>
           </View>
 
           <View style={styles.detailRow}>
-            <Ionicons name="person-outline" size={18} color={Colors.primary} />
+            <Ionicons name="person-outline" size={18} color="#F4D77A" />
             <Text style={styles.detailText}>{staffName || 'Any Available'}</Text>
           </View>
 
           {services.map((s, i) => (
             <View key={i} style={styles.detailRow}>
-              <Ionicons name="cut-outline" size={18} color={Colors.primary} />
+              <Ionicons name="cut-outline" size={18} color="#F4D77A" />
               <Text style={styles.detailText}>{s}</Text>
             </View>
           ))}
@@ -190,7 +210,7 @@ export default function ConfirmationScreen() {
               <View style={styles.divider} />
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>{wasPaid ? 'Paid' : 'Due at Salon'}</Text>
-                <Text style={[styles.priceValue, !wasPaid && { color: Colors.textPrimary }]}>
+                <Text style={styles.priceValue}>
                   {formatPrice(cents)}
                 </Text>
               </View>
@@ -207,7 +227,7 @@ export default function ConfirmationScreen() {
             <Ionicons
               name={calAdded ? 'checkmark-circle' : 'calendar-outline'}
               size={20}
-              color={calAdded ? Colors.success : Colors.primary}
+              color={calAdded ? '#7ED9A0' : '#F4D77A'}
             />
             <Text style={[styles.actionBtnText, calAdded && styles.actionBtnTextDone]}>
               {calAdded ? 'Added to Calendar' : 'Add to Calendar'}
@@ -215,12 +235,12 @@ export default function ConfirmationScreen() {
           </Pressable>
 
           <Pressable style={styles.actionBtn} onPress={handleGetDirections}>
-            <Ionicons name="navigate-outline" size={20} color={Colors.primary} />
+            <Ionicons name="navigate-outline" size={20} color="#F4D77A" />
             <Text style={styles.actionBtnText}>Get Directions</Text>
           </Pressable>
 
           <Pressable style={styles.actionBtn} onPress={handleShare}>
-            <Ionicons name="share-outline" size={20} color={Colors.primary} />
+            <Ionicons name="share-outline" size={20} color="#F4D77A" />
             <Text style={styles.actionBtnText}>Share</Text>
           </Pressable>
         </View>
@@ -232,39 +252,50 @@ export default function ConfirmationScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   scrollContent: {
     padding: Spacing.xl,
     alignItems: 'center',
   },
 
+  successWrap: {
+    width: 120,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xl,
+  },
+  successGlow: { position: 'absolute', width: 120, height: 120 },
   successCircle: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: Colors.success,
+    backgroundColor: '#F4D77A',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xl,
-    ...Shadows.card,
   },
 
   headline: {
     fontFamily: FontFamily.frauncesBold,
     fontSize: FontSize['3xl'],
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: Spacing.sm,
+    textShadowColor: 'rgba(212,175,55,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
   },
   subheadline: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: FontSize.base * 1.6,
     marginBottom: Spacing.sm,
@@ -272,26 +303,26 @@ const styles = StyleSheet.create({
   bookingRef: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     marginBottom: Spacing.xl,
     letterSpacing: 0.5,
   },
 
   detailCard: {
     width: '100%',
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
     gap: Spacing.sm,
     marginBottom: Spacing.xl,
-    ...Shadows.card,
+    overflow: 'hidden',
   },
   detailCardTitle: {
     fontFamily: FontFamily.frauncesBold,
     fontSize: FontSize.xl,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     marginBottom: Spacing.sm,
   },
   detailRow: {
@@ -302,12 +333,12 @@ const styles = StyleSheet.create({
   detailText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     flex: 1,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: 'rgba(212,175,55,0.25)',
     marginVertical: Spacing.sm,
   },
   priceRow: {
@@ -318,12 +349,12 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
   },
   priceValue: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.xl,
-    color: Colors.success,
+    color: '#F4D77A',
   },
 
   // Action buttons
@@ -336,36 +367,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: 'rgba(212,175,55,0.5)',
   },
   actionBtnDone: {
-    borderColor: Colors.success,
-    backgroundColor: '#F0FDF4',
+    borderColor: '#7ED9A0',
+    backgroundColor: 'rgba(126,217,160,0.1)',
   },
   actionBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.primary,
+    color: '#F4D77A',
   },
   actionBtnTextDone: {
-    color: Colors.success,
+    color: '#7ED9A0',
   },
 
   doneBtn: {
     width: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
     alignItems: 'center',
-    ...Shadows.button,
   },
   doneBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.white,
+    color: '#09000F',
   },
 });

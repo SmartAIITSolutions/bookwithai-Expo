@@ -2,22 +2,105 @@
  * Auth Welcome Screen
  * Options: Google Sign In, Email + Password, Magic Link
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable,
-  ActivityIndicator, Alert, Image,
+  Alert, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import Svg, { Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
+import { Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
+import Reanimated, {
+  Easing,
+  SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+const BUTTON_COUNT = 4;
+const CYCLE_DURATION = 4000;
+
+function useBreatheStyle(cycle: SharedValue<number>, index: number) {
+  return useAnimatedStyle(() => {
+    const raw = Math.abs(cycle.value - index);
+    const d = Math.min(raw, BUTTON_COUNT - raw);
+    const intensity = Math.max(0, 1 - d);
+    return { transform: [{ scale: 1 + intensity * 0.04 }] };
+  });
+}
 
 WebBrowser.maybeCompleteAuthSession();
 
+function OrDivider() {
+  return (
+    <View style={styles.divider}>
+      <LinearGradient
+        colors={['transparent', 'rgba(212,175,55,0.5)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.dividerLine}
+      />
+      <Text style={styles.dividerText}>or</Text>
+      <LinearGradient
+        colors={['rgba(212,175,55,0.5)', 'transparent']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.dividerLine}
+      />
+    </View>
+  );
+}
+
+function GoogleGIcon({ size = 20 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Path
+        fill="#4285F4"
+        d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"
+      />
+      <Path
+        fill="#34A853"
+        d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"
+      />
+      <Path
+        fill="#FBBC05"
+        d="M11.69 28.18c-.44-1.32-.69-2.72-.69-4.18s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"
+      />
+      <Path
+        fill="#EA4335"
+        d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"
+      />
+    </Svg>
+  );
+}
+
 export default function AuthWelcomeScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  const cycle = useSharedValue(0);
+  useEffect(() => {
+    cycle.value = withRepeat(
+      withTiming(BUTTON_COUNT, { duration: CYCLE_DURATION, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, [cycle]);
+
+  const googleBreathe = useBreatheStyle(cycle, 0);
+  const createBreathe = useBreatheStyle(cycle, 1);
+  const signInBreathe = useBreatheStyle(cycle, 2);
+  const magicBreathe = useBreatheStyle(cycle, 3);
 
   async function handleGoogleSignIn() {
     try {
@@ -45,12 +128,30 @@ export default function AuthWelcomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       <View style={styles.content}>
 
         {/* Logo / Branding */}
         <View style={styles.brand}>
-          <Text style={styles.logo}>✦</Text>
+          <View style={styles.logoWrap}>
+            <Canvas style={styles.logoGlow} pointerEvents="none">
+              <Circle cx={220} cy={220} r={220}>
+                <RadialGradient
+                  c={vec(220, 220)}
+                  r={220}
+                  colors={['rgba(212,175,55,0.35)', 'rgba(212,175,55,0)']}
+                />
+              </Circle>
+            </Canvas>
+            <Image
+              source={require('@/assets/images/bwa-gold-logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
           <Text style={styles.appName}>Book With AI</Text>
           <Text style={styles.tagline}>Your bookings, beautifully simple.</Text>
         </View>
@@ -59,45 +160,53 @@ export default function AuthWelcomeScreen() {
         <View style={styles.options}>
 
           {/* Google */}
-          <Pressable
-            style={({ pressed }) => [styles.googleBtn, pressed && styles.btnPressed]}
-            onPress={handleGoogleSignIn}
-            disabled={googleLoading}>
-            {googleLoading
-              ? <ActivityIndicator color={Colors.textPrimary} />
-              : <>
-                  <Text style={styles.googleIcon}>G</Text>
-                  <Text style={styles.googleBtnText}>Continue with Google</Text>
-                </>
-            }
-          </Pressable>
+          <Reanimated.View style={googleBreathe}>
+            <Pressable
+              style={({ pressed }) => [styles.googleBtn, pressed && styles.btnPressed]}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}>
+              {googleLoading
+                ? <BreathingHeart size={18} color="#F4D77A" />
+                : <>
+                    <GoogleGIcon size={20} />
+                    <Text style={styles.googleBtnText}>Continue with Google</Text>
+                  </>
+              }
+            </Pressable>
+          </Reanimated.View>
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          <OrDivider />
 
           {/* Email + Password */}
-          <Pressable
-            style={({ pressed }) => [styles.emailBtn, pressed && styles.btnPressed]}
-            onPress={() => router.push('/auth/sign-up')}>
-            <Text style={styles.emailBtnText}>Create an Account</Text>
-          </Pressable>
+          <Reanimated.View style={createBreathe}>
+            <Pressable
+              style={({ pressed }) => [styles.emailBtn, pressed && styles.btnPressed]}
+              onPress={() => router.push('/auth/account-type')}>
+              <Text style={styles.emailBtnText}>Create an Account</Text>
+            </Pressable>
+          </Reanimated.View>
 
-          <Pressable
-            style={({ pressed }) => [styles.signInBtn, pressed && styles.btnPressed]}
-            onPress={() => router.push('/auth/sign-in')}>
-            <Text style={styles.signInBtnText}>Sign In with Email</Text>
-          </Pressable>
+          <OrDivider />
+
+          <Reanimated.View style={signInBreathe}>
+            <Pressable
+              style={({ pressed }) => [styles.signInBtn, pressed && styles.btnPressed]}
+              onPress={() => router.push('/auth/sign-in')}>
+              <Text style={styles.signInBtnText}>Sign In with Email</Text>
+            </Pressable>
+          </Reanimated.View>
+
+          <OrDivider />
 
           {/* Magic Link */}
-          <Pressable
-            style={styles.magicLinkBtn}
-            onPress={() => router.push('/auth/magic-link')}>
-            <Text style={styles.magicLinkText}>Send me a magic link instead</Text>
-          </Pressable>
+          <Reanimated.View style={magicBreathe}>
+            <Pressable
+              style={({ pressed }) => [styles.magicLinkBtn, pressed && styles.btnPressed]}
+              onPress={() => router.push('/auth/magic-link')}>
+              <Ionicons name="mail-outline" size={16} color="#09000F" />
+              <Text style={styles.magicLinkText}>Send me a magic link instead</Text>
+            </Pressable>
+          </Reanimated.View>
 
         </View>
 
@@ -109,12 +218,14 @@ export default function AuthWelcomeScreen() {
         </Text>
 
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   content: {
     flex: 1,
     paddingHorizontal: Spacing.xl,
@@ -123,19 +234,28 @@ const styles = StyleSheet.create({
   },
 
   brand: { alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
-  logo: {
-    fontSize: 48,
-    color: Colors.primary,
+  logoWrap: {
+    width: 440,
+    height: 440,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -176,
   },
+  logoGlow: { position: 'absolute', width: 440, height: 440 },
+  logoImage: { width: 330, height: 220 },
   appName: {
     fontFamily: FontFamily.frauncesBold,
     fontSize: FontSize['3xl'],
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(212,175,55,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
+    marginTop: -168,
   },
   tagline: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     textAlign: 'center',
   },
 
@@ -146,22 +266,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.white,
+    backgroundColor: '#0F0A18',
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    ...Shadows.card,
-  },
-  googleIcon: {
-    fontFamily: FontFamily.soraSemiBold,
-    fontSize: FontSize.md,
-    color: '#4285F4',
+    borderColor: 'rgba(212,175,55,0.5)',
   },
   googleBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
 
   divider: {
@@ -169,46 +283,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  dividerLine: { flex: 1, height: 1 },
   dividerText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textDisabled,
+    color: 'rgba(255,255,255,0.5)',
   },
 
   emailBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
     alignItems: 'center',
-    ...Shadows.button,
   },
   emailBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.white,
+    color: '#09000F',
   },
 
   signInBtn: {
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: 'rgba(212,175,55,0.5)',
   },
   signInBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.primary,
+    color: '#F4D77A',
   },
 
-  magicLinkBtn: { alignItems: 'center', paddingVertical: Spacing.sm },
+  magicLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    backgroundColor: '#F4D77A',
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+  },
   magicLinkText: {
-    fontFamily: FontFamily.sora,
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-    textDecorationLine: 'underline',
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.base,
+    color: '#09000F',
   },
 
   btnPressed: { opacity: 0.8 },
@@ -216,9 +336,9 @@ const styles = StyleSheet.create({
   legalNote: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textDisabled,
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     lineHeight: FontSize.xs * 1.6,
   },
-  legalLink: { color: Colors.primary, textDecorationLine: 'underline' },
+  legalLink: { color: '#F4D77A', textDecorationLine: 'underline' },
 });

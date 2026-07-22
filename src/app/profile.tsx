@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable, Image,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ScrollView, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { useAuth } from '@/lib/auth/AuthContext';
 import {
   fetchCustomerProfile, upsertCustomerProfile, uploadProfilePhoto,
@@ -109,7 +110,7 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <Stack.Screen options={{ title: 'Profile', headerBackTitle: 'Account' }} />
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary} size="large" /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       </SafeAreaView>
     );
   }
@@ -132,7 +133,7 @@ export default function ProfileScreen() {
             )}
             <View style={styles.photoEditBadge}>
               {uploadingPhoto ? (
-                <ActivityIndicator size="small" color={Colors.white} />
+                <BreathingHeart size={16} color={Colors.white} />
               ) : (
                 <Ionicons name="camera" size={14} color={Colors.white} />
               )}
@@ -172,7 +173,7 @@ export default function ProfileScreen() {
           </View>
 
           <Pressable style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveBtnText}>Save</Text>}
+            {saving ? <BreathingHeart size={18} color={Colors.white} /> : <Text style={styles.saveBtnText}>Save</Text>}
           </Pressable>
 
         </ScrollView>

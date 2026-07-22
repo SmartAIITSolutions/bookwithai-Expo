@@ -28,6 +28,20 @@ export async function listBookingsForDate(date: string) {
   return ownerFetch<{ data: OwnerBooking[] }>(`/api/owner/bookings?date=${date}`);
 }
 
+export interface PaymentStatusResult {
+  online_payment_enabled: boolean;
+  statuses: Record<string, boolean>;
+}
+
+// Cross-checks each booking's payment against Stripe directly (not just the
+// locally-recorded total_charged_cents) so a silently-failed webhook can't
+// make a booking look paid when Stripe never actually settled the card.
+// `online_payment_enabled` is false when the salon has no Stripe Connect
+// account at all -- callers should hide the paid/unpaid flag entirely then.
+export async function getPaymentStatusForDate(date: string) {
+  return ownerFetch<PaymentStatusResult>(`/api/owner/bookings/payment-status?date=${date}`);
+}
+
 export async function createBooking(body: {
   customer_id: string; service_id: string; staff_id?: string | null;
   starts_at: string; ends_at: string; source?: 'manual' | 'walk_in';

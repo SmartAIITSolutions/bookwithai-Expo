@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "app.bookwithai.app",
+      "versionCode": 9,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -57,9 +58,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
-          "image": "./assets/images/bwa-logo.png",
-          "imageWidth": 120
+          "backgroundColor": "#040108",
+          "image": "./assets/images/bwa-gold-logo.png",
+          "imageWidth": 160
         }
       ],
       "expo-font",
@@ -81,6 +82,12 @@
         "expo-calendar",
         {
           "calendarPermission": "Book With AI needs calendar access to add your appointments."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Book With AI uses your location to verify your business address during sign-up."
         }
       ],
       [

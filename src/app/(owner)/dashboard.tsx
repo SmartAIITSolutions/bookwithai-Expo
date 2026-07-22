@@ -1,18 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
-import { AIInsightSlot } from '@/components/owner/AIInsightSlot';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
 import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
-import { DailyOpsCard } from '@/components/owner/DailyOpsCard';
 import { WaitingQueue } from '@/components/owner/WaitingQueue';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { getDashboard, DashboardData } from '@/lib/api/ownerDashboard';
-import { listBookingsForDate, OwnerBooking } from '@/lib/api/ownerBookings';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
+import { listBookingsForDate, getPaymentStatusForDate, OwnerBooking, PaymentStatusResult } from '@/lib/api/ownerBookings';
+import { listNotifications, OwnerNotification } from '@/lib/api/ownerNotifications';
+import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
+import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
+import { dayScheduleFor } from '@/lib/calendar/timeGrid';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+function timeAgo(iso: string) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
 
 const THOUGHTS = [
   'A great salon day starts with one great appointment.',
@@ -30,10 +43,35 @@ function greetingWord(hour: number) {
 
 function money(cents: number) { return `$${(cents / 100).toFixed(0)}`; }
 
+function initials(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+function timeLabel(iso: string) {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function sortedTodaysBookings(bookings: OwnerBooking[]): OwnerBooking[] {
+  return bookings
+    .filter(b => b.status !== 'cancelled')
+    .slice()
+    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+}
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
+
 // Phase 0.2 Dashboard — "answer 'Am I okay today?' in under 5 seconds."
 export default function OwnerDashboardScreen() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [todaysBookings, setTodaysBookings] = useState<OwnerBooking[]>([]);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatusResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [healthExpanded, setHealthExpanded] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
@@ -45,33 +83,37 @@ export default function OwnerDashboardScreen() {
   const dayIndex = now.getDate() % THOUGHTS.length;
 
   const load = useCallback(async () => {
-    const [dash, bookings] = await Promise.all([getDashboard(), listBookingsForDate(todayKey)]);
+    const [dash, bookings, payment] = await Promise.all([
+      getDashboard(),
+      listBookingsForDate(todayKey),
+      getPaymentStatusForDate(todayKey),
+    ]);
     if (dash.ok) setData(dash.data);
     if (bookings.ok) setTodaysBookings(bookings.data.data);
+    if (payment.ok) setPaymentStatus(payment.data);
     setLoading(false);
   }, [todayKey]);
 
   useEffect(() => { load(); }, [load]);
-
-  const nextAppointment = data?.next_appointment_id
-    ? todaysBookings.find(b => b.id === data.next_appointment_id) ?? null
-    : null;
 
   function openBooking(b: OwnerBooking) {
     setSelectedBooking(b);
     sheetRef.current?.present();
   }
 
-  const healthColor = !data ? Colors.textSecondary
-    : data.health.score >= 80 ? Colors.success
-    : data.health.score >= 50 ? Colors.warning
-    : Colors.error;
+  const healthColor = !data ? 'rgba(255,255,255,0.6)'
+    : data.health.score >= 80 ? '#4ADE80'
+    : data.health.score >= 50 ? '#FBBF24'
+    : '#F09595';
 
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <View style={styles.container}>
       <OwnerScreenHeader title="Dashboard" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
       {loading || !data ? (
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {/* Greeting */}
@@ -82,22 +124,19 @@ export default function OwnerDashboardScreen() {
           </View>
 
           {/* Business Health Score */}
-          <TouchableOpacity style={styles.healthCard} onPress={() => setHealthExpanded(v => !v)}>
-            <Text style={styles.healthLabel}>Business Health</Text>
-            <Text style={[styles.healthScore, { color: healthColor }]}>{data.health.score}</Text>
-            <Text style={styles.healthSub}>{data.health.label}</Text>
-          </TouchableOpacity>
+          <Pressable onPress={() => setHealthExpanded(v => !v)}>
+            <BlurView intensity={90} tint="dark" style={styles.healthCard}>
+              <CardOverlay />
+              <Text style={styles.healthLabel}>Business Health</Text>
+              <Text style={[styles.healthScore, { color: healthColor }]}>{data.health.score}</Text>
+              <Text style={styles.healthSub}>{data.health.label}</Text>
+            </BlurView>
+          </Pressable>
           {healthExpanded && (
             <View style={styles.healthReasons}>
               {data.health.reasons.map((r, i) => <Text key={i} style={styles.healthReasonText}>• {r}</Text>)}
             </View>
           )}
-
-          {/* AI Insights */}
-          {data.insights.map((ins, i) => <AIInsightSlot key={i} message={ins} />)}
-
-          {/* Daily Operations: status, announcements, opening/closing checklist */}
-          <DailyOpsCard />
 
           {/* Waiting Queue */}
           <WaitingQueue bookings={todaysBookings} onOpen={openBooking} />
@@ -110,41 +149,43 @@ export default function OwnerDashboardScreen() {
             <SnapshotCard label="Occupancy" value={`${data.snapshot.occupancy_pct}%`} />
           </View>
 
-          {/* Next Appointment */}
-          {nextAppointment && (
-            <TouchableOpacity style={styles.nextCard} onPress={() => openBooking(nextAppointment)}>
-              <Text style={styles.nextTime}>
-                {new Date(nextAppointment.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-              </Text>
-              <Text style={styles.nextCustomer}>{nextAppointment.customer?.name ?? 'Customer'}</Text>
-              <Text style={styles.nextMeta}>
-                {nextAppointment.service?.name ?? 'Service'}{nextAppointment.staff?.name ? ` · ${nextAppointment.staff.name}` : ''}
-              </Text>
-              <Text style={styles.nextOpen}>OPEN →</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Today's Timeline */}
+          {/* Today's Schedule — Option 2 card style, appointments only */}
           {todaysBookings.length > 0 && (
-            <View style={styles.timelineStrip}>
-              {todaysBookings.filter(b => b.status !== 'cancelled').slice(0, 8).map(b => (
-                <View key={b.id} style={styles.timelineDotWrap}>
-                  <Text style={styles.timelineHour}>
-                    {new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric' })}
-                  </Text>
-                  <View style={styles.timelineDot} />
-                </View>
-              ))}
+            <View style={styles.scheduleSection}>
+              <Text style={styles.sectionTitle}>Today's Schedule</Text>
+              {sortedTodaysBookings(todaysBookings).map((b) => {
+                const status = bookingStatusColor(b);
+                const paid = paymentStatus?.online_payment_enabled ? paymentStatus.statuses[b.id] : undefined;
+                return (
+                  <Pressable key={b.id} onPress={() => openBooking(b)}>
+                    <BlurView intensity={90} tint="dark" style={styles.apptCard}>
+                      <CardOverlay />
+                      <View style={styles.apptAvatar}>
+                        <Text style={styles.apptAvatarText}>{initials(b.customer?.name ?? '?')}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.apptName} numberOfLines={1}>{b.customer?.name ?? 'Customer'}</Text>
+                        <Text style={styles.apptMeta} numberOfLines={1}>
+                          {timeLabel(b.starts_at)} · {b.service?.name ?? 'Service'}{b.staff?.name ? ` · ${b.staff.name}` : ''}
+                        </Text>
+                      </View>
+                      {paid !== undefined && (
+                        <View style={[styles.paidBadge, paid ? styles.paidBadgeYes : styles.paidBadgeNo]}>
+                          <Text style={[styles.paidBadgeText, { color: paid ? '#4ADE80' : '#F09595' }]}>{paid ? 'Paid' : 'Unpaid'}</Text>
+                        </View>
+                      )}
+                      <View style={[styles.statusBadge, { borderColor: status.color, backgroundColor: `${status.color}22` }]}>
+                        <Text style={[styles.statusBadgeText, { color: status.color }]}>{status.label}</Text>
+                      </View>
+                    </BlurView>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
 
-          {/* Quick Actions */}
-          <View style={styles.quickActions}>
-            <QuickActionButton label="+ Appointment" onPress={() => router.push('/(owner)/calendar' as never)} />
-            <QuickActionButton label="+ Customer" onPress={() => router.push('/(owner)/customers' as never)} />
-            <QuickActionButton label="Checkout" onPress={() => router.push('/(owner)/calendar' as never)} />
-            <QuickActionButton label="Calendar" onPress={() => router.push('/(owner)/calendar' as never)} />
-          </View>
+          {/* Recent Activity */}
+          <RecentActivity bookings={todaysBookings} paymentStatus={paymentStatus} />
         </ScrollView>
       )}
       <AppointmentSheet
@@ -158,56 +199,212 @@ export default function OwnerDashboardScreen() {
         booking={selectedBooking}
         onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); load(); }}
       />
+      </View>
     </View>
   );
 }
 
 function SnapshotCard({ label, value, trend }: { label: string; value: string; trend?: number | null }) {
   return (
-    <View style={styles.snapshotCard}>
+    <BlurView intensity={90} tint="dark" style={styles.snapshotCard}>
+      <CardOverlay />
       <Text style={styles.snapshotValue}>{value}</Text>
-      {trend != null && <Text style={[styles.snapshotTrend, { color: trend >= 0 ? Colors.success : Colors.error }]}>{trend >= 0 ? '↑' : '↓'}{Math.abs(trend)}%</Text>}
+      {trend != null && <Text style={[styles.snapshotTrend, { color: trend >= 0 ? '#4ADE80' : '#F09595' }]}>{trend >= 0 ? '↑' : '↓'}{Math.abs(trend)}%</Text>}
       <Text style={styles.snapshotLabel}>{label}</Text>
+    </BlurView>
+  );
+}
+
+
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statChip}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
-function QuickActionButton({ label, onPress }: { label: string; onPress: () => void }) {
+// Recent Activity — Option 5's stats-row idea (computed from today's real
+// schedule, no extra fetch) plus a real event feed reusing the same
+// `notifications` rows the bell icon shows (new booking/cancellation/
+// reschedule/checkout/no-show — Sprint 9 extended checkout + no-show to
+// notify too, so this feed has full coverage, not just booking events).
+function RecentActivity({ bookings, paymentStatus }: { bookings: OwnerBooking[]; paymentStatus: PaymentStatusResult | null }) {
+  const [notifications, setNotifications] = useState<OwnerNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    listNotifications().then(r => {
+      if (r.ok) setNotifications(r.data.data.slice(0, 6));
+      setLoading(false);
+    });
+  }, []);
+
+  const active = bookings.filter(b => b.status !== 'cancelled');
+  const confirmedCount = active.filter(b => !['completed', 'no_show'].includes(b.status)).length;
+  const walkInCount = active.filter(b => b.source === 'walk_in').length;
+  const openCount = findEmptySpaces(active, dayScheduleFor(null, new Date()), 20).length;
+
   return (
-    <TouchableOpacity style={styles.quickActionButton} onPress={onPress}>
-      <Text style={styles.quickActionText}>{label}</Text>
-    </TouchableOpacity>
+    <View style={styles.activitySection}>
+      <Text style={styles.sectionTitle}>Recent Activity</Text>
+      <View style={styles.statsRow}>
+        <StatChip label="Total Appts" value={String(active.length)} />
+        <StatChip label="Confirmed" value={String(confirmedCount)} />
+        <StatChip label="Open Slots" value={String(openCount)} />
+        <StatChip label="Walk-Ins" value={String(walkInCount)} />
+      </View>
+      {loading ? (
+        <View style={{ paddingVertical: Spacing.md, alignItems: 'center' }}><BreathingHeart size={22} color="#F4D77A" /></View>
+      ) : notifications.length === 0 ? (
+        <Text style={styles.activityEmpty}>No recent activity yet.</Text>
+      ) : (
+        <BlurView intensity={90} tint="dark" style={styles.activityCard}>
+          <CardOverlay />
+          {notifications.map((n, i) => {
+            const paid = paymentStatus?.online_payment_enabled && n.type === 'payment' && n.booking_id
+              ? paymentStatus.statuses[n.booking_id]
+              : undefined;
+            return (
+              <View key={n.id} style={[styles.activityRow, i > 0 && styles.activityRowBorder]}>
+                <View style={styles.activityDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle} numberOfLines={1}>{n.title}</Text>
+                  <Text style={styles.activityBody} numberOfLines={1}>{n.body}</Text>
+                </View>
+                {paid !== undefined && (
+                  <View style={[styles.paidBadge, paid ? styles.paidBadgeYes : styles.paidBadgeNo]}>
+                    <Text style={[styles.paidBadgeText, { color: paid ? '#4ADE80' : '#F09595' }]}>{paid ? 'Paid' : 'Unpaid'}</Text>
+                  </View>
+                )}
+                <Text style={styles.activityTime}>{timeAgo(n.created_at)}</Text>
+              </View>
+            );
+          })}
+        </BlurView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing['2xl'] },
-  greeting: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary },
-  date: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
-  thought: { fontSize: 13, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 6 },
-  healthCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, ...Shadows.subtle },
-  healthLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: Colors.textSecondary },
-  healthScore: { fontSize: 36, fontWeight: '800', marginTop: 2 },
-  healthSub: { fontSize: 13, color: Colors.textSecondary },
-  healthReasons: { backgroundColor: Colors.card, borderRadius: BorderRadius.sm, padding: Spacing.sm, gap: 4, marginTop: -Spacing.xs },
-  healthReasonText: { fontSize: 13, color: Colors.textSecondary },
+  content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 110 },
+
+  greeting: {
+    fontFamily: FontFamily.frauncesBold,
+    fontSize: FontSize.xl,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(212,175,55,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
+  },
+  date: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  thought: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', marginTop: 6 },
+
+  healthCard: {
+    padding: Spacing.md,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  healthLabel: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  healthScore: { fontFamily: FontFamily.frauncesBold, fontSize: 36, marginTop: 2 },
+  healthSub: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)' },
+  healthReasons: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.25)',
+    padding: Spacing.sm,
+    gap: 4,
+    marginTop: -Spacing.xs,
+  },
+  healthReasonText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.75)' },
+
   snapshotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  snapshotCard: { width: '47%', backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, ...Shadows.subtle },
-  snapshotValue: { fontSize: 22, fontWeight: '800', color: Colors.textPrimary },
-  snapshotTrend: { fontSize: 12, fontWeight: '700' },
-  snapshotLabel: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 2 },
-  nextCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, ...Shadows.subtle },
-  nextTime: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
-  nextCustomer: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginTop: 2 },
-  nextMeta: { fontSize: 13.5, color: Colors.textSecondary, marginTop: 2 },
-  nextOpen: { fontSize: 13, color: Colors.primary, fontWeight: '700', marginTop: Spacing.xs },
-  timelineStrip: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, ...Shadows.subtle },
-  timelineDotWrap: { alignItems: 'center', gap: 4 },
-  timelineHour: { fontSize: 10.5, color: Colors.textSecondary },
-  timelineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  quickActionButton: { flexGrow: 1, backgroundColor: Colors.buttonPrimaryBg, borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center', minWidth: '47%', ...Shadows.button },
-  quickActionText: { color: Colors.buttonPrimaryText, fontSize: 14, fontWeight: '700' },
+  snapshotCard: {
+    width: '47%',
+    padding: Spacing.md,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  snapshotValue: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.xl, color: '#FFFFFF' },
+  snapshotTrend: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs },
+  snapshotLabel: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+
+  sectionTitle: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: '#F4D77A',
+    marginBottom: Spacing.xs,
+  },
+
+  scheduleSection: { gap: Spacing.sm },
+  apptCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  apptAvatar: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(212,175,55,0.1)',
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', alignItems: 'center', justifyContent: 'center',
+  },
+  apptAvatarText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A' },
+  apptName: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.base, color: '#FFFFFF' },
+  apptMeta: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  statusBadge: {
+    borderRadius: 12, borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8,
+  },
+  statusBadgeText: { fontFamily: FontFamily.soraSemiBold, fontSize: 10.5 },
+
+  paidBadge: { borderRadius: 12, borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8 },
+  paidBadgeYes: { borderColor: '#4ADE80', backgroundColor: 'rgba(74,222,128,0.13)' },
+  paidBadgeNo: { borderColor: '#F09595', backgroundColor: 'rgba(240,149,149,0.13)' },
+  paidBadgeText: { fontFamily: FontFamily.soraSemiBold, fontSize: 10.5 },
+
+  activitySection: { gap: Spacing.sm },
+  statsRow: { flexDirection: 'row', gap: Spacing.sm },
+  statChip: {
+    flex: 1, alignItems: 'center', paddingVertical: Spacing.sm,
+    borderRadius: 16, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  statValue: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.lg, color: '#FFFFFF' },
+  statLabel: { fontFamily: FontFamily.sora, fontSize: 10.5, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+
+  activityCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  activityRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
+  activityRowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' },
+  activityDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#F4D77A' },
+  activityTitle: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#FFFFFF' },
+  activityBody: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', marginTop: 1 },
+  activityTime: { fontFamily: FontFamily.sora, fontSize: 10.5, color: 'rgba(255,255,255,0.4)' },
+  activityEmpty: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.5)', textAlign: 'center', paddingVertical: Spacing.md },
 });

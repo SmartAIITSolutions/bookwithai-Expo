@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchStaffCommissions, StaffCommissionEntry } from '@/lib/api/staffApi';
+import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 function formatPrice(cents: number) {
@@ -48,33 +49,37 @@ export default function StaffEarningsScreen() {
       {loading ? (
         <View style={styles.loadingContainer}><ActivityIndicator color={Colors.primary} size="large" /></View>
       ) : (
-        <FlatList
-          data={entries}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-          ListHeaderComponent={
-            <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>Total commission earned</Text>
-              <Text style={styles.totalValue}>{formatPrice(totalCents)}</Text>
-            </View>
-          }
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="cash-outline" size={40} color={Colors.textDisabled} />
-              <Text style={styles.emptyHint}>No commission earned yet.</Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <View style={styles.cardRow}>
-                <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
-                <Text style={styles.cardAmount}>{formatPrice(item.amount_cents)}</Text>
+        <View style={{ flex: 1 }}>
+          <RefreshHeartOverlay refreshing={refreshing} />
+          <FlatList
+            style={{ flex: 1 }}
+            data={entries}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+            ListHeaderComponent={
+              <View style={styles.totalCard}>
+                <Text style={styles.totalLabel}>Total commission earned</Text>
+                <Text style={styles.totalValue}>{formatPrice(totalCents)}</Text>
               </View>
-              <Text style={styles.cardRate}>{item.rate_pct_used}% rate</Text>
-            </View>
-          )}
-        />
+            }
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Ionicons name="cash-outline" size={40} color={Colors.textDisabled} />
+                <Text style={styles.emptyHint}>No commission earned yet.</Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.card}>
+                <View style={styles.cardRow}>
+                  <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
+                  <Text style={styles.cardAmount}>{formatPrice(item.amount_cents)}</Text>
+                </View>
+                <Text style={styles.cardRate}>{item.rate_pct_used}% rate</Text>
+              </View>
+            )}
+          />
+        </View>
       )}
     </SafeAreaView>
   );

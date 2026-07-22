@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { getMergeCandidates, mergeCustomers, CustomerLite } from '@/lib/api/ownerCustomers';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
@@ -44,13 +46,14 @@ export default function MergeDuplicatesScreen() {
     return (
       <View style={styles.centered}>
         <Stack.Screen options={{ title: 'Merge Duplicates' }} />
-        <ActivityIndicator color={Colors.primary} />
+        <BreathingHeart size={40} color={Colors.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <Stack.Screen options={{ title: 'Merge Duplicates', headerBackTitle: 'Customers' }} />
       <ScrollView contentContainerStyle={styles.content}>
         {groups.length === 0 && (
@@ -67,7 +70,7 @@ export default function MergeDuplicatesScreen() {
                 </View>
               ))}
               <TouchableOpacity style={styles.mergeButton} onPress={() => handleMerge(group)} disabled={merging === key}>
-                {merging === key ? <ActivityIndicator color={Colors.textOnPrimary} /> : <Text style={styles.mergeButtonText}>Merge into one</Text>}
+                {merging === key ? <BreathingHeart size={18} color={Colors.textOnPrimary} /> : <Text style={styles.mergeButtonText}>Merge into one</Text>}
               </TouchableOpacity>
             </View>
           );
@@ -78,8 +81,8 @@ export default function MergeDuplicatesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#040108' },
   content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing['2xl'] },
   emptyHint: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing['2xl'] },
   card: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.xs, ...Shadows.subtle },

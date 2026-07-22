@@ -1,13 +1,11 @@
 import { useState, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, Pressable,
-  Alert, Switch, ScrollView, Linking as RNLinking,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Switch, ScrollView, Linking as RNLinking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth/AuthContext';
 import {
@@ -16,6 +14,8 @@ import {
   unregisterPushToken,
 } from '@/lib/push/registerForPushNotifications';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { fetchMembershipStatus } from '@/lib/api/customer';
+import { BlurMask, Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
 
 const BIOMETRICS_KEY = 'bwa_biometrics_enabled';
 
@@ -23,6 +23,7 @@ export default function AccountScreen() {
   const { user, signOut } = useAuth();
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [notifsEnabled, setNotifsEnabled] = useState(false);
+  const [hasMembership, setHasMembership] = useState(false);
 
   // Load biometrics preference on mount
   useState(() => {
@@ -38,6 +39,7 @@ export default function AccountScreen() {
       getNotificationPermissionStatus().then((status) => {
         setNotifsEnabled(status === 'granted');
       });
+      fetchMembershipStatus().then(setHasMembership);
     }, [])
   );
 
@@ -115,54 +117,94 @@ export default function AccountScreen() {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.guestContent}>
-          <Ionicons name="person-circle-outline" size={64} color={Colors.textDisabled} />
-          <Text style={styles.guestTitle}>Not signed in</Text>
-          <Text style={styles.guestSubtitle}>
-            Sign in to manage your account and see your booking history.
-          </Text>
-          <Pressable
-            style={({ pressed }) => [styles.signInBtn, pressed && { opacity: 0.85 }]}
-            onPress={() => router.push('/auth')}>
-            <Text style={styles.signInBtnText}>Sign In</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.createBtn, pressed && { opacity: 0.85 }]}
-            onPress={() => router.push('/auth/sign-up')}>
-            <Text style={styles.createBtnText}>Create Account</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+      <View style={styles.screen}>
+        <DualBreathingBackground />
+
+        <SafeAreaView style={styles.container}>
+          <View style={styles.guestContent}>
+            <Ionicons name="person-circle-outline" size={64} color='rgba(255,255,255,0.4)' />
+            <Text style={styles.guestTitle}>Not signed in</Text>
+            <Text style={styles.guestSubtitle}>
+              Sign in to manage your account and see your booking history.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.signInBtn, pressed && { opacity: 0.85 }]}
+              onPress={() => router.push('/auth')}>
+              <Text style={styles.signInBtnText}>Sign In</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.createBtn, pressed && { opacity: 0.85 }]}
+              onPress={() => router.push('/auth/account-type')}>
+              <Text style={styles.createBtnText}>Create Account</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
 
-        <Pressable
-          style={({ pressed }) => [styles.profileHeader, pressed && { opacity: 0.85 }]}
-          onPress={() => router.push('/profile')}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarLetter}>
-              {(user.user_metadata?.full_name || user.email || 'G')[0].toUpperCase()}
-            </Text>
+      <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Account</Text>
+        <View style={[styles.sparkle, { top: 2, left: 92, width: 3, height: 3 }]} />
+        <View style={[styles.sparkle, { top: 18, left: 112, width: 2, height: 2 }]} />
+        <View style={[styles.sparkle, { top: 30, left: 74, width: 2, height: 2 }]} />
+        <View style={[styles.sparkle, { top: 8, left: 129, width: 2.5, height: 2.5 }]} />
+      </View>
+
+      <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarWrap}>
+            <Canvas style={styles.avatarGlow} pointerEvents="none">
+              <Circle cx={40} cy={40} r={40}>
+                <RadialGradient
+                  c={vec(40, 40)}
+                  r={40}
+                  colors={['rgba(212,175,55,0.28)', 'rgba(123,63,228,0.05)', 'transparent']}
+                />
+              </Circle>
+              <Circle cx={40} cy={40} r={30} style="stroke" strokeWidth={2} color="#F4D77A">
+                <BlurMask blur={6} style="solid" />
+              </Circle>
+            </Canvas>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarLetter}>
+                {(user.user_metadata?.full_name || user.email || 'G')[0].toUpperCase()}
+              </Text>
+            </View>
           </View>
+
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
               {user.user_metadata?.full_name || 'My Account'}
             </Text>
+            {hasMembership && (
+              <View style={styles.premiumBadge}>
+                <Ionicons name="star" size={12} color="#F4D77A" />
+                <Text style={styles.premiumBadgeText}>Premium Member</Text>
+              </View>
+            )}
             <Text style={styles.profileEmail}>{user.email}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textDisabled} />
-        </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [styles.viewProfileLink, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/profile')}>
+            <Text style={styles.viewProfileLinkText}>View Profile</Text>
+            <Ionicons name="chevron-forward" size={14} color='rgba(255,255,255,0.4)' />
+          </Pressable>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Security</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <Ionicons name="finger-print-outline" size={20} color={Colors.primary} />
+              <Ionicons name="finger-print-outline" size={20} color="#F4D77A" />
               <View>
                 <Text style={styles.settingLabel}>Biometric Login</Text>
                 <Text style={styles.settingDesc}>Use fingerprint or Face ID to unlock</Text>
@@ -171,7 +213,7 @@ export default function AccountScreen() {
             <Switch
               value={biometricsEnabled}
               onValueChange={handleToggleBiometrics}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
+              trackColor={{ false: 'rgba(255,255,255,0.15)', true: '#D4AF37' }}
               thumbColor={Colors.white}
             />
           </View>
@@ -179,7 +221,7 @@ export default function AccountScreen() {
             style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
             onPress={() => router.push('/account-security')}>
             <Text style={styles.linkLabel}>Password, Email & PIN</Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.textDisabled} />
+            <Ionicons name="chevron-forward" size={16} color='rgba(255,255,255,0.4)' />
           </Pressable>
         </View>
 
@@ -187,7 +229,7 @@ export default function AccountScreen() {
           <Text style={styles.sectionTitle}>Notifications</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <Ionicons name="notifications-outline" size={20} color={Colors.primary} />
+              <Ionicons name="notifications-outline" size={20} color="#F4D77A" />
               <View>
                 <Text style={styles.settingLabel}>Push Notifications</Text>
                 <Text style={styles.settingDesc}>Booking confirmations and reminders</Text>
@@ -196,7 +238,7 @@ export default function AccountScreen() {
             <Switch
               value={notifsEnabled}
               onValueChange={handleToggleNotifications}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
+              trackColor={{ false: 'rgba(255,255,255,0.15)', true: '#D4AF37' }}
               thumbColor={Colors.white}
             />
           </View>
@@ -215,7 +257,7 @@ export default function AccountScreen() {
               style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
               onPress={() => router.push(route as any)}>
               <Text style={styles.linkLabel}>{label}</Text>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textDisabled} />
+              <Ionicons name="chevron-forward" size={16} color='rgba(255,255,255,0.4)' />
             </Pressable>
           ))}
         </View>
@@ -223,18 +265,22 @@ export default function AccountScreen() {
         <Pressable
           style={({ pressed }) => [styles.signOutBtn, pressed && { opacity: 0.85 }]}
           onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+          <Ionicons name="log-out-outline" size={20} color="#F09595" />
           <Text style={styles.signOutBtnText}>Sign Out</Text>
         </Pressable>
 
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
-  scroll: { padding: Spacing.xl, gap: Spacing.xl },
+  screen: { flex: 1, backgroundColor: '#040108' },
+
+  container: { flex: 1, backgroundColor: 'transparent' },
+  scrollFlex: { flex: 1 },
+  scroll: { paddingHorizontal: Spacing.xl, paddingTop: 64, paddingBottom: 120, gap: Spacing.xl },
 
   guestContent: {
     flex: 1,
@@ -244,16 +290,22 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   guestTitle: {
-    fontFamily: FontFamily.frauncesBold,
+    fontFamily: 'PlayfairDisplay_600SemiBold',
     fontSize: FontSize.xl,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(212,175,55,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
   },
   guestSubtitle: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: FontSize.base * 1.6,
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
   },
   signInBtn: {
     backgroundColor: Colors.primary,
@@ -270,59 +322,113 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   createBtn: {
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     width: '100%',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: 'rgba(212,175,55,0.5)',
   },
   createBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.primary,
+    color: '#F4D77A',
+  },
+
+  header: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+  },
+  headerTitle: {
+    fontFamily: 'PlayfairDisplay_600SemiBold',
+    fontSize: FontSize['2xl'] + 6,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(212,175,55,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
+  },
+
+  sparkle: {
+    position: 'absolute',
+    borderRadius: 4,
+    backgroundColor: '#F4D77A',
+    shadowColor: '#F4D77A',
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
 
   profileHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
+    marginTop: -56,
     paddingBottom: Spacing.xl,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(212,175,55,0.25)',
   },
+  avatarWrap: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarGlow: { position: 'absolute', width: 80, height: 80 },
   avatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212,175,55,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarLetter: {
     fontFamily: FontFamily.frauncesBold,
     fontSize: FontSize.xl,
-    color: Colors.white,
+    color: '#F4D77A',
   },
-  profileInfo: { flex: 1, gap: 2 },
+  profileInfo: { alignItems: 'center', gap: 2 },
   profileName: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   profileEmail: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
+  },
+  viewProfileLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 4,
+  },
+  viewProfileLinkText: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.xs,
+    color: '#FFFFFF',
+  },
+
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  premiumBadgeText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.xs,
+    color: '#F4D77A',
   },
 
   section: { gap: Spacing.sm },
   sectionTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
-    color: Colors.textDisabled,
+    color: 'rgba(212,175,55,0.7)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: Spacing.xs,
@@ -332,38 +438,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.white,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
   },
   settingLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flex: 1 },
   settingLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   settingDesc: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
   },
 
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.white,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
   },
   linkLabel: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
 
   signOutBtn: {
@@ -371,16 +477,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(226,74,74,0.1)',
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.error,
+    borderColor: 'rgba(226,74,74,0.5)',
   },
   signOutBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.error,
+    color: '#F09595',
   },
 
 });

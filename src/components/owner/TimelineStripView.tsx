@@ -2,7 +2,7 @@ import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-nati
 import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { DaySchedule, gridBoundsMinutes, minutesSinceMidnight, hourLabels } from '@/lib/calendar/timeGrid';
 import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
-import { Colors } from '@/constants/Colors';
+import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing } from '@/constants/Spacing';
 
 interface TimelineStripViewProps {
@@ -43,7 +43,7 @@ export function TimelineStripView({ bookings, schedule, onOpen }: TimelineStripV
 }
 
 const styles = StyleSheet.create({
-  hourLabel: { position: 'absolute', top: 0, fontSize: 10, color: Colors.textSecondary },
-  baseline: { position: 'absolute', top: 24, height: 1, backgroundColor: Colors.border },
+  hourLabel: { position: 'absolute', top: 0, fontSize: 10, color: P.textDisabled },
+  baseline: { position: 'absolute', top: 24, height: 1, backgroundColor: P.border },
   block: { position: 'absolute', top: 20, height: 10, borderRadius: 5 },
 });

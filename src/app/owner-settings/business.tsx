@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { getBusiness, updateBusiness, addHoliday, removeHoliday, Business, Holiday } from '@/lib/api/ownerBusiness';
 import { listClosures, addClosure, removeClosure, BusinessClosure } from '@/lib/api/ownerDailyOps';
@@ -54,6 +56,8 @@ export default function BusinessSetupScreen() {
       state: business.state,
       postal_code: business.postal_code,
       cancellation_policy: business.cancellation_policy,
+      rescheduling_policy: business.rescheduling_policy,
+      store_policy: business.store_policy,
       morning_brief_hour: business.morning_brief_hour,
       max_daily_bookings: business.max_daily_bookings,
       staff_login_mode: business.staff_login_mode,
@@ -105,13 +109,14 @@ export default function BusinessSetupScreen() {
     return (
       <View style={styles.centered}>
         <Stack.Screen options={{ title: 'Business Setup' }} />
-        <ActivityIndicator color={Colors.primary} />
+        <BreathingHeart size={40} color={Colors.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <Stack.Screen options={{ title: 'Business Setup', headerBackTitle: 'More' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Section title="Business Info">
@@ -132,6 +137,18 @@ export default function BusinessSetupScreen() {
             label="Cancellation policy"
             value={business.cancellation_policy ?? ''}
             onChangeText={v => set('cancellation_policy', v)}
+            multiline
+          />
+          <Field
+            label="Rescheduling policy"
+            value={business.rescheduling_policy ?? ''}
+            onChangeText={v => set('rescheduling_policy', v)}
+            multiline
+          />
+          <Field
+            label="Store policy"
+            value={business.store_policy ?? ''}
+            onChangeText={v => set('store_policy', v)}
             multiline
           />
           <Field
@@ -270,7 +287,7 @@ export default function BusinessSetupScreen() {
         </Section>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color={Colors.textOnPrimary} /> : <Text style={styles.saveButtonText}>Save</Text>}
+          {saving ? <BreathingHeart size={18} color={Colors.textOnPrimary} /> : <Text style={styles.saveButtonText}>Save</Text>}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -306,7 +323,7 @@ function Field(props: {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.backgroundMain },
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
   hourRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },

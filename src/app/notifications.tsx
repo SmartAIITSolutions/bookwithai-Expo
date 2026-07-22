@@ -1,16 +1,18 @@
 import { useCallback, useState } from 'react';
-import {
-  View, Text, StyleSheet, Pressable, FlatList,
-  RefreshControl, ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
+import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import {
   fetchNotifications, markNotificationRead, deleteNotification,
   type NotificationItem,
 } from '@/lib/notifications/api';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -66,10 +68,13 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <Text style={styles.title}>Notifications</Text>
         <View style={styles.backBtn} />
@@ -77,49 +82,61 @@ export default function NotificationsScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={Colors.primary} />
+          <BreathingHeart size={40} color="#F4D77A" />
         </View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="notifications-off-outline" size={48} color={Colors.textDisabled} />
+          <Ionicons name="notifications-off-outline" size={48} color="rgba(255,255,255,0.4)" />
           <Text style={styles.emptyText}>No notifications yet</Text>
         </View>
       ) : (
+        <View style={{ flex: 1 }}>
+        <RefreshHeartOverlay refreshing={refreshing} />
         <FlatList
+          style={{ flex: 1 }}
           data={items}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
           renderItem={({ item }) => (
             <Pressable
-              style={({ pressed }) => [
-                styles.card,
-                !item.read && styles.cardUnread,
-                pressed && { opacity: 0.85 },
-              ]}
               onPress={() => handlePress(item)}
               onLongPress={() => handleDelete(item)}>
-              <Ionicons
-                name={ICONS[item.type] ?? 'notifications-outline'}
-                size={22}
-                color={Colors.primary}
-              />
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardBody}>{item.body}</Text>
-                <Text style={styles.cardTime}>{timeAgo(item.created_at)}</Text>
-              </View>
-              {!item.read && <View style={styles.unreadDot} />}
+              {({ pressed }) => (
+                <BlurView
+                  intensity={90}
+                  tint="dark"
+                  style={[styles.card, !item.read && styles.cardUnread, pressed && { opacity: 0.85 }]}>
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Ionicons
+                    name={ICONS[item.type] ?? 'notifications-outline'}
+                    size={22}
+                    color="#F4D77A"
+                  />
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <Text style={styles.cardBody}>{item.body}</Text>
+                    <Text style={styles.cardTime}>{timeAgo(item.created_at)}</Text>
+                  </View>
+                  {!item.read && <View style={styles.unreadDot} />}
+                </BlurView>
+              )}
             </Pressable>
           )}
         />
+        </View>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -127,20 +144,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(212,175,55,0.25)',
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   title: {
     fontFamily: FontFamily.frauncesBold,
     fontSize: FontSize.lg,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
   emptyText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
   },
 
   list: { padding: Spacing.md, gap: Spacing.sm },
@@ -148,39 +165,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.sm,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+    padding: 18,
+    borderRadius: 24,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     marginBottom: Spacing.sm,
-    ...Shadows.card,
   },
   cardUnread: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.backgroundLavender,
+    borderColor: '#F4D77A',
   },
   cardText: { flex: 1, gap: 2 },
   cardTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   cardBody: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     lineHeight: FontSize.sm * 1.4,
   },
   cardTime: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textDisabled,
+    color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
   },
   unreadDot: {
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     marginTop: 6,
   },
 });

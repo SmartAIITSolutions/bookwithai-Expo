@@ -12,22 +12,33 @@
  *  5. Navigate to /booking/confirmation
  */
 import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
+import Reanimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { useAuth } from '@/lib/auth/AuthContext';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
 const API_BASE  = 'https://bookwithai.app';
@@ -64,6 +75,29 @@ function PaymentForm() {
     startsAt: string; endsAt: string;
     notes: string; idempotencyKey: string;
   }>();
+
+  const breatheVal = useSharedValue(0);
+  const textSpin = useSharedValue(0);
+  useEffect(() => {
+    breatheVal.value = withRepeat(
+      withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+    const interval = setInterval(() => {
+      textSpin.value = withTiming(textSpin.value + 360, {
+        duration: 700,
+        easing: Easing.inOut(Easing.cubic),
+      });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [breatheVal, textSpin]);
+  const payBtnBreatheStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + breatheVal.value * 0.03 }],
+  }));
+  const payTextSpinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${textSpin.value}deg` }],
+  }));
 
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -108,10 +142,10 @@ function PaymentForm() {
           merchantCountryCode: 'US',
           testEnv: false,
         },
-        style: 'automatic',
+        style: 'alwaysDark',
         appearance: {
           colors: {
-            primary: '#5B2EFF',
+            primary: '#F4D77A',
           },
         },
       });
@@ -186,11 +220,14 @@ function PaymentForm() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Payment</Text>
@@ -202,24 +239,27 @@ function PaymentForm() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Booking summary */}
         <View style={styles.summaryCard}>
+          <CardOverlay />
           <Text style={styles.summaryLabel}>Booking Summary</Text>
           <View style={styles.summaryRow}>
-            <Ionicons name="calendar-outline" size={16} color={Colors.primary} />
+            <Ionicons name="calendar-outline" size={16} color="#F4D77A" />
             <Text style={styles.summaryText}>{startsAt ? formatDateTime(startsAt) : '—'}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Ionicons name="person-outline" size={16} color={Colors.primary} />
+            <Ionicons name="person-outline" size={16} color="#F4D77A" />
             <Text style={styles.summaryText}>{staffName || 'Any Available'}</Text>
           </View>
           {services.map((s, i) => (
             <View key={i} style={styles.summaryRow}>
-              <Ionicons name="checkmark-circle-outline" size={16} color={Colors.success} />
+              <Ionicons name="checkmark-circle-outline" size={16} color="#F4D77A" />
               <Text style={styles.summaryText}>{s}</Text>
             </View>
           ))}
           <View style={styles.divider} />
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalLabel}>
+              Total <Text style={styles.totalNote}>(incl. Taxes and Fees)</Text>
+            </Text>
             <Text style={styles.totalValue}>{formatPrice(chargedCents)}</Text>
           </View>
         </View>
@@ -227,14 +267,14 @@ function PaymentForm() {
         {/* Error */}
         {error && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
+            <Ionicons name="alert-circle-outline" size={18} color="#F09595" />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
         {/* Payment info */}
         <View style={styles.infoCard}>
-          <Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />
+          <Ionicons name="lock-closed-outline" size={18} color="#F4D77A" />
           <Text style={styles.infoText}>
             Payment is processed securely via Stripe. Your card details are never stored.
           </Text>
@@ -247,28 +287,31 @@ function PaymentForm() {
       <View style={styles.footer}>
         {loading ? (
           <View style={styles.loadingRow}>
-            <ActivityIndicator color={Colors.primary} />
+            <BreathingHeart size={18} color="#F4D77A" />
             <Text style={styles.loadingText}>Preparing payment...</Text>
           </View>
         ) : (
-          <Pressable
-            style={[styles.payBtn, (!ready || paying) && styles.payBtnDisabled]}
-            onPress={handlePay}
-            disabled={!ready || paying}>
-            {paying ? (
-              <ActivityIndicator color={Colors.white} />
-            ) : (
-              <>
-                <Ionicons name="card-outline" size={20} color={Colors.white} />
-                <Text style={styles.payBtnText}>
-                  Pay {formatPrice(chargedCents)}
-                </Text>
-              </>
-            )}
-          </Pressable>
+          <Reanimated.View style={payBtnBreatheStyle}>
+            <Pressable
+              style={[styles.payBtn, (!ready || paying) && styles.payBtnDisabled]}
+              onPress={handlePay}
+              disabled={!ready || paying}>
+              {paying ? (
+                <BreathingHeart size={18} color="#09000F" />
+              ) : (
+                <Reanimated.View style={[styles.payBtnContent, payTextSpinStyle]}>
+                  <Ionicons name="card-outline" size={20} color="#09000F" />
+                  <Text style={styles.payBtnText}>
+                    Pay {formatPrice(chargedCents)}
+                  </Text>
+                </Reanimated.View>
+              )}
+            </Pressable>
+          </Reanimated.View>
         )}
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -282,7 +325,8 @@ export default function PaymentScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
 
   header: {
     flexDirection: 'row',
@@ -290,38 +334,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(212,175,55,0.25)',
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   headerSub: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     marginTop: 2,
   },
 
   scrollContent: { padding: Spacing.md },
 
   summaryCard: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
     marginBottom: Spacing.md,
     gap: Spacing.sm,
-    ...Shadows.subtle,
+    overflow: 'hidden',
   },
   summaryLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(212,175,55,0.7)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: Spacing.sm,
@@ -334,12 +378,12 @@ const styles = StyleSheet.create({
   summaryText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     flex: 1,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: 'rgba(212,175,55,0.25)',
     marginVertical: Spacing.sm,
   },
   totalRow: {
@@ -350,29 +394,34 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
+  },
+  totalNote: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.xs + 2,
+    color: 'rgba(255,255,255,0.5)',
   },
   totalValue: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.xl,
-    color: Colors.primary,
+    color: '#F4D77A',
   },
 
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.sm,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(226,74,74,0.1)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: 'rgba(226,74,74,0.5)',
     marginBottom: Spacing.md,
   },
   errorText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.error,
+    color: '#F09595',
     flex: 1,
     lineHeight: FontSize.sm * 1.5,
   },
@@ -381,14 +430,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.sm,
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(212,175,55,0.1)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
   },
   infoText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     flex: 1,
     lineHeight: FontSize.sm * 1.5,
   },
@@ -398,9 +447,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.white,
+    backgroundColor: '#09000F',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(212,175,55,0.25)',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
     paddingBottom: 32,
@@ -415,24 +464,28 @@ const styles = StyleSheet.create({
   loadingText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
   },
   payBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    ...Shadows.button,
+  },
+  payBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   payBtnDisabled: {
-    backgroundColor: Colors.buttonDisabledBg,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   payBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.white,
+    color: '#09000F',
   },
 });

@@ -1,11 +1,13 @@
 import { QRScanner } from '@/components/scanner/QRScanner';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { QrCode } from 'lucide-react-native';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -28,24 +30,16 @@ import {
 } from '@shopify/react-native-skia';
 
 const COLORS = {
-  // Near-black deep plum — the cinematic base
-  backgroundTop: '#140A22',
-  backgroundMiddle: '#0A0416',
   backgroundBottom: '#040108',
-  purple: '#7B3FE4',
-  purpleBright: '#B06BFF',
   purpleSoft: '#C7A8FF',
-  gold: '#D4AF37',
   goldLight: '#F4D77A',
   white: '#FFFFFF',
   body: 'rgba(255,255,255,0.74)',
   muted: 'rgba(255,255,255,0.52)',
-  glass: 'rgba(255,255,255,0.04)',
 };
 
 const PLAYFAIR = 'PlayfairDisplay_600SemiBold';
 const INTER = 'Inter_400Regular';
-const INTER_MEDIUM = 'Inter_500Medium';
 const INTER_SEMI = 'Inter_600SemiBold';
 const INTER_BOLD = 'Inter_700Bold';
 
@@ -53,6 +47,7 @@ export default function BookScreen() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [slug, setSlug] = useState('');
   const cardScale = useRef(new Animated.Value(1)).current;
+  const qrBounce = useRef(new Animated.Value(0)).current;
   const { width, height } = useWindowDimensions();
 
   const compact = height < 760;
@@ -66,6 +61,32 @@ export default function BookScreen() {
       bounciness,
     }).start();
   }
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(qrBounce, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(qrBounce, {
+          toValue: 0,
+          duration: 1400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [qrBounce]);
+
+  const qrBreatheScale = qrBounce.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.06],
+  });
 
   function handleGoToSalon() {
     const trimmed = slug.trim();
@@ -88,11 +109,7 @@ export default function BookScreen() {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.backgroundBottom} />
 
       <View style={styles.screen}>
-        <Image
-          source={require('@/assets/images/book-screen-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
+        <DualBreathingBackground />
 
         <KeyboardAvoidingView
           style={styles.flex}
@@ -127,6 +144,13 @@ export default function BookScreen() {
                   BOOK WITH <Text style={styles.brandAI}>AI</Text>
                 </Text>
                 <Text style={styles.tagline}>BEAUTY BOOKING. MADE BEAUTIFUL.</Text>
+              </View>
+
+              <BlurView intensity={18} tint="dark" style={styles.headingCard}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+                  style={StyleSheet.absoluteFill}
+                />
 
                 <Text style={[styles.heading, compact && styles.headingCompact]}>
                   Book an Appointment
@@ -134,59 +158,53 @@ export default function BookScreen() {
                 <Text style={[styles.subtitle, compact && styles.subtitleCompact]}>
                   Scan your salon&apos;s QR code or open a booking link to get started.
                 </Text>
-              </View>
+              </BlurView>
 
-              <Animated.View
-                style={[styles.cardAnimation, { transform: [{ scale: cardScale }] }]}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Open QR code scanner"
-                  onPress={() => setScannerOpen(true)}
-                  onPressIn={() => animateCard(0.985, 36, 0)}
-                  onPressOut={() => animateCard(1, 28, 3)}>
-                  <BlurView
-                    intensity={24}
-                    tint="dark"
-                    style={[styles.qrCard, compact && styles.qrCardCompact]}>
-                    <LinearGradient
-                      colors={[
-                        'rgba(123,63,228,0.12)',
-                        'rgba(255,255,255,0.015)',
-                        'rgba(212,175,55,0.05)',
-                      ]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={StyleSheet.absoluteFill}
-                    />
+              <BlurView intensity={90} tint="dark" style={styles.qrMedallionCard}>
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+                    style={StyleSheet.absoluteFill}
+                  />
 
-                    <View style={styles.goldTopHighlight} />
-
-                    <View style={styles.qrIconOuter}>
-                      <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-                        <Circle cx={50} cy={50} r={65}>
+                  <Animated.View
+                    style={{
+                      transform: [
+                        { scale: cardScale },
+                        { scale: qrBreatheScale },
+                      ],
+                    }}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Open QR code scanner"
+                      onPress={() => setScannerOpen(true)}
+                      onPressIn={() => animateCard(0.97, 30, 0)}
+                      onPressOut={() => animateCard(1, 22, 4)}
+                      style={styles.qrMedallionCircle}>
+                      <Canvas style={styles.qrMedallionGlow} pointerEvents="none">
+                        <Circle cx={40} cy={40} r={40}>
                           <RadialGradient
-                            c={vec(50, 50)}
-                            r={65}
-                            colors={['rgba(176,107,255,0.28)', 'rgba(176,107,255,0)']}
+                            c={vec(40, 40)}
+                            r={40}
+                            colors={['rgba(212,175,55,0.28)', 'rgba(123,63,228,0.05)', 'transparent']}
                           />
                         </Circle>
                       </Canvas>
-                      <View style={styles.qrIconRing}>
-                        <QrCode size={44} color={COLORS.goldLight} strokeWidth={1.7} />
-                      </View>
-                    </View>
 
-                    <Text style={styles.qrTitle}>Scan QR Code</Text>
-                    <Text style={styles.qrDescription}>
-                      Point your camera at the salon&apos;s Book With AI code
-                    </Text>
+                      <BlurView intensity={22} tint="dark" style={styles.qrMedallionInner}>
+                        <QrCode size={18} color={COLORS.goldLight} strokeWidth={1.4} />
+                      </BlurView>
+                    </Pressable>
+                  </Animated.View>
 
-                    <View style={styles.scanPill}>
-                      <Text style={styles.tapText}>TAP ANYWHERE TO SCAN</Text>
-                    </View>
-                  </BlurView>
-                </Pressable>
-              </Animated.View>
+                  <View style={styles.qrScanLabelRow}>
+                    <View style={styles.qrScanLine} />
+                    <Text style={styles.qrScanTitle}>TAP TO SCAN</Text>
+                    <View style={styles.qrScanLine} />
+                  </View>
+                  <Text style={styles.qrScanDescription}>
+                    Point your camera at the salon&apos;s Book With AI code
+                  </Text>
+                </BlurView>
 
               <View style={[styles.dividerRow, compact && styles.dividerRowCompact]}>
                 <LinearGradient
@@ -204,7 +222,7 @@ export default function BookScreen() {
                 />
               </View>
 
-              <BlurView intensity={18} tint="dark" style={styles.slugCard}>
+              <BlurView intensity={90} tint="dark" style={styles.slugCard}>
                 <LinearGradient
                   colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
                   style={StyleSheet.absoluteFill}
@@ -216,18 +234,20 @@ export default function BookScreen() {
                 </Text>
 
                 <View style={styles.inputRow}>
-                  <TextInput
-                    value={slug}
-                    onChangeText={setSlug}
-                    onSubmitEditing={handleGoToSalon}
-                    placeholder="brows-by-tina"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="go"
-                    selectionColor={COLORS.goldLight}
-                    style={styles.input}
-                  />
+                  <Animated.View style={{ flex: 1, transform: [{ scale: qrBreatheScale }] }}>
+                    <TextInput
+                      value={slug}
+                      onChangeText={setSlug}
+                      onSubmitEditing={handleGoToSalon}
+                      placeholder="brows-by-tina"
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="go"
+                      selectionColor={COLORS.goldLight}
+                      style={styles.input}
+                    />
+                  </Animated.View>
 
                   <Pressable
                     accessibilityRole="button"
@@ -272,154 +292,158 @@ const styles = StyleSheet.create({
 
   screen: { flex: 1 },
 
+  qrMedallionCard: {
+    alignItems: 'center',
+    marginTop: 20,
+    padding: 18,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+
+  qrMedallionCircle: {
+    width: 63,
+    height: 63,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  qrMedallionGlow: { position: 'absolute', width: 79, height: 79 },
+
+  qrMedallionInner: {
+    width: 49,
+    height: 49,
+    borderRadius: 24.5,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212,175,55,0.45)',
+    backgroundColor: 'rgba(212,175,55,0.06)',
+  },
+
+  qrScanLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 18,
+  },
+
+  qrScanLine: {
+    width: 20,
+    height: 1,
+    backgroundColor: 'rgba(212,175,55,0.4)',
+  },
+
+  qrScanTitle: {
+    marginHorizontal: 10,
+    color: COLORS.goldLight,
+    fontFamily: INTER_SEMI,
+    fontSize: 12,
+    letterSpacing: 3,
+  },
+
+  qrScanDescription: {
+    marginTop: 8,
+    maxWidth: 260,
+    color: COLORS.body,
+    fontFamily: INTER,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: 9,
     paddingBottom: 56,
   },
 
-  scrollContentCompact: { paddingTop: 10, paddingBottom: 44 },
+  scrollContentCompact: { paddingTop: 5, paddingBottom: 44 },
 
   content: { alignSelf: 'center' },
 
-  titleSection: { alignItems: 'center', marginBottom: 30 },
+  titleSection: { alignItems: 'center', marginBottom: 20, marginTop: -82 },
 
-  titleSectionCompact: { marginBottom: 22 },
+  titleSectionCompact: { marginBottom: 22, marginTop: -112 },
 
   logoWrap: {
-    width: 110,
-    height: 96,
+    width: 372,
+    height: 326,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
   },
 
-  logoGlow: { position: 'absolute', width: 150, height: 150 },
+  logoGlow: { position: 'absolute', width: 510, height: 510 },
 
-  logoImage: { width: 108, height: 72 },
+  logoImage: { width: 368, height: 246 },
 
-  logoImageCompact: { width: 92, height: 61 },
+  logoImageCompact: { width: 312, height: 208 },
 
   brandTop: {
     color: COLORS.white,
-    fontFamily: INTER_SEMI,
-    fontSize: 17,
-    letterSpacing: 4.4,
+    fontFamily: INTER_BOLD,
+    fontSize: 24,
+    letterSpacing: 7,
+    marginTop: -120,
   },
 
   brandAI: { color: COLORS.purpleSoft },
 
   tagline: {
-    marginTop: 8,
+    marginTop: 3,
     color: COLORS.goldLight,
     fontFamily: INTER_BOLD,
-    fontSize: 8.2,
-    letterSpacing: 1.45,
+    fontSize: 15,
+    letterSpacing: 2,
+  },
+
+  headingCard: {
+    padding: 18,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(123,63,228,0.34)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
 
   heading: {
-    marginTop: 24,
+    marginTop: 0,
     color: COLORS.white,
     fontFamily: PLAYFAIR,
     fontSize: 32,
     lineHeight: 39,
     textAlign: 'center',
+    textShadowColor: 'rgba(212,175,55,0.65)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
   },
 
-  headingCompact: { marginTop: 18, fontSize: 29, lineHeight: 35 },
+  headingCompact: { marginTop: 0, fontSize: 29, lineHeight: 35 },
 
   subtitle: {
     maxWidth: 330,
     marginTop: 12,
     color: COLORS.body,
     fontFamily: INTER,
-    fontSize: 13.5,
+    fontSize: 13,
     lineHeight: 21,
     textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
   },
 
   subtitleCompact: { marginTop: 9, fontSize: 13, lineHeight: 19 },
 
-  cardAnimation: { borderRadius: 30 },
-
-  qrCard: {
-    minHeight: 286,
-    paddingHorizontal: 24,
-    paddingVertical: 30,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.42)',
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.glass,
-  },
-
-  qrCardCompact: { minHeight: 250, paddingVertical: 24 },
-
-  goldTopHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 56,
-    right: 56,
-    height: 1,
-    backgroundColor: 'rgba(244,215,122,0.9)',
-  },
-
-  qrIconOuter: {
-    width: 100,
-    height: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-
-  qrIconRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(199,168,255,0.5)',
-    backgroundColor: 'rgba(10,0,16,0.25)',
-  },
-
-  qrTitle: { color: COLORS.white, fontFamily: INTER_BOLD, fontSize: 20 },
-
-  qrDescription: {
-    maxWidth: 270,
-    marginTop: 9,
-    color: COLORS.body,
-    fontFamily: INTER,
-    fontSize: 13.5,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-
-  scanPill: {
-    marginTop: 17,
-    paddingHorizontal: 15,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(244,215,122,0.22)',
-    backgroundColor: 'rgba(212,175,55,0.06)',
-  },
-
-  tapText: {
-    color: COLORS.goldLight,
-    fontFamily: INTER_SEMI,
-    fontSize: 9.5,
-    letterSpacing: 1,
-  },
-
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginVertical: 20,
     paddingHorizontal: 8,
   },
 
@@ -431,17 +455,18 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     color: COLORS.goldLight,
     fontFamily: INTER_SEMI,
-    fontSize: 9.5,
+    fontSize: 14.5,
     letterSpacing: 0.7,
   },
 
   slugCard: {
+    marginTop: 0,
     padding: 18,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(123,63,228,0.34)',
-    backgroundColor: COLORS.glass,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
 
   inputLabel: { color: COLORS.white, fontFamily: INTER_BOLD, fontSize: 13 },
@@ -462,7 +487,7 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: 'rgba(199,168,255,0.3)',
+    borderColor: 'rgba(212,175,55,0.2)',
     backgroundColor: 'rgba(5,1,10,0.5)',
     paddingHorizontal: 16,
     color: COLORS.white,

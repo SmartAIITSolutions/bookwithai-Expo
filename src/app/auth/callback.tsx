@@ -3,15 +3,16 @@
 // which captures the redirect result directly via WebBrowser.openAuthSessionAsync
 // -- this just avoids a flash of "unmatched route" while that resolves and
 // AuthRedirectGate picks up the new session.
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Colors } from '@/constants/Theme';
 
 export default function AuthCallbackLandingScreen() {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <BreathingHeart size={40} color={Colors.primary} />
       </View>
     </SafeAreaView>
   );

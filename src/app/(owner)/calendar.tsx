@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
+import { BreathingHeart } from '@/components/BreathingHeart';
+import { RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
 import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
@@ -19,9 +21,8 @@ import { OwnerBooking, bulkCancelBookings, bulkShiftBookings } from '@/lib/api/o
 import { dayScheduleFor } from '@/lib/calendar/timeGrid';
 import { findEmptySpaces, computeCalendarAlerts } from '@/lib/calendar/calendarInsights';
 import { ErrorState } from '@/components/ErrorState';
-import { Colors } from '@/constants/Colors';
+import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
 
 function toDateKey(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -106,9 +107,18 @@ export default function OwnerCalendarScreen() {
     sheetRef.current?.present();
   }
 
-  function handleSelectDateFromMonth(d: Date) {
+  function handleViewFullDay(d: Date) {
     setDate(d);
     setMode('day');
+  }
+
+  function handleFillSlotOnDate(d: Date) {
+    if (toDateKey(d) === dateKey) {
+      walkInRef.current?.present();
+    } else {
+      setDate(d);
+      setMode('day');
+    }
   }
 
   const handleChanged = useCallback(() => {
@@ -159,7 +169,7 @@ export default function OwnerCalendarScreen() {
   const alerts = schedule ? computeCalendarAlerts(visibleBookings, schedule) : [];
 
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
       <OwnerScreenHeader
         title="Calendar"
         onCreatePress={() => {
@@ -170,16 +180,16 @@ export default function OwnerCalendarScreen() {
       />
 
       <View style={styles.dateRow}>
-        <TouchableOpacity onPress={() => shiftDay(-1)}><Text style={styles.dateNav}>← Yesterday</Text></TouchableOpacity>
+        <Pressable onPress={() => shiftDay(-1)}><Text style={styles.dateNav}>← Yesterday</Text></Pressable>
         <Text style={styles.dateLabel}>{isToday ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-        <TouchableOpacity onPress={() => shiftDay(1)}><Text style={styles.dateNav}>Tomorrow →</Text></TouchableOpacity>
+        <Pressable onPress={() => shiftDay(1)}><Text style={styles.dateNav}>Tomorrow →</Text></Pressable>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeRow} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 6, alignItems: 'center' }}>
         {MODES.map(m => (
-          <TouchableOpacity key={m.key} style={[styles.modeChip, mode === m.key && styles.modeChipActive]} onPress={() => setMode(m.key)}>
+          <Pressable key={m.key} style={[styles.modeChip, mode === m.key && styles.modeChipActive]} onPress={() => setMode(m.key)}>
             <Text style={[styles.modeChipText, mode === m.key && styles.modeChipTextActive]}>{m.label}</Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </ScrollView>
 
@@ -189,13 +199,13 @@ export default function OwnerCalendarScreen() {
           {staff.map(s => (
             <StaffChip key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => setSelectedStaffId(s.id)} />
           ))}
-          <TouchableOpacity style={styles.walkInButton} onPress={() => walkInRef.current?.present()}>
-            <Ionicons name="walk-outline" size={14} color={Colors.primary} />
+          <Pressable style={styles.walkInButton} onPress={() => walkInRef.current?.present()}>
+            <Ionicons name="walk-outline" size={14} color={P.accentGold} />
             <Text style={styles.walkInText}>Walk-In</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.selectButton} onPress={() => { setSelectMode(v => !v); setSelectedIds([]); }}>
+          </Pressable>
+          <Pressable style={styles.selectButton} onPress={() => { setSelectMode(v => !v); setSelectedIds([]); }}>
             <Text style={styles.selectButtonText}>{selectMode ? 'Done' : 'Select'}</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
 
@@ -212,9 +222,9 @@ export default function OwnerCalendarScreen() {
       {mode === 'day' && emptySpaces.filter(g => g.durationMinutes >= 30).length > 0 && (
         <View style={styles.alertsWrap}>
           {emptySpaces.filter(g => g.durationMinutes >= 30).slice(0, 2).map((g, i) => (
-            <TouchableOpacity key={i} style={styles.gapBanner} onPress={() => walkInRef.current?.present()}>
+            <Pressable key={i} style={styles.gapBanner} onPress={() => walkInRef.current?.present()}>
               <Text style={styles.gapText}>{Math.round(g.durationMinutes / 60 * 10) / 10}h opening at {formatMinutesAsTime(g.startMinutes)} — worth filling. Tap to book.</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
       )}
@@ -222,35 +232,39 @@ export default function OwnerCalendarScreen() {
       {businessError ? (
         <ErrorState message={`Couldn't load your business settings: ${businessError}`} onRetry={loadBusiness} />
       ) : loading || !business || !schedule ? (
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color={P.accentGold} /></View>
       ) : mode === 'day' ? (
-        <TimelineCalendar
-          date={date}
-          bookings={visibleBookings}
-          staff={staff}
-          selectedStaffId={selectedStaffId}
-          weekSchedule={business.week_schedule}
-          onOpenBooking={openBooking}
-          onChanged={reload}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-        />
+        <View style={{ flex: 1 }}>
+          <RefreshHeartOverlay refreshing={refreshing} />
+          <TimelineCalendar
+            date={date}
+            bookings={visibleBookings}
+            staff={staff}
+            selectedStaffId={selectedStaffId}
+            weekSchedule={business.week_schedule}
+            onOpenBooking={openBooking}
+            onChanged={reload}
+            onFillSlot={() => walkInRef.current?.present()}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+          />
+        </View>
       ) : mode === 'agenda' ? (
-        <AgendaView bookings={visibleBookings} onOpen={openBooking} />
+        <AgendaView bookings={visibleBookings} schedule={schedule} onOpen={openBooking} onFillSlot={() => walkInRef.current?.present()} />
       ) : mode === 'timeline' ? (
         <TimelineStripView bookings={visibleBookings} schedule={schedule} onOpen={openBooking} />
       ) : mode === 'month' ? (
-        <MonthView month={date} onSelectDate={handleSelectDateFromMonth} />
+        <MonthView month={date} weekSchedule={business.week_schedule} onOpenBooking={openBooking} onViewFullDay={handleViewFullDay} />
       ) : (
-        <MultiDayView startDate={date} numDays={mode === 'week' ? 7 : 3} onOpen={openBooking} />
+        <MultiDayView startDate={date} numDays={mode === 'week' ? 7 : 3} weekSchedule={business.week_schedule} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} />
       )}
 
       {selectMode && selectedIds.length > 0 && (
         <View style={styles.bulkBar}>
           <Text style={styles.bulkCount}>{selectedIds.length} selected</Text>
-          <TouchableOpacity onPress={() => handleBulkShift(15)}><Text style={styles.bulkAction}>+15 min</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => handleBulkShift(-15)}><Text style={styles.bulkAction}>-15 min</Text></TouchableOpacity>
-          <TouchableOpacity onPress={handleBulkCancel}><Text style={[styles.bulkAction, { color: Colors.error }]}>Cancel all</Text></TouchableOpacity>
+          <Pressable onPress={() => handleBulkShift(15)}><Text style={styles.bulkAction}>+15 min</Text></Pressable>
+          <Pressable onPress={() => handleBulkShift(-15)}><Text style={styles.bulkAction}>-15 min</Text></Pressable>
+          <Pressable onPress={handleBulkCancel}><Text style={[styles.bulkAction, { color: P.error }]}>Cancel all</Text></Pressable>
         </View>
       )}
 
@@ -263,54 +277,64 @@ export default function OwnerCalendarScreen() {
 
 function StaffChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
+    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: P.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   dateRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
   },
-  dateNav: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
-  dateLabel: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+  dateNav: { fontSize: 13, color: P.accentGold, fontWeight: '600' },
+  dateLabel: { fontSize: 15, fontWeight: '700', color: P.textPrimary },
   modeRow: { flexGrow: 0, height: 40, marginBottom: Spacing.sm },
-  modeChip: { paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center' },
-  modeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  modeChipText: { fontSize: 12.5, lineHeight: 16, color: Colors.textPrimary, fontWeight: '600' },
-  modeChipTextActive: { color: Colors.textOnPrimary },
+  modeChip: {
+    paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full,
+    backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, justifyContent: 'center',
+  },
+  modeChipActive: { backgroundColor: P.darkGold, borderColor: P.accentGold },
+  modeChipText: { fontSize: 12.5, lineHeight: 16, color: P.textSecondary, fontWeight: '600' },
+  modeChipTextActive: { color: P.background },
   staffSelectorRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm, flexWrap: 'wrap',
   },
   chip: {
     paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: 999,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: P.surface, borderWidth: 1, borderColor: P.border,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
-  chipTextActive: { color: Colors.textOnPrimary },
+  chipActive: { backgroundColor: P.primaryPurple, borderColor: P.secondaryPurple },
+  chipText: { fontSize: 13, color: P.textSecondary, fontWeight: '600' },
+  chipTextActive: { color: P.textPrimary },
   walkInButton: {
     flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto',
     paddingHorizontal: Spacing.sm, paddingVertical: 6,
   },
-  walkInText: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
+  walkInText: { fontSize: 13, color: P.accentGold, fontWeight: '700' },
   selectButton: { paddingHorizontal: Spacing.sm, paddingVertical: 6 },
-  selectButtonText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '700' },
+  selectButtonText: { fontSize: 13, color: P.textSecondary, fontWeight: '700' },
   alertsWrap: { paddingHorizontal: Spacing.lg, gap: 6, marginBottom: Spacing.sm },
-  alertBanner: { backgroundColor: Colors.backgroundLavender, borderRadius: BorderRadius.sm, padding: Spacing.sm },
-  alertBannerWarning: { backgroundColor: '#FFF4E5' },
-  alertText: { fontSize: 12.5, color: Colors.textPrimary },
-  gapBanner: { backgroundColor: Colors.backgroundLavender, borderRadius: BorderRadius.sm, padding: Spacing.sm },
-  gapText: { fontSize: 12.5, color: Colors.primary, fontWeight: '600' },
+  alertBanner: {
+    backgroundColor: 'rgba(107,61,255,0.12)', borderRadius: BorderRadius.sm, padding: Spacing.sm,
+    borderWidth: 1, borderColor: 'rgba(107,61,255,0.3)',
+  },
+  alertBannerWarning: { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' },
+  alertText: { fontSize: 12.5, color: P.textPrimary },
+  gapBanner: {
+    backgroundColor: 'rgba(255,200,87,0.1)', borderRadius: BorderRadius.sm, padding: Spacing.sm,
+    borderWidth: 1, borderColor: 'rgba(255,200,87,0.3)',
+  },
+  gapText: { fontSize: 12.5, color: P.accentGold, fontWeight: '600' },
   bulkBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg,
-    backgroundColor: Colors.card, padding: Spacing.md, ...Shadows.button, justifyContent: 'space-between',
+    backgroundColor: P.surface, padding: Spacing.md, justifyContent: 'space-between',
+    borderTopWidth: 1, borderTopColor: P.border,
   },
-  bulkCount: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
-  bulkAction: { fontSize: 13.5, color: Colors.primary, fontWeight: '700' },
+  bulkCount: { fontSize: 13, color: P.textSecondary, fontWeight: '600' },
+  bulkAction: { fontSize: 13.5, color: P.accentGold, fontWeight: '700' },
 });

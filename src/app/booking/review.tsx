@@ -1,24 +1,32 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import * as Crypto from 'expo-crypto';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
+import Reanimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { API_BASE } from '@/lib/config';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 function formatPrice(cents: number) {
   if (!cents) return 'Free';
@@ -66,6 +74,37 @@ export default function ReviewScreen() {
   // One key per booking attempt at this screen -- reused across retries so a
   // dropped-response retry doesn't create a duplicate booking server-side.
   const idempotencyKey = useRef(Crypto.randomUUID()).current;
+
+  // Nudges the eye toward the still-unsatisfied consent checkbox so it's
+  // clear why "Proceed" isn't doing anything yet -- stops once checked.
+  const breatheVal = useSharedValue(0);
+  useEffect(() => {
+    if (consented) {
+      breatheVal.value = withTiming(0, { duration: 200 });
+      return;
+    }
+    breatheVal.value = withRepeat(
+      withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+  }, [consented, breatheVal]);
+  const breatheStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + breatheVal.value * 0.03 }],
+  }));
+
+  // Proceed button breathes continuously, independent of consent state.
+  const proceedBreatheVal = useSharedValue(0);
+  useEffect(() => {
+    proceedBreatheVal.value = withRepeat(
+      withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+  }, [proceedBreatheVal]);
+  const proceedBreatheStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + proceedBreatheVal.value * 0.03 }],
+  }));
 
   const services = (serviceNames || '').split('||').filter(Boolean);
   const cents = parseInt(totalCents || '0', 10);
@@ -140,11 +179,14 @@ export default function ReviewScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Review Booking</Text>
@@ -164,16 +206,17 @@ export default function ReviewScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Appointment</Text>
             <View style={styles.detailCard}>
+              <CardOverlay />
               <View style={styles.detailRow}>
-                <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+                <Ionicons name="calendar-outline" size={18} color="#F4D77A" />
                 <Text style={styles.detailText}>{startsAt ? formatDateTime(startsAt) : '—'}</Text>
               </View>
               <View style={[styles.detailRow, { marginTop: Spacing.sm }]}>
-                <Ionicons name="time-outline" size={18} color={Colors.primary} />
+                <Ionicons name="time-outline" size={18} color="#F4D77A" />
                 <Text style={styles.detailText}>{formatDuration(mins)}</Text>
               </View>
               <View style={[styles.detailRow, { marginTop: Spacing.sm }]}>
-                <Ionicons name="person-outline" size={18} color={Colors.primary} />
+                <Ionicons name="person-outline" size={18} color="#F4D77A" />
                 <Text style={styles.detailText}>{staffName || 'Any Available'}</Text>
               </View>
             </View>
@@ -183,15 +226,18 @@ export default function ReviewScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Services</Text>
             <View style={styles.detailCard}>
+              <CardOverlay />
               {services.map((s, i) => (
                 <View key={i} style={[styles.detailRow, i > 0 && { marginTop: Spacing.sm }]}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={Colors.success} />
+                  <Ionicons name="checkmark-circle-outline" size={18} color="#F4D77A" />
                   <Text style={styles.detailText}>{s}</Text>
                 </View>
               ))}
               <View style={styles.divider} />
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Total</Text>
+                <Text style={styles.priceLabel}>
+                  Total <Text style={styles.priceNote}>(does not incl. taxes and fees)</Text>
+                </Text>
                 <Text style={styles.priceValue}>{formatPrice(cents)}</Text>
               </View>
             </View>
@@ -203,7 +249,7 @@ export default function ReviewScreen() {
             <TextInput
               style={styles.notesInput}
               placeholder="Any allergies, preferences, or special requests..."
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor="rgba(255,255,255,0.4)"
               multiline
               numberOfLines={4}
               value={notes}
@@ -213,14 +259,16 @@ export default function ReviewScreen() {
           </View>
 
           {/* Consent */}
-          <Pressable style={styles.consentRow} onPress={() => setConsented(!consented)}>
-            <View style={[styles.checkbox, consented && styles.checkboxChecked]}>
-              {consented && <Ionicons name="checkmark" size={14} color={Colors.white} />}
-            </View>
-            <Text style={styles.consentText}>
-              I agree to the salon's cancellation and booking policies
-            </Text>
-          </Pressable>
+          <Reanimated.View style={breatheStyle}>
+            <Pressable style={styles.consentRow} onPress={() => setConsented(!consented)}>
+              <View style={[styles.checkbox, consented && styles.checkboxChecked]}>
+                {consented && <Ionicons name="checkmark" size={14} color="#09000F" />}
+              </View>
+              <Text style={styles.consentText}>
+                I agree to the salon's cancellation and booking policies
+              </Text>
+            </Pressable>
+          </Reanimated.View>
 
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -228,34 +276,38 @@ export default function ReviewScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Pressable
-          style={[styles.proceedBtn, (!consented || bookingLoading) && styles.proceedBtnDisabled]}
-          onPress={handleProceed}
-          disabled={!consented || bookingLoading}>
-          {bookingLoading ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <>
-              <Text style={[styles.proceedBtnText, !consented && styles.proceedBtnTextDisabled]}>
-                {skipOnlinePayment
-                  ? (cents > 0 ? `Confirm Booking · Pay ${formatPrice(cents)} at Salon` : 'Confirm Booking')
-                  : `Proceed to Payment · ${formatPrice(cents)}`}
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={consented ? Colors.white : Colors.textDisabled}
-              />
-            </>
-          )}
-        </Pressable>
+        <Reanimated.View style={proceedBreatheStyle}>
+          <Pressable
+            style={[styles.proceedBtn, (!consented || bookingLoading) && styles.proceedBtnDisabled]}
+            onPress={handleProceed}
+            disabled={!consented || bookingLoading}>
+            {bookingLoading ? (
+              <BreathingHeart size={18} color="#09000F" />
+            ) : (
+              <>
+                <Text style={[styles.proceedBtnText, !consented && styles.proceedBtnTextDisabled]}>
+                  {skipOnlinePayment
+                    ? (cents > 0 ? `Confirm Booking · Pay ${formatPrice(cents)} at Salon` : 'Confirm Booking')
+                    : `Proceed to Payment · ${formatPrice(cents)}`}
+                </Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={consented ? '#09000F' : 'rgba(255,255,255,0.3)'}
+                />
+              </>
+            )}
+          </Pressable>
+        </Reanimated.View>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
 
   header: {
     flexDirection: 'row',
@@ -263,19 +315,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(212,175,55,0.25)',
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   headerSub: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     marginTop: 2,
   },
 
@@ -285,19 +337,19 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(212,175,55,0.7)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: Spacing.sm,
   },
 
   detailCard: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.subtle,
+    borderColor: 'rgba(212,175,55,0.5)',
+    overflow: 'hidden',
   },
   detailRow: {
     flexDirection: 'row',
@@ -307,13 +359,13 @@ const styles = StyleSheet.create({
   detailText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     flex: 1,
   },
 
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: 'rgba(212,175,55,0.25)',
     marginVertical: Spacing.md,
   },
   priceRow: {
@@ -324,23 +376,28 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
+  },
+  priceNote: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.5)',
   },
   priceValue: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.xl,
-    color: Colors.primary,
+    color: '#F4D77A',
   },
 
   notesInput: {
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     minHeight: 100,
   },
 
@@ -355,21 +412,21 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: Colors.textSecondary,
-    backgroundColor: Colors.white,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
     flexShrink: 0,
   },
   checkboxChecked: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#F4D77A',
+    borderColor: '#F4D77A',
   },
   consentText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     flex: 1,
     lineHeight: FontSize.sm * 1.6,
   },
@@ -379,9 +436,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.white,
+    backgroundColor: '#09000F',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(212,175,55,0.25)',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
     paddingBottom: 32,
@@ -391,20 +448,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    ...Shadows.button,
   },
   proceedBtnDisabled: {
-    backgroundColor: Colors.buttonDisabledBg,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   proceedBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.white,
+    color: '#09000F',
   },
   proceedBtnTextDisabled: {
-    color: Colors.textDisabled,
+    color: 'rgba(255,255,255,0.3)',
   },
 });

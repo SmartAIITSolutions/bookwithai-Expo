@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { listShifts, clockStaff, ShiftEntry } from '@/lib/api/ownerShifts';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
@@ -75,9 +77,10 @@ export default function ClockKioskScreen() {
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <Stack.Screen options={{ title: 'Clock In / Payroll', headerBackTitle: 'More' }} />
       {loading ? (
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.sectionLabel}>Who's clocking in?</Text>
@@ -142,7 +145,7 @@ export default function ClockKioskScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing['2xl'] },
   emptyHint: { fontSize: 14, color: Colors.textSecondary, marginBottom: Spacing.sm },

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchStaffAppointments, fetchStaffShifts, staffClock, StaffAppointment } from '@/lib/api/staffApi';
+import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
@@ -89,11 +90,14 @@ export default function StaffScheduleScreen() {
           </Text>
         </View>
       ) : (
+        <View style={{ flex: 1 }}>
+        <RefreshHeartOverlay refreshing={refreshing} />
         <FlatList
+          style={{ flex: 1 }}
           data={appointments}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardRow}>
@@ -121,6 +125,7 @@ export default function StaffScheduleScreen() {
             </View>
           )}
         />
+        </View>
       )}
     </SafeAreaView>
   );

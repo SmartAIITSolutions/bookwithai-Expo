@@ -1,11 +1,21 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
+import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 // Phase 0.1 "More" menu — grouped by how often it's used, not how important
 // it is. Groups and items are locked; screens behind each item land in the
@@ -42,15 +52,18 @@ const GROUPS: { name: string; items: { label: string; route?: string }[] }[] = [
 
 export default function OwnerMoreScreen() {
   const { signOut } = useAuth();
+  const { width, height } = useWindowDimensions();
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <OwnerScreenHeader title="More" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
       <ScrollView contentContainerStyle={styles.content}>
         {GROUPS.map((group) => (
           <View key={group.name} style={styles.group}>
             <Text style={styles.groupLabel}>{group.name}</Text>
-            <View style={styles.card}>
+            <BlurView intensity={90} tint="dark" style={styles.card}>
+              <CardOverlay />
               {group.items.map((item, i) => (
                 <TouchableOpacity
                   key={item.label}
@@ -60,7 +73,7 @@ export default function OwnerMoreScreen() {
                 >
                   <Text style={[styles.rowText, !item.route && styles.rowTextDisabled]}>{item.label}</Text>
                   {item.route ? (
-                    <Ionicons name="chevron-forward" size={16} color={Colors.textDisabled} />
+                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
                   ) : (
                     <View style={styles.soonBadge}>
                       <Text style={styles.soonBadgeText}>Coming Soon</Text>
@@ -68,52 +81,58 @@ export default function OwnerMoreScreen() {
                   )}
                 </TouchableOpacity>
               ))}
-            </View>
+            </BlurView>
           </View>
         ))}
-        <View style={styles.card}>
+        <BlurView intensity={90} tint="dark" style={styles.card}>
+          <CardOverlay />
           <TouchableOpacity style={styles.row} onPress={() => signOut()}>
-            <Text style={styles.rowText}>Log Out</Text>
+            <Text style={styles.logOutText}>Log Out</Text>
           </TouchableOpacity>
-        </View>
+        </BlurView>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
-  content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
+  container: { flex: 1, backgroundColor: '#040108' },
+  content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 110 },
   group: { gap: Spacing.xs },
   groupLabel: {
+    fontFamily: FontFamily.soraSemiBold,
     fontSize: 12,
-    fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
-    color: Colors.textSecondary,
+    color: '#F4D77A',
     marginLeft: Spacing.xs,
   },
   card: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.subtle,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
   row: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 14, paddingHorizontal: Spacing.md,
   },
-  rowBorder: { borderTopWidth: 1, borderTopColor: Colors.border },
-  rowText: { fontSize: 15, color: Colors.textPrimary },
-  rowTextDisabled: { color: Colors.textDisabled },
+  rowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' },
+  rowText: { fontFamily: FontFamily.sora, fontSize: FontSize.base, color: '#FFFFFF' },
+  rowTextDisabled: { color: 'rgba(255,255,255,0.35)' },
+  logOutText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#FF6B6B' },
   soonBadge: {
-    backgroundColor: Colors.backgroundLavender,
-    borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(212,175,55,0.1)',
+    borderRadius: 8,
     paddingVertical: 4,
     paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
   },
   soonBadgeText: {
+    fontFamily: FontFamily.soraSemiBold,
     fontSize: 11,
-    fontWeight: '600',
-    color: Colors.primary,
+    color: '#F4D77A',
   },
 });

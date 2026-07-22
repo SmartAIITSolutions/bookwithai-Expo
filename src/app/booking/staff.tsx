@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { fetchStaffBySalonId, type StaffMember } from '@/lib/api/salon';
 import { saveCustomerPreferences } from '@/lib/api/customer';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { ErrorState } from '@/components/ErrorState';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 export default function StaffScreen() {
   const { salonId, salonSlug, salonName, requireOnlinePayment, serviceIds, serviceNames, totalCents, totalMins } =
@@ -87,11 +92,14 @@ export default function StaffScreen() {
   const canContinue = anyAvailable || selected !== null;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Choose Professional</Text>
@@ -104,7 +112,7 @@ export default function StaffScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <BreathingHeart size={40} color="#F4D77A" />
         </View>
       ) : loadError ? (
         <ErrorState message="Unable to load staff. Please check your connection and try again." onRetry={load} />
@@ -118,11 +126,12 @@ export default function StaffScreen() {
           <Pressable
             style={[styles.card, anyAvailable && styles.cardSelected]}
             onPress={handleAnyAvailable}>
+            <CardOverlay />
             <View style={[styles.avatarPlaceholder, anyAvailable && styles.avatarSelected]}>
               <Ionicons
                 name="people-outline"
                 size={26}
-                color={anyAvailable ? Colors.white : Colors.textSecondary}
+                color={anyAvailable ? '#09000F' : 'rgba(255,255,255,0.6)'}
               />
             </View>
             <View style={styles.cardInfo}>
@@ -147,6 +156,7 @@ export default function StaffScreen() {
                 key={member.id}
                 style={[styles.card, sel && styles.cardSelected]}
                 onPress={() => handleSelectStaff(member)}>
+                <CardOverlay />
                 {/* Avatar */}
                 <View style={[styles.avatarPlaceholder, sel && styles.avatarSelected]}>
                   <Text style={[styles.avatarInitial, sel && styles.avatarInitialSelected]}>
@@ -184,16 +194,18 @@ export default function StaffScreen() {
         <View style={styles.footer}>
           <Pressable style={styles.continueBtn} onPress={handleContinue}>
             <Text style={styles.continueBtnText}>Select Date & Time</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+            <Ionicons name="chevron-forward" size={18} color="#09000F" />
           </Pressable>
         </View>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -207,7 +219,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(212,175,55,0.25)',
   },
   backBtn: {
     width: 40,
@@ -219,12 +231,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   headerSub: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     marginTop: 2,
   },
 
@@ -238,7 +250,7 @@ const styles = StyleSheet.create({
   orLabel: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     marginVertical: Spacing.lg,
   },
@@ -247,61 +259,63 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
     gap: Spacing.md,
-    ...Shadows.subtle,
+    overflow: 'hidden',
   },
   cardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: '#FAF8FF',
+    borderColor: '#F4D77A',
+    backgroundColor: 'rgba(212,175,55,0.1)',
   },
 
   avatarPlaceholder: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(212,175,55,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   avatarSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
   },
   avatarInitial: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.xl,
-    color: Colors.primary,
+    color: '#F4D77A',
   },
   avatarInitialSelected: {
-    color: Colors.white,
+    color: '#09000F',
   },
 
   cardInfo: { flex: 1 },
   staffName: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     marginBottom: 2,
   },
   staffNameSelected: {
-    color: Colors.primary,
+    color: '#F4D77A',
   },
   staffRole: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     marginBottom: 3,
   },
   staffBio: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     lineHeight: FontSize.xs * 1.6,
     marginTop: 2,
   },
@@ -312,19 +326,19 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   radioSelected: {
-    borderColor: Colors.primary,
+    borderColor: '#F4D77A',
   },
   radioDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
   },
 
   // Footer
@@ -333,9 +347,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.white,
+    backgroundColor: '#09000F',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(212,175,55,0.25)',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
     paddingBottom: 32,
@@ -345,14 +359,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    ...Shadows.button,
   },
   continueBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.white,
+    color: '#09000F',
   },
 });

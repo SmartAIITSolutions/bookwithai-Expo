@@ -1,15 +1,11 @@
 import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import {
   fetchServicesBySalonId,
   groupServicesByCategory,
@@ -17,10 +13,19 @@ import {
   formatDuration,
   type Service,
 } from '@/lib/api/salon';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { ErrorState } from '@/components/ErrorState';
 import { saveCustomerPreferences } from '@/lib/api/customer';
 import { useAuth } from '@/lib/auth/AuthContext';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 export default function ServicesScreen() {
   const { user } = useAuth();
@@ -93,11 +98,14 @@ export default function ServicesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Select Services</Text>
@@ -111,13 +119,13 @@ export default function ServicesScreen() {
       {/* Content */}
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <BreathingHeart size={40} color="#F4D77A" />
         </View>
       ) : loadError ? (
         <ErrorState message="Unable to load services. Please check your connection and try again." onRetry={load} />
       ) : groups.length === 0 ? (
         <View style={styles.centered}>
-          <Ionicons name="cut-outline" size={48} color={Colors.textSecondary} />
+          <Ionicons name="cut-outline" size={48} color="rgba(255,255,255,0.4)" />
           <Text style={styles.emptyTitle}>No services available</Text>
           <Text style={styles.emptySub}>This salon has no online-bookable services yet.</Text>
         </View>
@@ -136,9 +144,10 @@ export default function ServicesScreen() {
                     key={svc.id}
                     style={[styles.serviceCard, sel && styles.serviceCardSelected]}
                     onPress={() => toggleService(svc)}>
+                    <CardOverlay />
                     {/* Selection indicator */}
                     <View style={[styles.checkbox, sel && styles.checkboxSelected]}>
-                      {sel && <Ionicons name="checkmark" size={14} color={Colors.white} />}
+                      {sel && <Ionicons name="checkmark" size={14} color="#09000F" />}
                     </View>
 
                     {/* Info */}
@@ -151,7 +160,7 @@ export default function ServicesScreen() {
                       ) : null}
                       <View style={styles.serviceMeta}>
                         <View style={styles.metaChip}>
-                          <Ionicons name="time-outline" size={12} color={Colors.textSecondary} />
+                          <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.6)" />
                           <Text style={styles.metaText}>{formatDuration(svc.duration_minutes)}</Text>
                         </View>
                       </View>
@@ -184,18 +193,20 @@ export default function ServicesScreen() {
           </View>
           <Pressable style={styles.continueBtn} onPress={handleContinue}>
             <Text style={styles.continueBtnText}>Continue</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+            <Ionicons name="chevron-forward" size={18} color="#09000F" />
           </Pressable>
         </View>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#040108' },
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundMain,
+    backgroundColor: 'transparent',
   },
   centered: {
     flex: 1,
@@ -207,13 +218,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontFamily: FontFamily.frauncesBold,
     fontSize: FontSize.xl,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     textAlign: 'center',
   },
   emptySub: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     textAlign: 'center',
   },
 
@@ -224,7 +235,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: 'rgba(212,175,55,0.25)',
   },
   backBtn: {
     width: 40,
@@ -239,12 +250,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.md,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   headerSub: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     marginTop: 2,
   },
 
@@ -260,7 +271,7 @@ const styles = StyleSheet.create({
   categoryLabel: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(212,175,55,0.7)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: Spacing.sm,
@@ -271,32 +282,32 @@ const styles = StyleSheet.create({
   serviceCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    ...Shadows.subtle,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    overflow: 'hidden',
   },
   serviceCardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: '#FAF8FF',
+    borderColor: '#F4D77A',
+    backgroundColor: 'rgba(212,175,55,0.1)',
   },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
     flexShrink: 0,
   },
   checkboxSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#F4D77A',
+    borderColor: '#F4D77A',
   },
   serviceInfo: {
     flex: 1,
@@ -304,14 +315,17 @@ const styles = StyleSheet.create({
   },
   serviceName: {
     fontFamily: FontFamily.soraSemiBold,
-    fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    fontSize: FontSize.md,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(212,175,55,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   serviceDesc: {
-    fontFamily: FontFamily.sora,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    lineHeight: FontSize.sm * 1.5,
+    fontFamily: FontFamily.soraLight,
+    fontSize: FontSize.xs,
+    color: '#FFFFFF',
+    lineHeight: FontSize.xs * 1.5,
   },
   serviceMeta: {
     flexDirection: 'row',
@@ -326,17 +340,17 @@ const styles = StyleSheet.create({
   metaText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
   },
   servicePrice: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     marginLeft: Spacing.md,
     flexShrink: 0,
   },
   servicePriceSelected: {
-    color: Colors.primary,
+    color: '#F4D77A',
   },
 
   // Footer
@@ -345,9 +359,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.white,
+    backgroundColor: '#09000F',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(212,175,55,0.25)',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
     paddingBottom: 32,
@@ -361,27 +375,26 @@ const styles = StyleSheet.create({
   footerCount: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   footerMeta: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
     marginTop: 2,
   },
   continueBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    ...Shadows.button,
   },
   continueBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.white,
+    color: '#09000F',
   },
 });

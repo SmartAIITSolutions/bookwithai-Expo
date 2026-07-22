@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
@@ -12,6 +13,7 @@ import { Spacing, BorderRadius } from '@/constants/Spacing';
 export default function OwnerReportsScreen() {
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <OwnerScreenHeader title="Reports" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
       <View style={styles.emptyState}>
         <View style={styles.soonBadge}>
@@ -29,7 +31,7 @@ export default function OwnerReportsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, gap: Spacing.sm },
   soonBadge: {
     backgroundColor: Colors.backgroundLavender,

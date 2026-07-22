@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, Pressable,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { linkStaffInvite } from '@/lib/api/staffApi';
@@ -54,7 +55,7 @@ export default function StaffSetPasswordScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <BreathingHeart size={40} color={Colors.primary} />
         </View>
       </SafeAreaView>
     );
@@ -106,7 +107,7 @@ export default function StaffSetPasswordScreen() {
           </View>
 
           <Pressable style={styles.primaryBtn} onPress={handleSetPassword} disabled={saving}>
-            {saving ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.primaryBtnText}>Continue</Text>}
+            {saving ? <BreathingHeart size={18} color={Colors.white} /> : <Text style={styles.primaryBtnText}>Continue</Text>}
           </Pressable>
         </View>
       </KeyboardAvoidingView>

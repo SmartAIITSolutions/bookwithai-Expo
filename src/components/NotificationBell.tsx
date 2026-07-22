@@ -13,11 +13,10 @@ export function NotificationBell() {
   const insets = useSafeAreaInsets();
   const segments = useSegments();
   const [unreadCount, setUnreadCount] = useState(0);
-  // Book screen is a dark-background design exploration -- the default
-  // dark icon color would be invisible there, so swap to a blurred glass
-  // button with a gold lucide icon on that screen only. Every other tab
-  // keeps the original plain Ionicons look.
-  const onDarkScreen = segments[segments.length - 1] === 'book';
+  // All three customer tabs now use the dark/gold background redesign --
+  // the default dark icon color would be invisible there, so swap to a
+  // blurred glass button with a gold lucide icon on all of them.
+  const onDarkScreen = ['book', 'my-salons', 'my-booking', 'account'].includes(segments[segments.length - 1]);
 
   useFocusEffect(
     useCallback(() => {
@@ -42,7 +41,7 @@ export function NotificationBell() {
         onPress={() => router.push('/notifications')}
         hitSlop={12}>
         <BlurView intensity={20} tint="dark" style={styles.bellGlassBlur}>
-          <Bell size={21} color="#F4D77A" strokeWidth={1.7} />
+          <Bell size={24} color="#F4D77A" strokeWidth={1.7} />
         </BlurView>
         {badge}
       </Pressable>
@@ -74,9 +73,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     zIndex: 10,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(212,175,55,0.35)',

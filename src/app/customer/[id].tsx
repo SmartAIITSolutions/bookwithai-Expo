@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking, Image } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert, Linking, Image, useWindowDimensions } from 'react-native';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -43,6 +45,7 @@ function timeAgo(iso: string | null) {
 }
 
 export default function CustomerDetailScreen() {
+  const { width, height } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<CustomerDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -294,7 +297,7 @@ export default function CustomerDetailScreen() {
     return (
       <View style={styles.centered}>
         <Stack.Screen options={{ title: 'Customer' }} />
-        <ActivityIndicator color={Colors.primary} />
+        <BreathingHeart size={40} color={Colors.primary} />
       </View>
     );
   }
@@ -308,6 +311,7 @@ export default function CustomerDetailScreen() {
 
   return (
     <View style={styles.container}>
+      <DualBreathingBackground />
       <Stack.Screen options={{ title: customer.name, headerBackTitle: 'Customers' }} />
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
 
@@ -717,8 +721,8 @@ function SnapshotStat({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.backgroundMain },
+  container: { flex: 1, backgroundColor: '#040108' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#040108' },
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   name: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary },
