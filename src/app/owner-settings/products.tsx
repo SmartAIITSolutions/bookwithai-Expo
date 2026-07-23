@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { BreathingHeart } from '@/components/BreathingHeart';
+import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,7 +47,7 @@ export default function ProductsScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ title: 'Products', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Products', headerBackTitle: 'More' }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (

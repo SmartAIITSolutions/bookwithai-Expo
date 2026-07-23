@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert, Linking, Image, useWindowDimensions } from 'react-native';
 import { BreathingHeart } from '@/components/BreathingHeart';
+import { FontFamily } from '@/constants/Theme';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
@@ -296,7 +297,7 @@ export default function CustomerDetailScreen() {
   if (loading || !data) {
     return (
       <View style={styles.centered}>
-        <Stack.Screen options={{ title: 'Customer' }} />
+        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Customer' }} />
         <BreathingHeart size={40} color={Colors.primary} />
       </View>
     );
@@ -312,7 +313,7 @@ export default function CustomerDetailScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ title: customer.name, headerBackTitle: 'Customers' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: customer.name, headerBackTitle: 'Customers' }} />
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
 
         {/* Header */}

@@ -4,13 +4,11 @@ import { View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-nati
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
 import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
 import { WalkInSheet } from '@/components/owner/WalkInSheet';
 import { TimelineCalendar } from '@/components/owner/TimelineCalendar';
-import { AgendaView } from '@/components/owner/AgendaView';
 import { MonthView } from '@/components/owner/MonthView';
 import { MultiDayView } from '@/components/owner/MultiDayView';
 import { TimelineStripView } from '@/components/owner/TimelineStripView';
@@ -36,10 +34,10 @@ function formatMinutesAsTime(totalMinutes: number): string {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-type CalendarMode = 'day' | '3day' | 'week' | 'month' | 'agenda' | 'timeline';
+type CalendarMode = '3day' | 'week' | 'month' | 'agenda' | 'timeline';
 const MODES: { key: CalendarMode; label: string }[] = [
-  { key: 'day', label: 'Day' }, { key: '3day', label: '3-Day' }, { key: 'week', label: 'Week' },
-  { key: 'month', label: 'Month' }, { key: 'agenda', label: 'Agenda' }, { key: 'timeline', label: 'Timeline' },
+  { key: '3day', label: '3-Day' }, { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' }, { key: 'agenda', label: 'Today' }, { key: 'timeline', label: 'Timeline' },
 ];
 
 // Day view (Phase 0.3 default) — full hour-grid timeline with drag-to-move,
@@ -47,7 +45,7 @@ const MODES: { key: CalendarMode; label: string }[] = [
 // (Sprint 6): 3-Day, Week, Month, Agenda, Timeline.
 export default function OwnerCalendarScreen() {
   const [date, setDate] = useState(new Date());
-  const [mode, setMode] = useState<CalendarMode>('day');
+  const [mode, setMode] = useState<CalendarMode>('agenda');
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [business, setBusiness] = useState<Business | null>(null);
   const [businessError, setBusinessError] = useState<string | null>(null);
@@ -61,13 +59,6 @@ export default function OwnerCalendarScreen() {
 
   const dateKey = toDateKey(date);
   const { bookings, loading, reload } = useOwnerBookings(dateKey);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await reload();
-    setRefreshing(false);
-  }, [reload]);
 
   // Keep the open Appointment Sheet's booking in sync with fresh data --
   // without this, actions like Check-In/No-Show correctly update the
@@ -109,7 +100,7 @@ export default function OwnerCalendarScreen() {
 
   function handleViewFullDay(d: Date) {
     setDate(d);
-    setMode('day');
+    setMode('agenda');
   }
 
   function handleFillSlotOnDate(d: Date) {
@@ -117,7 +108,7 @@ export default function OwnerCalendarScreen() {
       walkInRef.current?.present();
     } else {
       setDate(d);
-      setMode('day');
+      setMode('agenda');
     }
   }
 
@@ -193,7 +184,7 @@ export default function OwnerCalendarScreen() {
         ))}
       </ScrollView>
 
-      {mode === 'day' && (
+      {mode === 'agenda' && (
         <View style={styles.staffSelectorRow}>
           <StaffChip label="All" active={selectedStaffId === 'all'} onPress={() => setSelectedStaffId('all')} />
           {staff.map(s => (
@@ -209,7 +200,7 @@ export default function OwnerCalendarScreen() {
         </View>
       )}
 
-      {mode === 'day' && alerts.length > 0 && (
+      {mode === 'agenda' && alerts.length > 0 && (
         <View style={styles.alertsWrap}>
           {alerts.map((a, i) => (
             <View key={i} style={[styles.alertBanner, a.severity === 'warning' && styles.alertBannerWarning]}>
@@ -219,7 +210,7 @@ export default function OwnerCalendarScreen() {
         </View>
       )}
 
-      {mode === 'day' && emptySpaces.filter(g => g.durationMinutes >= 30).length > 0 && (
+      {mode === 'agenda' && emptySpaces.filter(g => g.durationMinutes >= 30).length > 0 && (
         <View style={styles.alertsWrap}>
           {emptySpaces.filter(g => g.durationMinutes >= 30).slice(0, 2).map((g, i) => (
             <Pressable key={i} style={styles.gapBanner} onPress={() => walkInRef.current?.present()}>
@@ -233,24 +224,17 @@ export default function OwnerCalendarScreen() {
         <ErrorState message={`Couldn't load your business settings: ${businessError}`} onRetry={loadBusiness} />
       ) : loading || !business || !schedule ? (
         <View style={styles.centered}><BreathingHeart size={40} color={P.accentGold} /></View>
-      ) : mode === 'day' ? (
-        <View style={{ flex: 1 }}>
-          <RefreshHeartOverlay refreshing={refreshing} />
-          <TimelineCalendar
-            date={date}
-            bookings={visibleBookings}
-            staff={staff}
-            selectedStaffId={selectedStaffId}
-            weekSchedule={business.week_schedule}
-            onOpenBooking={openBooking}
-            onChanged={reload}
-            onFillSlot={() => walkInRef.current?.present()}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-          />
-        </View>
       ) : mode === 'agenda' ? (
-        <AgendaView bookings={visibleBookings} schedule={schedule} onOpen={openBooking} onFillSlot={() => walkInRef.current?.present()} />
+        <TimelineCalendar
+          date={date}
+          bookings={visibleBookings}
+          staff={staff}
+          selectedStaffId={selectedStaffId}
+          weekSchedule={business.week_schedule}
+          onOpenBooking={openBooking}
+          onChanged={reload}
+          onFillSlot={() => walkInRef.current?.present()}
+        />
       ) : mode === 'timeline' ? (
         <TimelineStripView bookings={visibleBookings} schedule={schedule} onOpen={openBooking} />
       ) : mode === 'month' ? (

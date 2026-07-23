@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { BreathingHeart } from '@/components/BreathingHeart';
+import { FontFamily } from '@/constants/Theme';
 import { Stack, router } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
@@ -108,7 +109,7 @@ export default function BusinessSetupScreen() {
   if (loading || !business) {
     return (
       <View style={styles.centered}>
-        <Stack.Screen options={{ title: 'Business Setup' }} />
+        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Business Setup' }} />
         <BreathingHeart size={40} color={Colors.primary} />
       </View>
     );
@@ -117,7 +118,7 @@ export default function BusinessSetupScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ title: 'Business Setup', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Business Setup', headerBackTitle: 'More' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Section title="Business Info">
           <Field label="Business name" value={business.business_name} onChangeText={v => set('business_name', v)} />

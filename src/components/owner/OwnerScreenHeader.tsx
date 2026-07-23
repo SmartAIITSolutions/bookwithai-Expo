@@ -3,10 +3,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
-// Shared top bar for every primary owner-mode screen — Phase 0.1: Universal
-// Search and Universal Create live here, present everywhere, not per-screen.
-// Search and Create are not wired to real logic yet (Sprint 0 is shell only);
-// they're placed now so no later sprint has to redesign the header to add them.
+// Shared top bar for every primary owner-mode screen. Each action icon only
+// renders when the screen actually passes a real handler for it -- Search
+// never wired up anywhere and Create has no handler on most screens (only
+// Calendar's does, opening the Walk-In sheet), so those were showing as
+// dead buttons on every screen that didn't wire them.
 interface OwnerScreenHeaderProps {
   title: string;
   onSearchPress?: () => void;
@@ -20,15 +21,21 @@ export function OwnerScreenHeader({ title, onSearchPress, onCreatePress, onNotif
     <View style={[styles.row, { paddingTop: insets.top + Spacing.lg }]}>
       <Text style={styles.title}>{title}</Text>
       <View style={styles.actions}>
-        <TouchableOpacity onPress={onSearchPress} style={styles.iconButton} hitSlop={8}>
-          <Ionicons name="search-outline" size={20} color="#F4D77A" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onNotificationsPress} style={styles.iconButton} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={20} color="#F4D77A" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onCreatePress} style={styles.iconButton} hitSlop={8}>
-          <Ionicons name="add" size={22} color="#F4D77A" />
-        </TouchableOpacity>
+        {onSearchPress && (
+          <TouchableOpacity onPress={onSearchPress} style={styles.iconButton} hitSlop={8}>
+            <Ionicons name="search-outline" size={20} color="#F4D77A" />
+          </TouchableOpacity>
+        )}
+        {onNotificationsPress && (
+          <TouchableOpacity onPress={onNotificationsPress} style={styles.iconButton} hitSlop={8}>
+            <Ionicons name="notifications-outline" size={20} color="#F4D77A" />
+          </TouchableOpacity>
+        )}
+        {onCreatePress && (
+          <TouchableOpacity onPress={onCreatePress} style={styles.iconButton} hitSlop={8}>
+            <Ionicons name="add" size={22} color="#F4D77A" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

@@ -11,7 +11,7 @@ export interface BookingLike {
 
 export type StatusLabel =
   | 'Cancelled' | 'No Show' | 'Completed' | 'Paid' | 'Payment Pending'
-  | 'In Service' | 'Checked In' | 'Late' | 'Arriving Soon' | 'Confirmed';
+  | 'In Service' | 'Checked In' | 'Late' | 'Arriving Soon' | 'Confirmed' | 'Pending';
 
 // Derives the Phase 0.3 status-color + label from booking state. Never
 // colors by service or staff — status only, per the design constitution.
@@ -33,6 +33,11 @@ export function bookingStatusColor(b: BookingLike): { color: string; label: Stat
   if (minutesUntil < -10) return { color: Colors.statusLate,        label: 'Late' };
   if (minutesUntil < 30)  return { color: Colors.statusArrivingSoon, label: 'Arriving Soon' };
 
+  // "Confirmed" is a claim about the booking's actual `status` value, not
+  // just "nothing else applies yet" -- a booking still sitting at the
+  // auto-assigned 'pending' status (unpaid at creation, never flipped by
+  // anyone) hasn't genuinely been confirmed by the customer or the salon.
+  if (b.status === 'pending') return { color: Colors.statusArrivingSoon, label: 'Pending' };
   return { color: Colors.primary, label: 'Confirmed' };
 }
 

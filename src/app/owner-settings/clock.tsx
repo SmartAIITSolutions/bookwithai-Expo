@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { BreathingHeart } from '@/components/BreathingHeart';
+import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,7 +79,7 @@ export default function ClockKioskScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ title: 'Clock In / Payroll', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Clock In / Payroll', headerBackTitle: 'More' }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (

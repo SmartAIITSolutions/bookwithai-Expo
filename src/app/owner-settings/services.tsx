@@ -1,14 +1,23 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { listServices, createService, archiveService, getServiceStaff, setServiceStaff, Service } from '@/lib/api/ownerServices';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 export default function ServicesScreen() {
   const [loading, setLoading] = useState(true);
@@ -111,16 +120,23 @@ export default function ServicesScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ title: 'Services', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{
+        title: 'Services',
+        headerBackTitle: 'More',
+        headerStyle: { backgroundColor: '#0B0712' },
+        headerTintColor: '#F4D77A',
+        headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+      }} />
       {loading ? (
-        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {services.length === 0 && !adding && (
             <Text style={styles.emptyHint}>Your services list starts here.</Text>
           )}
           {services.map(s => (
-            <View key={s.id} style={styles.card}>
+            <BlurView key={s.id} intensity={90} tint="dark" style={styles.card}>
+              <CardOverlay />
               <View style={styles.cardTopRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.serviceName}>{s.name}</Text>
@@ -129,19 +145,19 @@ export default function ServicesScreen() {
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => handleToggleStaffPanel(s.id)} hitSlop={8} style={styles.staffBtn}>
-                  <Ionicons name="people-outline" size={16} color={Colors.primary} />
+                  <Ionicons name="people-outline" size={16} color="#F4D77A" />
                   <Text style={styles.staffBtnText}>Staff</Text>
-                  <Ionicons name={expandedServiceId === s.id ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.primary} />
+                  <Ionicons name={expandedServiceId === s.id ? 'chevron-up' : 'chevron-down'} size={14} color="#F4D77A" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleArchive(s.id)} hitSlop={8}>
-                  <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                  <Ionicons name="trash-outline" size={18} color="#F09595" />
                 </TouchableOpacity>
               </View>
 
               {expandedServiceId === s.id && (
                 <View style={styles.staffPanel}>
                   {staffLoading ? (
-                    <BreathingHeart size={18} color={Colors.primary} />
+                    <BreathingHeart size={18} color="#F4D77A" />
                   ) : staff.length === 0 ? (
                     <Text style={styles.staffPanelHint}>Add staff members first to assign them here.</Text>
                   ) : (
@@ -162,7 +178,7 @@ export default function ServicesScreen() {
                               <Ionicons
                                 name={isAssigned ? 'checkbox' : 'square-outline'}
                                 size={20}
-                                color={isAssigned ? Colors.primary : Colors.textDisabled}
+                                color={isAssigned ? '#F4D77A' : 'rgba(255,255,255,0.35)'}
                               />
                               <Text style={styles.staffRowText}>{member.name}</Text>
                             </TouchableOpacity>
@@ -170,7 +186,7 @@ export default function ServicesScreen() {
                               <TextInput
                                 style={styles.staffRateInput}
                                 placeholder="Default"
-                                placeholderTextColor={Colors.textDisabled}
+                                placeholderTextColor="rgba(255,255,255,0.4)"
                                 defaultValue={commissionRates[member.id] != null ? String(commissionRates[member.id]) : ''}
                                 onEndEditing={(e) => handleSetCommissionRate(s.id, member.id, e.nativeEvent.text)}
                                 keyboardType="decimal-pad"
@@ -183,30 +199,31 @@ export default function ServicesScreen() {
                   )}
                 </View>
               )}
-            </View>
+            </BlurView>
           ))}
 
           {adding ? (
-            <View style={styles.addCard}>
-              <TextInput style={styles.input} placeholder="Service name" placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
-              <TextInput style={styles.input} placeholder="Duration (minutes)" placeholderTextColor={Colors.textDisabled} value={duration} onChangeText={setDuration} keyboardType="number-pad" />
-              <TextInput style={styles.input} placeholder="Price ($)" placeholderTextColor={Colors.textDisabled} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+            <BlurView intensity={90} tint="dark" style={styles.addCard}>
+              <CardOverlay />
+              <TextInput style={styles.input} placeholder="Service name" placeholderTextColor="rgba(255,255,255,0.4)" value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder="Duration (minutes)" placeholderTextColor="rgba(255,255,255,0.4)" value={duration} onChangeText={setDuration} keyboardType="number-pad" />
+              <TextInput style={styles.input} placeholder="Price ($)" placeholderTextColor="rgba(255,255,255,0.4)" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
               <View style={styles.switchRow}>
                 <Text style={styles.fieldLabel}>Bookable online</Text>
-                <Switch value={bookableOnline} onValueChange={setBookableOnline} trackColor={{ true: Colors.primary }} />
+                <Switch value={bookableOnline} onValueChange={setBookableOnline} trackColor={{ true: '#F4D77A' }} />
               </View>
               <View style={styles.inlineFormActions}>
                 <TouchableOpacity onPress={() => setAdding(false)}>
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color="#F4D77A" /> : <Text style={styles.addRowText}>Save</Text>}
                 </TouchableOpacity>
               </View>
-            </View>
+            </BlurView>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
-              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Ionicons name="add" size={18} color="#F4D77A" />
               <Text style={styles.addRowText}>Add service</Text>
             </TouchableOpacity>
           )}
@@ -220,33 +237,37 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing['2xl'] },
-  emptyHint: { fontSize: 14, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  emptyHint: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.5)', marginBottom: Spacing.sm },
   card: {
-    backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, ...Shadows.subtle,
+    borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md,
   },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
-  serviceName: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  serviceMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  serviceName: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.base, color: '#FFFFFF' },
+  serviceMeta: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   staffBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  staffBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
-  staffPanel: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.xs },
-  staffPanelHint: { fontSize: 12, color: Colors.textSecondary, marginBottom: Spacing.xs },
+  staffBtnText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A' },
+  staffPanel: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)', gap: Spacing.xs },
+  staffPanelHint: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)', marginBottom: Spacing.xs },
   staffRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
   staffRowMain: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
-  staffRowText: { fontSize: 14, color: Colors.textPrimary },
+  staffRowText: { fontFamily: FontFamily.sora, fontSize: FontSize.base, color: '#FFFFFF' },
   staffRateInput: {
-    width: 64, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
-    paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, color: Colors.textPrimary, textAlign: 'right',
+    width: 64, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8, paddingVertical: 6, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF', textAlign: 'right',
   },
-  addCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.sm, ...Shadows.subtle },
+  addCard: {
+    borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md, gap: Spacing.sm,
+  },
   input: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 10, fontSize: 15, color: Colors.textPrimary,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 10, fontFamily: FontFamily.sora, fontSize: FontSize.base, color: '#FFFFFF',
   },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  fieldLabel: { fontSize: 13, color: Colors.textSecondary },
+  fieldLabel: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
-  addRowText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  addRowText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#F4D77A' },
   inlineFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg, paddingTop: 2 },
-  cancelText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
+  cancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: 'rgba(255,255,255,0.6)' },
 });

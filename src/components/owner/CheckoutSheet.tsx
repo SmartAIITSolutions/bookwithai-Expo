@@ -1,5 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, Share, Modal, Pressable } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine } from '@/lib/api/ownerCheckout';
@@ -8,11 +10,18 @@ import { validateGiftCard } from '@/lib/api/giftCards';
 import { listProducts, Product } from '@/lib/api/ownerProducts';
 import { listServices, Service } from '@/lib/api/ownerServices';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function money(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 interface CheckoutSheetProps {
   booking: OwnerBooking | null;
@@ -70,7 +79,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         listProducts(),
         listServices(),
       ]);
-      console.log('[DIAG] CheckoutSheet: load() result', { previewOk: previewResult.ok, previewError: !previewResult.ok ? previewResult.error : undefined });
       if (previewResult.ok) setPreview(previewResult.data);
       if (productsResult.ok) setCatalog(productsResult.data.data);
       if (servicesResult.ok) setServices(servicesResult.data.data.filter(s => s.active && s.id !== booking.service_id));
@@ -90,7 +98,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     if (!booking || !preview) {
       return (
         <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="60%">
-          <View style={styles.centered}><ActivityIndicator color={Colors.primary} /></View>
+          <View style={styles.centered}><ActivityIndicator color="#F4D77A" /></View>
         </SheetModal>
       );
     }
@@ -206,11 +214,11 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             {upgradedService ? (
               <View style={styles.tenderRow}>
                 <Text style={styles.tenderText}>Upgraded to {upgradedService.name} — {money(upgradedService.price_cents)}</Text>
-                <TouchableOpacity onPress={() => setUpgradedService(null)}><Ionicons name="close" size={16} color={Colors.error} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setUpgradedService(null)}><Ionicons name="close" size={16} color="#F09595" /></TouchableOpacity>
               </View>
             ) : (
               <TouchableOpacity style={styles.addRow} onPress={() => setShowServicePicker(v => !v)}>
-                <Ionicons name="arrow-up-circle-outline" size={16} color={Colors.primary} />
+                <Ionicons name="arrow-up-circle-outline" size={16} color="#F4D77A" />
                 <Text style={styles.linkText}>Upgrade service</Text>
               </TouchableOpacity>
             )}
@@ -255,45 +263,47 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             <View style={styles.chipRow}>
               {[18, 20, 25].map(pct => (
                 <TouchableOpacity key={pct} style={[styles.chip, tipCents === Math.round(subtotal * pct / 100) && styles.chipActive]} onPress={() => setTipCents(Math.round(subtotal * pct / 100))}>
-                  <Text style={styles.chipText}>{pct}%</Text>
+                  <Text style={[styles.chipText, tipCents === Math.round(subtotal * pct / 100) && styles.chipTextActive]}>{pct}%</Text>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity style={[styles.chip, tipCents === 0 && styles.chipActive]} onPress={() => setTipCents(0)}>
-                <Text style={styles.chipText}>None</Text>
+                <Text style={[styles.chipText, tipCents === 0 && styles.chipTextActive]}>None</Text>
               </TouchableOpacity>
             </View>
           </Section>
 
-          <View style={styles.totalsCard}>
+          <BlurView intensity={90} tint="dark" style={styles.totalsCard}>
+            <CardOverlay />
             <TotalRow label="Subtotal" value={subtotal} />
             <TotalRow label="Discount" value={-discountCents} />
             <TotalRow label={preview.tax.label} value={taxCents} />
             <TotalRow label="Tip" value={tipCents} />
             <TotalRow label="Total" value={total} bold />
-            <TotalRow label="Remaining" value={remaining} bold color={remaining === 0 ? Colors.success : Colors.error} />
-          </View>
+            <TotalRow label="Remaining" value={remaining} bold color={remaining === 0 ? '#4ADE80' : '#F09595'} />
+          </BlurView>
 
           <Section title="Payment">
             {tenders.map((t, i) => (
               <View key={i} style={styles.tenderRow}>
                 <Text style={styles.tenderText}>{t.method} — {money(t.amount_cents)}</Text>
                 <TouchableOpacity onPress={() => setTenders(list => list.filter((_, idx) => idx !== i))}>
-                  <Ionicons name="close" size={16} color={Colors.error} />
+                  <Ionicons name="close" size={16} color="#F09595" />
                 </TouchableOpacity>
               </View>
             ))}
             {addingTender ? (
-              <View style={styles.addCard}>
+              <BlurView intensity={90} tint="dark" style={styles.addCard}>
+                <CardOverlay />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {(['cash', 'card', 'venmo', 'zelle', 'cashapp', 'gift_card', 'store_credit', 'other'] as const).map(m => (
                     <TouchableOpacity key={m} style={[styles.chip, tenderMethod === m && styles.chipActive]} onPress={() => setTenderMethod(m)}>
-                      <Text style={styles.chipText}>{m}</Text>
+                      <Text style={[styles.chipText, tenderMethod === m && styles.chipTextActive]}>{m}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
                 {tenderMethod === 'gift_card' && (
                   <View style={styles.giftRow}>
-                    <TextInput style={[styles.input, { flex: 1 }]} placeholder="Gift card code" placeholderTextColor={Colors.textDisabled} value={giftCode} onChangeText={setGiftCode} autoCapitalize="characters" />
+                    <TextInput style={[styles.input, { flex: 1 }]} placeholder="Gift card code" placeholderTextColor="rgba(255,255,255,0.4)" value={giftCode} onChangeText={setGiftCode} autoCapitalize="characters" />
                     <TouchableOpacity onPress={handleValidateGift}><Text style={styles.linkText}>Check</Text></TouchableOpacity>
                   </View>
                 )}
@@ -303,15 +313,15 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                 {tenderMethod === 'store_credit' && (
                   <Text style={styles.hint}>Available: {money(storeCreditBalance)}</Text>
                 )}
-                <TextInput style={styles.input} placeholder="Amount ($)" placeholderTextColor={Colors.textDisabled} value={tenderAmount} onChangeText={setTenderAmount} keyboardType="decimal-pad" />
+                <TextInput style={styles.input} placeholder="Amount ($)" placeholderTextColor="rgba(255,255,255,0.4)" value={tenderAmount} onChangeText={setTenderAmount} keyboardType="decimal-pad" />
                 <View style={styles.inlineActions}>
                   <TouchableOpacity onPress={() => setAddingTender(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                   <TouchableOpacity onPress={addTender}><Text style={styles.linkText}>Add</Text></TouchableOpacity>
                 </View>
-              </View>
+              </BlurView>
             ) : (
               <TouchableOpacity style={styles.addRow} onPress={() => setAddingTender(true)}>
-                <Ionicons name="add" size={16} color={Colors.primary} />
+                <Ionicons name="add" size={16} color="#F4D77A" />
                 <Text style={styles.linkText}>Add payment method</Text>
               </TouchableOpacity>
             )}
@@ -320,7 +330,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
           {preview.rebook_suggestion && (
             <Section title="Rebook">
               <TouchableOpacity style={styles.rebookCard} onPress={() => setBookNext(v => !v)}>
-                <Ionicons name={bookNext ? 'checkbox' : 'square-outline'} size={18} color={Colors.primary} />
+                <Ionicons name={bookNext ? 'checkbox' : 'square-outline'} size={18} color="#F4D77A" />
                 <Text style={styles.rebookText}>
                   Suggest next visit — {new Date(preview.rebook_suggestion.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (usually every {preview.rebook_suggestion.interval_days} days)
                 </Text>
@@ -330,13 +340,13 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
           <Section title="Receipt">
             <View style={styles.chipRow}>
-              <TouchableOpacity style={[styles.chip, sendEmail && styles.chipActive]} onPress={() => setSendEmail(v => !v)}><Text style={styles.chipText}>Email</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.chip, sendSms && styles.chipActive]} onPress={() => setSendSms(v => !v)}><Text style={styles.chipText}>SMS</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.chip, sendEmail && styles.chipActive]} onPress={() => setSendEmail(v => !v)}><Text style={[styles.chipText, sendEmail && styles.chipTextActive]}>Email</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.chip, sendSms && styles.chipActive]} onPress={() => setSendSms(v => !v)}><Text style={[styles.chipText, sendSms && styles.chipTextActive]}>SMS</Text></TouchableOpacity>
             </View>
           </Section>
 
           <TouchableOpacity style={[styles.primaryButton, remaining !== 0 && styles.primaryButtonDisabled]} onPress={handleSubmit} disabled={submitting || remaining !== 0}>
-            {submitting ? <ActivityIndicator color={Colors.textOnPrimary} /> : <Text style={styles.primaryButtonText}>Complete Checkout</Text>}
+            {submitting ? <ActivityIndicator color="#09000F" /> : <Text style={styles.primaryButtonText}>Complete Checkout</Text>}
           </TouchableOpacity>
         </ScrollView>
       </SheetModal>
@@ -378,44 +388,72 @@ function TotalRow({ label, value, bold, color }: { label: string; value: number;
 
 const styles = StyleSheet.create({
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheetPanel: { backgroundColor: Colors.card, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm },
-  grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Spacing.xs },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheetPanel: { backgroundColor: '#0B0712', borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingTop: Spacing.sm },
+  grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(212,175,55,0.4)', alignSelf: 'center', marginBottom: Spacing.xs },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 200 },
   content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing['2xl'] },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
-  subTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: Colors.textSecondary, marginBottom: 4 },
+  sectionTitle: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.lg, color: '#FFFFFF' },
+  subTitle: {
+    fontFamily: FontFamily.soraSemiBold, fontSize: 12, textTransform: 'uppercase',
+    letterSpacing: 0.6, color: '#F4D77A', marginBottom: 4,
+  },
   section: { gap: Spacing.xs },
-  checklistOk: { fontSize: 13.5, color: Colors.success, fontWeight: '600' },
-  checklistCard: { backgroundColor: Colors.backgroundLavender, borderRadius: BorderRadius.sm, padding: Spacing.sm, gap: 4 },
-  checklistItem: { fontSize: 13, color: Colors.textPrimary },
-  lineItem: { fontSize: 13.5, color: Colors.textPrimary, marginBottom: 2 },
+  checklistOk: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#4ADE80' },
+  checklistCard: {
+    backgroundColor: 'rgba(251,191,36,0.08)', borderRadius: BorderRadius.sm, padding: Spacing.sm, gap: 4,
+    borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)',
+  },
+  checklistItem: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FBBF24' },
+  lineItem: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF', marginBottom: 2 },
   chipRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  chip: { paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
-  totalsCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 4, ...Shadows.subtle },
+  chip: {
+    paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
+  },
+  chipActive: { backgroundColor: '#F4D77A', borderColor: '#F4D77A' },
+  chipText: { fontFamily: FontFamily.soraSemiBold, fontSize: 12.5, color: '#FFFFFF' },
+  chipTextActive: { color: '#09000F' },
+  totalsCard: {
+    borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md, gap: 4,
+  },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  totalLabel: { fontSize: 13.5, color: Colors.textSecondary },
-  totalValue: { fontSize: 13.5, color: Colors.textPrimary },
-  totalBold: { fontWeight: '800', fontSize: 15 },
-  tenderRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  tenderText: { fontSize: 13.5, color: Colors.textPrimary, textTransform: 'capitalize' },
-  addCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.sm, padding: Spacing.sm, gap: Spacing.xs, ...Shadows.subtle },
+  totalLabel: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)' },
+  totalValue: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
+  totalBold: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base },
+  tenderRow: {
+    flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.15)',
+  },
+  tenderText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF', textTransform: 'capitalize' },
+  addCard: {
+    borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm, gap: Spacing.xs,
+  },
   giftRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  input: { borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 8, fontSize: 14, color: Colors.textPrimary },
-  hint: { fontSize: 12, color: Colors.textSecondary },
+  input: {
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 8, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF',
+  },
+  hint: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)' },
   inlineActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg },
-  cancelText: { fontSize: 13.5, color: Colors.textSecondary, fontWeight: '600' },
-  linkText: { fontSize: 13.5, color: Colors.primary, fontWeight: '700' },
+  cancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)' },
+  linkText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rebookCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.card, borderRadius: BorderRadius.sm, padding: Spacing.sm, ...Shadows.subtle },
-  rebookText: { flex: 1, fontSize: 13, color: Colors.textPrimary },
-  primaryButton: { backgroundColor: Colors.buttonPrimaryBg, borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center', ...Shadows.button },
-  primaryButtonDisabled: { backgroundColor: Colors.buttonDisabledBg },
-  primaryButtonText: { color: Colors.buttonPrimaryText, fontSize: 15, fontWeight: '700' },
+  rebookCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderRadius: 20,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm,
+  },
+  rebookText: { flex: 1, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
+  primaryButton: { backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center' },
+  primaryButtonDisabled: { backgroundColor: 'rgba(212,175,55,0.3)' },
+  primaryButtonText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: FontSize.base },
   doneRow: { alignItems: 'center', paddingTop: Spacing.sm },
-  doneText: { fontSize: 14, color: Colors.textSecondary },
-  successTitle: { fontSize: 18, fontWeight: '800', color: Colors.success },
-  successLine: { fontSize: 14, color: Colors.textPrimary },
+  doneText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)' },
+  successTitle: {
+    fontFamily: FontFamily.frauncesBold, fontSize: FontSize.lg, color: '#4ADE80',
+    textShadowColor: 'rgba(74,222,128,0.5)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10,
+  },
+  successLine: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
 });
