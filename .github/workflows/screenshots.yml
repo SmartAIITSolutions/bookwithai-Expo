@@ -21,7 +21,7 @@ jobs:
       - name: Build iOS Simulator app via EAS (local)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli build --local --platform ios --profile ios-simulator --non-interactive --output ./bwa-simulator.tar.gz --verbose-fastlane
+        run: npx eas-cli build --local --platform ios --profile ios-simulator --non-interactive --output ./bwa-simulator.tar.gz --verbose-logs
 
       - name: Extract .app bundle
         run: |
