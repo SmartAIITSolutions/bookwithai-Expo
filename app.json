@@ -115,7 +115,8 @@
           "color": "#5B2EFF"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
