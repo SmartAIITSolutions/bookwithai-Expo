@@ -1,16 +1,17 @@
 /**
  * Auth Welcome Screen
- * Options: Google Sign In, Email + Password, Magic Link
+ * Options: Sign in with Apple, Google Sign In, Email + Password, Magic Link
  */
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable,
-  Alert, Image,
+  Alert, Image, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,7 +29,7 @@ import Reanimated, {
 import { supabase } from '@/lib/supabase';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
-const BUTTON_COUNT = 4;
+const BUTTON_COUNT = 5;
 const CYCLE_DURATION = 4000;
 
 function useBreatheStyle(cycle: SharedValue<number>, index: number) {
@@ -87,6 +88,13 @@ function GoogleGIcon({ size = 20 }: { size?: number }) {
 
 export default function AuthWelcomeScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
+  }, []);
 
   const cycle = useSharedValue(0);
   useEffect(() => {
@@ -97,10 +105,38 @@ export default function AuthWelcomeScreen() {
     );
   }, [cycle]);
 
-  const googleBreathe = useBreatheStyle(cycle, 0);
-  const createBreathe = useBreatheStyle(cycle, 1);
-  const signInBreathe = useBreatheStyle(cycle, 2);
-  const magicBreathe = useBreatheStyle(cycle, 3);
+  const appleBreathe = useBreatheStyle(cycle, 0);
+  const googleBreathe = useBreatheStyle(cycle, 1);
+  const createBreathe = useBreatheStyle(cycle, 2);
+  const signInBreathe = useBreatheStyle(cycle, 3);
+  const magicBreathe = useBreatheStyle(cycle, 4);
+
+  // Guideline 4.8 -- offered because Google Sign-In is also offered.
+  // Supabase's native-token flow (not the web-redirect OAuth flow used for
+  // Google) since expo-apple-authentication already produces a real Apple
+  // identity token on-device, no browser round-trip needed.
+  async function handleAppleSignIn() {
+    try {
+      setAppleLoading(true);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) throw new Error('No identity token returned from Apple.');
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+      if (error) throw error;
+    } catch (e: any) {
+      if (e.code === 'ERR_REQUEST_CANCELED') return; // user dismissed the Apple sheet, not an error
+      Alert.alert('Sign in failed', e.message || 'Could not sign in with Apple.');
+    } finally {
+      setAppleLoading(false);
+    }
+  }
 
   async function handleGoogleSignIn() {
     try {
@@ -158,6 +194,28 @@ export default function AuthWelcomeScreen() {
 
         {/* Auth options */}
         <View style={styles.options}>
+
+          {/* Apple -- shown above Google, since Apple requires Sign in with
+              Apple to be at least as prominent as any other third-party
+              login when one is offered. Real Apple button component (not a
+              custom-styled Pressable), matching Apple's own HIG. */}
+          {appleAvailable && (
+            <Reanimated.View style={appleBreathe}>
+              {appleLoading ? (
+                <View style={styles.appleLoadingBtn}><BreathingHeart size={18} color="#09000F" /></View>
+              ) : (
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                  cornerRadius={BorderRadius.lg}
+                  style={styles.appleBtn}
+                  onPress={handleAppleSignIn}
+                />
+              )}
+            </Reanimated.View>
+          )}
+
+          {appleAvailable && <OrDivider />}
 
           {/* Google */}
           <Reanimated.View style={googleBreathe}>
@@ -260,6 +318,19 @@ const styles = StyleSheet.create({
   },
 
   options: { gap: Spacing.md },
+
+  appleBtn: {
+    width: '100%',
+    height: 50,
+  },
+  appleLoadingBtn: {
+    width: '100%',
+    height: 50,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   googleBtn: {
     flexDirection: 'row',

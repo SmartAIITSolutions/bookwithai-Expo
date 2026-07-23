@@ -15,17 +15,25 @@ import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 // which does not accept an email/support-flow-only process (like the
 // previous version of this screen, a link to a web page) for a
 // non-regulated app. Typed "DELETE" confirmation matches the app's
-// no-Alert.prompt rule (inline TextInput instead).
+// no-Alert.prompt rule (inline TextInput instead). Shared between
+// customer and owner accounts -- an owner deleting their login does NOT
+// cascade-delete their salon (agency_clients/staff/bookings/customers,
+// a separate table with no delete cascade to profiles), so they need a
+// much stronger warning: this locks them out of that whole business
+// permanently, not just their own personal profile.
 export default function DeleteAccountScreen() {
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
+  const isOwner = role === 'owner';
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const canDelete = confirmText.trim().toUpperCase() === 'DELETE';
 
   function handleDelete() {
     Alert.alert(
-      'Delete your account?',
-      'This permanently removes your account and personal information. This cannot be undone.',
+      isOwner ? 'Delete your owner account?' : 'Delete your account?',
+      isOwner
+        ? "This permanently removes your login. Your salon's staff, services, bookings, and customer history are NOT deleted, but you will lose all access to manage them. This cannot be undone."
+        : 'This permanently removes your account and personal information. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -71,24 +79,42 @@ export default function DeleteAccountScreen() {
               />
               <Text style={styles.sectionTitle}>What gets deleted</Text>
               <Text style={styles.sectionDesc}>
-                Your account, name, email, phone number, and saved profile details are permanently
+                Your login, name, email, phone number, and saved profile details are permanently
                 removed from Book With AI.
               </Text>
             </BlurView>
 
-            <BlurView intensity={90} tint="dark" style={styles.section}>
-              <LinearGradient
-                colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
-                style={StyleSheet.absoluteFill}
-              />
-              <Text style={styles.sectionTitle}>What salons keep, and why</Text>
-              <Text style={styles.sectionDesc}>
-                Salons you've booked with may be legally required to retain basic transaction
-                records (like appointment and payment history) for accounting, tax, and
-                fraud-prevention purposes. This is retained by the salon independently of your
-                Book With AI account and is not accessible to you or us once your account is deleted.
-              </Text>
-            </BlurView>
+            {isOwner ? (
+              <BlurView intensity={90} tint="dark" style={[styles.section, styles.sectionWarning]}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={[styles.sectionTitle, styles.sectionTitleWarning]}>What this does NOT delete</Text>
+                <Text style={styles.sectionDesc}>
+                  Your salon — its staff, services, bookings, and customer history — is not deleted
+                  when you delete your login. That data stays intact for accounting, tax, and
+                  fraud-prevention purposes, but once your login is gone, neither you nor anyone
+                  else will be able to sign in and manage it. If you want to hand your salon off to
+                  someone else, or shut it down properly first, contact support before deleting your
+                  account.
+                </Text>
+              </BlurView>
+            ) : (
+              <BlurView intensity={90} tint="dark" style={styles.section}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.sectionTitle}>What salons keep, and why</Text>
+                <Text style={styles.sectionDesc}>
+                  Salons you've booked with may be legally required to retain basic transaction
+                  records (like appointment and payment history) for accounting, tax, and
+                  fraud-prevention purposes. This is retained by the salon independently of your
+                  Book With AI account and is not accessible to you or us once your account is deleted.
+                </Text>
+              </BlurView>
+            )}
 
             <BlurView intensity={90} tint="dark" style={styles.section}>
               <LinearGradient
@@ -144,10 +170,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.2)',
     gap: Spacing.sm,
   },
+  sectionWarning: {
+    borderColor: 'rgba(226,74,74,0.5)',
+    backgroundColor: 'rgba(226,74,74,0.08)',
+  },
   sectionTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
     color: '#F4D77A',
+  },
+  sectionTitleWarning: {
+    color: '#F09595',
   },
   sectionDesc: {
     fontFamily: FontFamily.sora,

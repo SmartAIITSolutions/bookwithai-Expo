@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { View, Text, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
 import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
@@ -11,33 +14,34 @@ import { WalkInSheet } from '@/components/owner/WalkInSheet';
 import { TimelineCalendar } from '@/components/owner/TimelineCalendar';
 import { MonthView } from '@/components/owner/MonthView';
 import { MultiDayView } from '@/components/owner/MultiDayView';
-import { TimelineStripView } from '@/components/owner/TimelineStripView';
 import { useOwnerBookings } from '@/lib/calendar/useOwnerBookings';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { getBusiness, Business } from '@/lib/api/ownerBusiness';
-import { OwnerBooking, bulkCancelBookings, bulkShiftBookings } from '@/lib/api/ownerBookings';
-import { dayScheduleFor } from '@/lib/calendar/timeGrid';
-import { findEmptySpaces, computeCalendarAlerts } from '@/lib/calendar/calendarInsights';
+import { OwnerBooking } from '@/lib/api/ownerBookings';
+import { dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { ErrorState } from '@/components/ErrorState';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 
-function toDateKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+const toDateKey = localDateKey;
+const gridIntervalKey = (businessId: string) => `calendar_grid_interval_${businessId}`;
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
 }
 
-function formatMinutesAsTime(totalMinutes: number): string {
-  const h24 = Math.floor(totalMinutes / 60) % 24;
-  const m = totalMinutes % 60;
-  const period = h24 < 12 ? 'AM' : 'PM';
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
-}
-
-type CalendarMode = '3day' | 'week' | 'month' | 'agenda' | 'timeline';
+// The old separate "Timeline" mode (a compact single-row day overview) was
+// dropped once the Today grid got a real live "now" line -- that covered
+// the same "where are we right now" need this mode existed for.
+type CalendarMode = '3day' | 'week' | 'month' | 'agenda';
 const MODES: { key: CalendarMode; label: string }[] = [
-  { key: '3day', label: '3-Day' }, { key: 'week', label: 'Week' },
-  { key: 'month', label: 'Month' }, { key: 'agenda', label: 'Today' }, { key: 'timeline', label: 'Timeline' },
+  { key: 'agenda', label: 'Today' }, { key: '3day', label: '3-Day' }, { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
 ];
 
 // Day view (Phase 0.3 default) — full hour-grid timeline with drag-to-move,
@@ -50,9 +54,12 @@ export default function OwnerCalendarScreen() {
   const [business, setBusiness] = useState<Business | null>(null);
   const [businessError, setBusinessError] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | 'all'>('all');
+  const [gridInterval, setGridInterval] = useState<15 | 30 | 60>(60);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Set when a specific empty grid slot was tapped, so the Walk-In sheet
+  // books for that exact time/staff instead of "earliest available now".
+  // Cleared before any generic Walk-In entry point (header/nav button).
+  const [walkInPrefill, setWalkInPrefill] = useState<{ startsAt: Date; staffId: string | null; outsideHours?: boolean } | null>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
   const walkInRef = useRef<BottomSheetModal>(null);
   const checkoutRef = useRef<CheckoutSheetHandle>(null);
@@ -83,6 +90,32 @@ export default function OwnerCalendarScreen() {
     loadBusiness();
   }, [loadBusiness]);
 
+  // A single-staff salon has no real use for "All" vs. the one person --
+  // default straight to them instead of the generic "All" chip. Only
+  // auto-selects once so it doesn't fight a manual switch back to "All"
+  // later (e.g. after staff are added).
+  const staffAutoSelected = useRef(false);
+  useEffect(() => {
+    if (staff.length === 1 && !staffAutoSelected.current) {
+      staffAutoSelected.current = true;
+      setSelectedStaffId(staff[0].id);
+    }
+  }, [staff]);
+
+  // Remember the chosen grid interval per salon so it survives a reload,
+  // instead of always resetting to the 1h default.
+  useEffect(() => {
+    if (!business) return;
+    AsyncStorage.getItem(gridIntervalKey(business.id)).then(v => {
+      if (v === '15' || v === '30' || v === '60') setGridInterval(Number(v) as 15 | 30 | 60);
+    });
+  }, [business?.id]);
+
+  function handleSetGridInterval(mins: 15 | 30 | 60) {
+    setGridInterval(mins);
+    if (business) AsyncStorage.setItem(gridIntervalKey(business.id), String(mins));
+  }
+
   function shiftDay(delta: number) {
     const next = new Date(date);
     next.setDate(next.getDate() + delta);
@@ -90,10 +123,6 @@ export default function OwnerCalendarScreen() {
   }
 
   function openBooking(b: OwnerBooking) {
-    if (selectMode) {
-      setSelectedIds(ids => ids.includes(b.id) ? ids.filter(x => x !== b.id) : [...ids, b.id]);
-      return;
-    }
     setSelectedBooking(b);
     sheetRef.current?.present();
   }
@@ -103,13 +132,28 @@ export default function OwnerCalendarScreen() {
     setMode('agenda');
   }
 
-  function handleFillSlotOnDate(d: Date) {
-    if (toDateKey(d) === dateKey) {
-      walkInRef.current?.present();
-    } else {
-      setDate(d);
-      setMode('agenda');
-    }
+  function handleFillSlotOnDate(d: Date, outsideHours?: boolean) {
+    // Load that day's bookings (needed for accurate conflict-checking if
+    // it's not the currently-loaded day) and book directly -- previously
+    // this only opened Walk-In when the tapped day happened to already
+    // match the loaded date, and silently just switched to Day view for
+    // every other column in the Week grid instead of booking.
+    if (toDateKey(d) !== dateKey) setDate(d);
+    // Week/3-Day's columns merge all staff together, so there's no
+    // specific staff to attribute the tap to -- WalkInSheet will still
+    // pick whichever staff is actually free at this exact time.
+    setWalkInPrefill({ startsAt: d, staffId: null, outsideHours });
+    walkInRef.current?.present();
+  }
+
+  function openWalkInFor(startsAt: Date, staffId: string | null, outsideHours?: boolean) {
+    setWalkInPrefill({ startsAt, staffId, outsideHours });
+    walkInRef.current?.present();
+  }
+
+  function openWalkInGeneric() {
+    setWalkInPrefill(null);
+    walkInRef.current?.present();
   }
 
   const handleChanged = useCallback(() => {
@@ -130,25 +174,9 @@ export default function OwnerCalendarScreen() {
 
   const handleWalkInBooked = useCallback(() => {
     walkInRef.current?.dismiss();
+    setWalkInPrefill(null);
     reload();
   }, [reload]);
-
-  async function handleBulkCancel() {
-    Alert.alert('Cancel selected appointments?', `${selectedIds.length} appointment(s) will be cancelled.`, [
-      { text: 'Keep them', style: 'cancel' },
-      { text: 'Cancel all', style: 'destructive', onPress: async () => {
-        const result = await bulkCancelBookings(selectedIds);
-        if (result.ok) { setSelectedIds([]); setSelectMode(false); reload(); }
-        else Alert.alert('Could not cancel', result.error);
-      }},
-    ]);
-  }
-
-  async function handleBulkShift(minutes: number) {
-    const result = await bulkShiftBookings(selectedIds, minutes);
-    if (result.ok) { setSelectedIds([]); setSelectMode(false); reload(); }
-    else Alert.alert('Could not shift', result.error);
-  }
 
   const visibleBookings = selectedStaffId === 'all'
     ? bookings
@@ -156,17 +184,48 @@ export default function OwnerCalendarScreen() {
 
   const isToday = toDateKey(new Date()) === dateKey;
   const schedule = business ? dayScheduleFor(business.week_schedule, date) : null;
-  const emptySpaces = schedule ? findEmptySpaces(visibleBookings, schedule) : [];
-  const alerts = schedule ? computeCalendarAlerts(visibleBookings, schedule) : [];
+
+  const chipRow = (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeRow} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 6, alignItems: 'center' }}>
+      {MODES.map(m => (
+        <Pressable key={m.key} style={[styles.modeChip, mode === m.key && styles.modeChipActive]} onPress={() => setMode(m.key)}>
+          <Text style={[styles.modeChipText, mode === m.key && styles.modeChipTextActive]}>{m.label}</Text>
+        </Pressable>
+      ))}
+
+      {(mode === 'agenda' || mode === '3day' || mode === 'week') && (
+        <View style={styles.rowDivider} />
+      )}
+      {(mode === 'agenda' || mode === '3day' || mode === 'week') && ([15, 30, 60] as const).map(mins => (
+        <Pressable
+          key={mins}
+          style={[styles.intervalChip, gridInterval === mins && styles.intervalChipActive]}
+          onPress={() => handleSetGridInterval(mins)}
+        >
+          <Text style={[styles.intervalChipText, gridInterval === mins && styles.intervalChipTextActive]}>
+            {mins === 60 ? '1h' : `${mins}m`}
+          </Text>
+        </Pressable>
+      ))}
+
+      {mode === 'agenda' && <View style={styles.rowDivider} />}
+      {mode === 'agenda' && (
+        <>
+          <StaffChip label="All" active={selectedStaffId === 'all'} onPress={() => setSelectedStaffId('all')} />
+          {staff.map(s => (
+            <StaffChip key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => setSelectedStaffId(s.id)} />
+          ))}
+        </>
+      )}
+    </ScrollView>
+  );
 
   return (
     <View style={styles.screen}>
+      <DualBreathingBackground />
       <OwnerScreenHeader
         title="Calendar"
-        onCreatePress={() => {
-          console.log('[DIAG] Calendar header + pressed', { walkInRefIsNull: walkInRef.current == null });
-          walkInRef.current?.present();
-        }}
+        onCreatePress={openWalkInGeneric}
         onNotificationsPress={() => router.push('/owner-notifications' as never)}
       />
 
@@ -176,85 +235,68 @@ export default function OwnerCalendarScreen() {
         <Pressable onPress={() => shiftDay(1)}><Text style={styles.dateNav}>Tomorrow →</Text></Pressable>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeRow} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 6, alignItems: 'center' }}>
-        {MODES.map(m => (
-          <Pressable key={m.key} style={[styles.modeChip, mode === m.key && styles.modeChipActive]} onPress={() => setMode(m.key)}>
-            <Text style={[styles.modeChipText, mode === m.key && styles.modeChipTextActive]}>{m.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {mode === 'agenda' && (
-        <View style={styles.staffSelectorRow}>
-          <StaffChip label="All" active={selectedStaffId === 'all'} onPress={() => setSelectedStaffId('all')} />
-          {staff.map(s => (
-            <StaffChip key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => setSelectedStaffId(s.id)} />
-          ))}
-          <Pressable style={styles.walkInButton} onPress={() => walkInRef.current?.present()}>
-            <Ionicons name="walk-outline" size={14} color={P.accentGold} />
-            <Text style={styles.walkInText}>Walk-In</Text>
-          </Pressable>
-          <Pressable style={styles.selectButton} onPress={() => { setSelectMode(v => !v); setSelectedIds([]); }}>
-            <Text style={styles.selectButtonText}>{selectMode ? 'Done' : 'Select'}</Text>
-          </Pressable>
+      {/* Mode switcher, interval picker, and staff filter all share one
+          horizontally-scrollable row -- previously up to 3 stacked rows,
+          which ate too much vertical space above the actual grid.
+          3-Day mode wraps this row in a glass panel (Option B) instead of
+          leaving it directly on the animated background (Option A, used
+          everywhere else) -- a live side-by-side comparison of the two
+          chrome treatments while the grid itself stays opaque either way. */}
+      {mode === '3day' && (
+        <View style={styles.chromeGlassWrap}>
+          <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
+          <CardOverlay />
+          {chipRow}
         </View>
       )}
-
-      {mode === 'agenda' && alerts.length > 0 && (
-        <View style={styles.alertsWrap}>
-          {alerts.map((a, i) => (
-            <View key={i} style={[styles.alertBanner, a.severity === 'warning' && styles.alertBannerWarning]}>
-              <Text style={styles.alertText}>{a.message}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {mode === 'agenda' && emptySpaces.filter(g => g.durationMinutes >= 30).length > 0 && (
-        <View style={styles.alertsWrap}>
-          {emptySpaces.filter(g => g.durationMinutes >= 30).slice(0, 2).map((g, i) => (
-            <Pressable key={i} style={styles.gapBanner} onPress={() => walkInRef.current?.present()}>
-              <Text style={styles.gapText}>{Math.round(g.durationMinutes / 60 * 10) / 10}h opening at {formatMinutesAsTime(g.startMinutes)} — worth filling. Tap to book.</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+      {mode !== '3day' && chipRow}
 
       {businessError ? (
         <ErrorState message={`Couldn't load your business settings: ${businessError}`} onRetry={loadBusiness} />
       ) : loading || !business || !schedule ? (
         <View style={styles.centered}><BreathingHeart size={40} color={P.accentGold} /></View>
       ) : mode === 'agenda' ? (
-        <TimelineCalendar
-          date={date}
-          bookings={visibleBookings}
-          staff={staff}
-          selectedStaffId={selectedStaffId}
-          weekSchedule={business.week_schedule}
-          onOpenBooking={openBooking}
-          onChanged={reload}
-          onFillSlot={() => walkInRef.current?.present()}
-        />
-      ) : mode === 'timeline' ? (
-        <TimelineStripView bookings={visibleBookings} schedule={schedule} onOpen={openBooking} />
+        // Option A: the grid sits on a fully opaque panel, so the animated
+        // background only shows in the margins/chrome above -- the working
+        // area (gridlines, tiny drag targets, avatar chips) reads exactly
+        // as legibly as before instead of the background bleeding through
+        // every empty cell.
+        <View style={styles.opaqueGridPanel}>
+          <TimelineCalendar
+            date={date}
+            bookings={visibleBookings}
+            staff={staff}
+            selectedStaffId={selectedStaffId}
+            weekSchedule={business.week_schedule}
+            onOpenBooking={openBooking}
+            onChanged={reload}
+            onFillSlot={openWalkInFor}
+            intervalMinutes={gridInterval}
+          />
+        </View>
       ) : mode === 'month' ? (
         <MonthView month={date} weekSchedule={business.week_schedule} onOpenBooking={openBooking} onViewFullDay={handleViewFullDay} />
-      ) : (
-        <MultiDayView startDate={date} numDays={mode === 'week' ? 7 : 3} weekSchedule={business.week_schedule} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} />
-      )}
-
-      {selectMode && selectedIds.length > 0 && (
-        <View style={styles.bulkBar}>
-          <Text style={styles.bulkCount}>{selectedIds.length} selected</Text>
-          <Pressable onPress={() => handleBulkShift(15)}><Text style={styles.bulkAction}>+15 min</Text></Pressable>
-          <Pressable onPress={() => handleBulkShift(-15)}><Text style={styles.bulkAction}>-15 min</Text></Pressable>
-          <Pressable onPress={handleBulkCancel}><Text style={[styles.bulkAction, { color: P.error }]}>Cancel all</Text></Pressable>
+      ) : mode === '3day' ? (
+        // Option B: same opaque grid panel as Today, but the chrome row
+        // above got the glass treatment instead (see the merged chip row).
+        <View style={styles.opaqueGridPanel}>
+          <MultiDayView startDate={date} numDays={3} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} intervalMinutes={gridInterval} />
         </View>
+      ) : (
+        <MultiDayView startDate={date} numDays={7} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} intervalMinutes={gridInterval} />
       )}
 
       <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={handleChanged} onReadyForCheckout={handleReadyForCheckout} />
       <CheckoutSheet ref={checkoutRef} booking={selectedBooking} onDone={handleCheckoutDone} />
-      <WalkInSheet ref={walkInRef} staff={staff} todaysBookings={bookings} onBooked={handleWalkInBooked} />
+      <WalkInSheet
+        ref={walkInRef}
+        staff={staff}
+        todaysBookings={bookings}
+        onBooked={handleWalkInBooked}
+        initialTime={walkInPrefill?.startsAt ?? null}
+        initialStaffId={walkInPrefill?.staffId}
+        outsideBusinessHours={walkInPrefill?.outsideHours}
+      />
     </View>
   );
 }
@@ -276,49 +318,32 @@ const styles = StyleSheet.create({
   },
   dateNav: { fontSize: 13, color: P.accentGold, fontWeight: '600' },
   dateLabel: { fontSize: 15, fontWeight: '700', color: P.textPrimary },
-  modeRow: { flexGrow: 0, height: 40, marginBottom: Spacing.sm },
+  chromeGlassWrap: {
+    marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, borderRadius: BorderRadius.xl,
+    overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
+  },
+  opaqueGridPanel: { flex: 1, backgroundColor: P.background },
+  modeRow: { flexGrow: 0, height: 34, marginBottom: Spacing.sm },
   modeChip: {
-    paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.full,
     backgroundColor: P.surface, borderWidth: 1, borderColor: P.border, justifyContent: 'center',
   },
   modeChipActive: { backgroundColor: P.darkGold, borderColor: P.accentGold },
-  modeChipText: { fontSize: 12.5, lineHeight: 16, color: P.textSecondary, fontWeight: '600' },
+  modeChipText: { fontSize: 11.5, lineHeight: 14, color: P.textSecondary, fontWeight: '600' },
   modeChipTextActive: { color: P.background },
-  staffSelectorRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm, flexWrap: 'wrap',
+  rowDivider: { width: 1, height: 16, backgroundColor: P.border },
+  intervalChip: {
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.full,
+    backgroundColor: P.surface, borderWidth: 1, borderColor: P.border,
   },
+  intervalChipActive: { backgroundColor: P.darkGold, borderColor: P.accentGold },
+  intervalChipText: { fontSize: 11, color: P.textSecondary, fontWeight: '600' },
+  intervalChipTextActive: { color: P.background },
   chip: {
-    paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
     backgroundColor: P.surface, borderWidth: 1, borderColor: P.border,
   },
   chipActive: { backgroundColor: P.primaryPurple, borderColor: P.secondaryPurple },
-  chipText: { fontSize: 13, color: P.textSecondary, fontWeight: '600' },
+  chipText: { fontSize: 11.5, color: P.textSecondary, fontWeight: '600' },
   chipTextActive: { color: P.textPrimary },
-  walkInButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto',
-    paddingHorizontal: Spacing.sm, paddingVertical: 6,
-  },
-  walkInText: { fontSize: 13, color: P.accentGold, fontWeight: '700' },
-  selectButton: { paddingHorizontal: Spacing.sm, paddingVertical: 6 },
-  selectButtonText: { fontSize: 13, color: P.textSecondary, fontWeight: '700' },
-  alertsWrap: { paddingHorizontal: Spacing.lg, gap: 6, marginBottom: Spacing.sm },
-  alertBanner: {
-    backgroundColor: 'rgba(107,61,255,0.12)', borderRadius: BorderRadius.sm, padding: Spacing.sm,
-    borderWidth: 1, borderColor: 'rgba(107,61,255,0.3)',
-  },
-  alertBannerWarning: { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' },
-  alertText: { fontSize: 12.5, color: P.textPrimary },
-  gapBanner: {
-    backgroundColor: 'rgba(255,200,87,0.1)', borderRadius: BorderRadius.sm, padding: Spacing.sm,
-    borderWidth: 1, borderColor: 'rgba(255,200,87,0.3)',
-  },
-  gapText: { fontSize: 12.5, color: P.accentGold, fontWeight: '600' },
-  bulkBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg,
-    backgroundColor: P.surface, padding: Spacing.md, justifyContent: 'space-between',
-    borderTopWidth: 1, borderTopColor: P.border,
-  },
-  bulkCount: { fontSize: 13, color: P.textSecondary, fontWeight: '600' },
-  bulkAction: { fontSize: 13.5, color: P.accentGold, fontWeight: '700' },
 });

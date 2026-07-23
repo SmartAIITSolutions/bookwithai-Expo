@@ -1,4 +1,5 @@
 import { Image, useWindowDimensions } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import Reanimated, {
   Extrapolation,
   interpolate,
@@ -17,6 +18,17 @@ import Reanimated, {
 // layer is ever fully visible/breathing at a time while the other sits
 // hidden at opacity 0.
 //
+// IMPORTANT: keep the two layers at exactly half a period apart. An
+// earlier version tried to make the incoming layer's fade-in start before
+// the outgoing layer's fade-out by nudging one layer's phase off the exact
+// half-period split -- that broke the symmetry this crossfade depends on,
+// so the *other* handoff each cycle (the one moving in the opposite
+// direction) ended up starting late instead, both opacities dipping near 0
+// at the same moment -- a real, visible black flash once per period. Any
+// future attempt at that "fade-in leads fade-out" effect needs to preserve
+// exact half-period symmetry (e.g. via the shared per-layer curve itself,
+// not by staggering the two layers unevenly).
+//
 // Both layers derive their phase from a single shared `elapsed` clock fed
 // by useFrameCallback, rather than each running its own independent
 // withRepeat/withDelay timer. Two separate repeat/delay timers turned out
@@ -33,9 +45,15 @@ const ACTIVE_MS = BREATHE_MS + HOLD_MS;      // fully-opaque dwell between the t
 const HALF_PERIOD_MS = ACTIVE_MS + FADE_MS;  // = when this layer starts its own fade-out = when the other layer starts its fade-in
 const PERIOD_MS = HALF_PERIOD_MS * 2;
 
-const FADE_IN_END = FADE_MS / PERIOD_MS;               // fade-in: 0 -> 1
-const FADE_OUT_START = HALF_PERIOD_MS / PERIOD_MS;     // = 0.5, active dwell ends here
-const FADE_OUT_END = (HALF_PERIOD_MS + FADE_MS) / PERIOD_MS; // fade-out: 1 -> 0
+const START_SCALE = 0.8; // incoming layer starts noticeably shrunk, not at rest scale --
+                          // keeps the small fading-in layer visually distinct in size from
+                          // the large fading-out layer instead of the two looking like the
+                          // same-size image just crossfading in place.
+const MAX_SCALE = 1.6;
+
+const FADE_IN_END = FADE_MS / PERIOD_MS;                     // fade-in: 0 -> 1
+const FADE_OUT_START = HALF_PERIOD_MS / PERIOD_MS;           // = 0.5, active dwell ends here
+const FADE_OUT_END = (HALF_PERIOD_MS + FADE_MS) / PERIOD_MS; // fade-out: 1 -> 0, scale also finishes growing here
 
 // Smoothstep ease -- same start/end instants as a linear ramp, but the rise
 // itself eases in instead of climbing at a constant rate, which reads as a
@@ -67,10 +85,15 @@ function Layer({ elapsed, phaseOffsetMs, width, height }: {
         Extrapolation.CLAMP
       );
     }
+    // Scale keeps growing all the way through the fade-out window (instead
+    // of freezing at FADE_OUT_START) so the layer is still visibly
+    // breathing outward as it dissolves, not static-then-fading. It resets
+    // back down to the shrunk starting scale during the invisible tail,
+    // unseen since opacity is already 0 there.
     const scale = interpolate(
       t,
-      [0, FADE_OUT_START, FADE_OUT_END, 1],
-      [1, 1.6, 1.6, 1],
+      [0, FADE_OUT_END, 1],
+      [START_SCALE, MAX_SCALE, START_SCALE],
       Extrapolation.CLAMP
     );
     return { opacity, transform: [{ scale }] };
@@ -79,6 +102,20 @@ function Layer({ elapsed, phaseOffsetMs, width, height }: {
   return (
     <Reanimated.View style={[{ position: 'absolute', top: 0, left: 0, width, height, overflow: 'hidden' }, style]}>
       <Image source={require('@/assets/images/book-screen2-bg.png')} style={{ width, height }} resizeMode="contain" />
+      {/* Vignette lives inside the same scaled container as the image, so
+          it scales together with it and always feathers the image's own
+          edge -- without this, shrinking the layer below its rest scale
+          (see START_SCALE) reveals the image's hard rectangular boundary
+          floating against the dark screen behind it. */}
+      <Svg width={width} height={height} style={{ position: 'absolute', top: 0, left: 0 }} pointerEvents="none">
+        <Defs>
+          <RadialGradient id="edgeVignette" cx="50%" cy="50%" r="71%">
+            <Stop offset="0.6" stopColor="#000000" stopOpacity={0} />
+            <Stop offset="1" stopColor="#000000" stopOpacity={1} />
+          </RadialGradient>
+        </Defs>
+        <Rect x={0} y={0} width={width} height={height} fill="url(#edgeVignette)" />
+      </Svg>
     </Reanimated.View>
   );
 }

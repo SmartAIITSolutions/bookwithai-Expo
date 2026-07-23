@@ -9,6 +9,7 @@ import {
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
+import { localDateKey } from '@/lib/calendar/timeGrid';
 
 const STATUS_META: Record<BusinessStatus, { label: string; color: string }> = {
   open: { label: 'Open', color: Colors.success },
@@ -30,7 +31,7 @@ export function DailyOpsCard() {
   const [posting, setPosting] = useState(false);
   const [newMessage, setNewMessage] = useState('');
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = localDateKey(new Date());
 
   const load = useCallback(async () => {
     const [statusResult, checklistResult, announcementsResult] = await Promise.all([

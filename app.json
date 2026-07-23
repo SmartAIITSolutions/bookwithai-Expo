@@ -4,7 +4,7 @@
     "slug": "bookwithai-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/bwa-logo.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "bookwithai",
     "userInterfaceStyle": "automatic",
     "android": {
@@ -45,9 +45,13 @@
     },
     "ios": {
       "bundleIdentifier": "app.bookwithai.app",
+      "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:bookwithai.app"
-      ]
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "web": {
       "output": "static",

@@ -4,7 +4,7 @@ import { getMonthSummary } from '@/lib/api/ownerCalendarSummary';
 import { listBookingsForDate, OwnerBooking } from '@/lib/api/ownerBookings';
 import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
-import { WeekSchedule, dayScheduleFor } from '@/lib/calendar/timeGrid';
+import { WeekSchedule, dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 
@@ -35,7 +35,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
 
   useEffect(() => {
     setLoadingDay(true);
-    const key = selectedDate.toISOString().slice(0, 10);
+    const key = localDateKey(selectedDate);
     listBookingsForDate(key).then(r => {
       if (r.ok) setDayBookings(r.data.data.filter(b => b.status !== 'cancelled'));
       setLoadingDay(false);
@@ -45,8 +45,8 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
   const firstOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const startWeekday = firstOfMonth.getDay();
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const selectedKey = selectedDate.toISOString().slice(0, 10);
+  const todayKey = localDateKey(new Date());
+  const selectedKey = localDateKey(selectedDate);
 
   const cells: (Date | null)[] = [
     ...Array.from({ length: startWeekday }, () => null),
@@ -65,7 +65,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
       <View style={styles.grid}>
         {cells.map((d, i) => {
           if (!d) return <View key={i} style={styles.cell} />;
-          const key = d.toISOString().slice(0, 10);
+          const key = localDateKey(d);
           const count = counts[key] ?? 0;
           const isToday = key === todayKey;
           const isSelected = key === selectedKey;

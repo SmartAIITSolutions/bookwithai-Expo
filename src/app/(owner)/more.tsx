@@ -18,35 +18,32 @@ function CardOverlay() {
 }
 
 // Phase 0.1 "More" menu — grouped by how often it's used, not how important
-// it is. Groups and items are locked; screens behind each item land in the
-// sprint that owns that feature (see MASTER.md Sprint Schedule). Items
-// without a `route` are placeholders for future sprints, not yet tappable.
-const GROUPS: { name: string; items: { label: string; route?: string }[] }[] = [
+// it is. Every item here must be real and tappable -- unbuilt features are
+// left out of this list entirely rather than shown as a disabled "Coming
+// Soon" row (an App Store review risk: a menu that's mostly dead ends reads
+// as incomplete). Growth/AI/Hardware groups previously existed here as
+// all-placeholder groups and are removed entirely for the same reason;
+// they come back once there's a real screen behind at least one item.
+const GROUPS: { name: string; items: { label: string; route: string }[] }[] = [
   { name: 'Business', items: [
     { label: 'Services', route: '/owner-settings/services' },
     { label: 'Products', route: '/owner-settings/products' },
     { label: 'Membership Plans', route: '/owner-settings/membership-plans' },
     { label: 'Packages', route: '/owner-settings/service-packages' },
-    { label: 'Inventory' }, { label: 'Expenses' }, { label: 'Taxes' },
   ] },
   { name: 'Team', items: [
     { label: 'Staff', route: '/owner-settings/staff' },
     { label: 'Time Off', route: '/owner-settings/time-off' },
     { label: 'Clock In / Payroll', route: '/owner-settings/clock' },
-    { label: 'Permissions' },
-  ] },
-  { name: 'Growth', items: [
-    { label: 'Marketing' }, { label: 'Reviews' }, { label: 'Campaigns' }, { label: 'Referrals' }, { label: 'Promotions' },
-  ] },
-  { name: 'AI', items: [
-    { label: 'SANAA' }, { label: 'Automation' }, { label: 'Insights' }, { label: 'Voice Calls' }, { label: 'AI Rules' },
-  ] },
-  { name: 'Hardware', items: [
-    { label: 'POS' }, { label: 'Printer' }, { label: 'Scanner' }, { label: 'Terminal' }, { label: 'Cash Drawer' }, { label: 'Customer Display' },
   ] },
   { name: 'System', items: [
     { label: 'Settings', route: '/owner-settings/business' },
-    { label: 'Support' }, { label: 'About' }, { label: 'Legal' },
+  ] },
+  { name: 'Legal', items: [
+    { label: 'Privacy Policy', route: '/legal/privacy' },
+    { label: 'Terms of Service', route: '/legal/terms' },
+    { label: 'Support', route: '/legal/support' },
+    { label: 'Delete My Account', route: '/legal/delete-account' },
   ] },
 ];
 
@@ -67,18 +64,11 @@ export default function OwnerMoreScreen() {
               {group.items.map((item, i) => (
                 <TouchableOpacity
                   key={item.label}
-                  disabled={!item.route}
-                  onPress={() => item.route && router.push(item.route as never)}
+                  onPress={() => router.push(item.route as never)}
                   style={[styles.row, i > 0 && styles.rowBorder]}
                 >
-                  <Text style={[styles.rowText, !item.route && styles.rowTextDisabled]}>{item.label}</Text>
-                  {item.route ? (
-                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
-                  ) : (
-                    <View style={styles.soonBadge}>
-                      <Text style={styles.soonBadgeText}>Coming Soon</Text>
-                    </View>
-                  )}
+                  <Text style={styles.rowText}>{item.label}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
                 </TouchableOpacity>
               ))}
             </BlurView>
@@ -120,19 +110,5 @@ const styles = StyleSheet.create({
   },
   rowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' },
   rowText: { fontFamily: FontFamily.sora, fontSize: FontSize.base, color: '#FFFFFF' },
-  rowTextDisabled: { color: 'rgba(255,255,255,0.35)' },
   logOutText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#FF6B6B' },
-  soonBadge: {
-    backgroundColor: 'rgba(212,175,55,0.1)',
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.3)',
-  },
-  soonBadgeText: {
-    fontFamily: FontFamily.soraSemiBold,
-    fontSize: 11,
-    color: '#F4D77A',
-  },
 });

@@ -15,7 +15,7 @@ import { getDashboard, DashboardData } from '@/lib/api/ownerDashboard';
 import { listBookingsForDate, getPaymentStatusForDate, getUpcomingActivity, getBooking, serviceDisplayName, OwnerBooking, PaymentStatusResult, UpcomingActivityItem } from '@/lib/api/ownerBookings';
 import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
-import { dayScheduleFor } from '@/lib/calendar/timeGrid';
+import { dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { groupBackToBackBookings } from '@/lib/calendar/groupBackToBack';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
@@ -102,7 +102,7 @@ export default function OwnerDashboardScreen() {
   const checkoutRef = useRef<CheckoutSheetHandle>(null);
 
   const now = new Date();
-  const todayKey = now.toISOString().slice(0, 10);
+  const todayKey = localDateKey(now);
   const dayIndex = now.getDate() % THOUGHTS.length;
 
   const load = useCallback(async () => {

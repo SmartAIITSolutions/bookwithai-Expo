@@ -1,14 +1,13 @@
-import { Component, useMemo, useState, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring,
 } from 'react-native-reanimated';
 import { OwnerBooking, updateBooking, checkIn, startService, completeService } from '@/lib/api/ownerBookings';
 import { StaffMember } from '@/lib/api/ownerStaff';
 import { bookingStatusColor, nextAction } from '@/lib/calendar/bookingStatus';
-import { WeekSchedule, dayScheduleFor, gridBoundsMinutes, minutesSinceMidnight, hourLabels, snapMinutes } from '@/lib/calendar/timeGrid';
+import { WeekSchedule, dayScheduleFor, minutesSinceMidnight, hourLabels, snapMinutes } from '@/lib/calendar/timeGrid';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
@@ -34,22 +33,33 @@ interface TimelineCalendarProps {
   weekSchedule: WeekSchedule | null;
   onOpenBooking: (b: OwnerBooking) => void;
   onChanged: () => void;
-  onFillSlot?: () => void;
+  // Tapping empty grid space books for the exact tapped time, not just
+  // "earliest available now" -- staffId is the column tapped ('unassigned'
+  // maps to null, a specific staff column passes its id). `outsideHours` is
+  // true when the tap landed in the closed-hours fringe (or a fully closed
+  // day) -- still bookable, just flagged so the caller can warn that no
+  // staff may actually be scheduled then.
+  onFillSlot?: (startsAt: Date, staffId: string | null, outsideHours?: boolean) => void;
+  intervalMinutes?: 15 | 30 | 60;
 }
 
-// No pull-to-refresh here -- RefreshControl breaks rendering of a ScrollView
-// whose content is absolutely-positioned with an explicit computed height
-// (exactly this grid's shape) on Android; this was the actual root cause of
-// the long-standing Day-view blank-render bug. Revisit once a
-// RefreshControl-safe pattern is found for this layout style.
-export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, onFillSlot }: TimelineCalendarProps) {
+export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60 }: TimelineCalendarProps) {
   const zoom = useSharedValue(1);
   const [committedZoom, setCommittedZoom] = useState(1);
   const { width: screenWidth } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
 
   const schedule = dayScheduleFor(weekSchedule, date);
-  const { start: gridStart, end: gridEnd } = gridBoundsMinutes(schedule);
-  const hourHeight = HOUR_HEIGHT_DEFAULT * committedZoom;
+  // Full 24 hours, always -- hours outside business hours render as the
+  // closed-hours gray band rather than being cut off, so switching staff/
+  // days never hides a booking that happens to fall outside the normal
+  // schedule (a late add-on, an early cleanup shift, etc.).
+  const gridStart = 0;
+  const gridEnd = 24 * 60;
+  // Scale height by the interval so a tick always keeps the same generous
+  // tap size -- otherwise "15 min" would pack 4x as many ticks into the
+  // same space, making them harder to tap precisely, not easier.
+  const hourHeight = HOUR_HEIGHT_DEFAULT * committedZoom * (60 / intervalMinutes);
   const pxPerMinute = hourHeight / 60;
   const totalHeight = (gridEnd - gridStart) * pxPerMinute;
 
@@ -84,16 +94,51 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
       runOnJS(setCommittedZoom)(zoom.value);
     });
 
-  const labels = hourLabels(gridStart, gridEnd);
+  const labels = hourLabels(gridStart, gridEnd, intervalMinutes);
   const isToday = new Date().toDateString() === date.toDateString();
   // Explicit width for the row of columns, since a horizontal ScrollView's
   // content container doesn't reliably infer it from nested content.
   const rowWidth = columns.length * columnWidth;
 
+  // Land on the current time (today) or the day's opening time (other
+  // days) instead of midnight -- with the full 24-hour grid, midnight is
+  // rarely where anyone actually wants to start scrolling from. A little
+  // lead-in above the target keeps some earlier context in view too.
+  useEffect(() => {
+    const targetMinutes = isToday ? minutesSinceMidnight(new Date().toISOString()) : schedule.start * 60;
+    const leadInMinutes = 60;
+    const y = Math.max(0, (targetMinutes - leadInMinutes - gridStart) * pxPerMinute);
+    scrollRef.current?.scrollTo({ y, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date.toDateString(), intervalMinutes]);
+
+  // Everything outside business hours (midnight to opening, closing to
+  // midnight) gets a flat gray band. A fully closed day (e.g. Sunday) grays
+  // out the whole grid.
+  const isClosedToday = schedule.open === false;
+  const closedTopHeight = isClosedToday ? totalHeight : Math.max(0, schedule.start * 60 - gridStart) * pxPerMinute;
+  const closedBottomTop = Math.max(0, schedule.end * 60 - gridStart) * pxPerMinute;
+  const closedBottomHeight = isClosedToday ? 0 : Math.max(0, gridEnd - schedule.end * 60) * pxPerMinute;
+
   return (
     <TimelineErrorBoundary>
+    {/* No RefreshControl here -- three distinct configurations (direct on
+        this ScrollView, with an explicit contentContainerStyle height, and
+        nested inside an outer flexGrow ScrollView) all broke rendering of
+        this absolute-positioned hour-grid content on this Android setup.
+        MultiDayView has the identical grid pattern and simply never uses
+        RefreshControl, which is why it's unaffected. Revisit only with a
+        genuinely different mechanism (e.g. a custom Pan-gesture pull
+        indicator that bypasses RefreshControl/SwipeRefreshLayout entirely)
+        -- realtime updates via useOwnerBookings already cover new data
+        appearing without a manual pull in the meantime. */}
     <GestureDetector gesture={pinch}>
-      <ScrollView style={{ flex: 1 }}>
+      {/* The owner tab bar floats over the bottom of the screen (absolute
+          position, ~66px + safe-area inset) -- without matching bottom
+          padding here, the last hour or two of the 24-hour grid (and the
+          live "now" line, whenever it's evening) render underneath it,
+          scrolled-to but invisible/untappable. */}
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }}>
         {/* Wrapping gutter + the horizontal ScrollView in a plain row View,
             the outer ScrollView's single child, gives that row a real
             bounded width (the screen width) to lay out against -- same
@@ -117,6 +162,14 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                 ))}
               </View>
 
+              {/* Closed-hours fringe (before opening / after closing) */}
+              {closedTopHeight > 0 && (
+                <View style={[styles.closedBand, { top: 0, height: closedTopHeight, width: rowWidth }]} />
+              )}
+              {closedBottomHeight > 0 && (
+                <View style={[styles.closedBand, { top: closedBottomTop, height: closedBottomHeight, width: rowWidth }]} />
+              )}
+
               {/* Live "now" line */}
               {isToday && (() => {
                 const nowMin = minutesSinceMidnight(new Date().toISOString());
@@ -127,7 +180,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
               <View style={{ flexDirection: 'row' }}>
                 {columns.map((col, colIndex) => {
                   const colBookings = bookings.filter(b => columnForBooking(b) === colIndex && b.status !== 'cancelled');
-                  const gaps = onFillSlot ? findEmptySpaces(colBookings, schedule, 30) : [];
+                  const gaps = onFillSlot && !isClosedToday ? findEmptySpaces(colBookings, schedule, 30) : [];
                   return (
                     <View key={col.id ?? 'all'} style={{ width: columnWidth, height: totalHeight, borderRightWidth: 1, borderRightColor: P.border }}>
                       {columns.length > 1 && <Text style={styles.columnLabel}>{col.label}</Text>}
@@ -142,8 +195,54 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                         <RailDot key={`dot-${b.id}`} top={(minutesSinceMidnight(b.starts_at) - gridStart) * pxPerMinute} color={bookingStatusColor(b).color} />
                       ))}
                       {gaps.filter(g => g.durationMinutes >= 30).map((g, gi) => (
-                        <OpenSlotBlock key={gi} gap={g} gridStart={gridStart} pxPerMinute={pxPerMinute} onPress={onFillSlot!} />
+                        <OpenSlotBlock
+                          key={gi}
+                          gap={g}
+                          gridStart={gridStart}
+                          pxPerMinute={pxPerMinute}
+                          onPressAt={(tappedMinutes) => {
+                            const dayBase = new Date(date);
+                            dayBase.setHours(0, 0, 0, 0);
+                            const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
+                            onFillSlot!(startsAt, col.id === 'unassigned' ? null : col.id);
+                          }}
+                        />
                       ))}
+                      {/* Closed-hours fringe (and fully closed days, via
+                          closedTopHeight covering the whole grid) is still
+                          tappable to book -- an owner may have a staff
+                          member coming in early/late, or want to log a
+                          walk-in on a day marked closed. `onFillSlot`'s
+                          outsideHours flag lets the caller show a reminder
+                          that no staff may actually be scheduled then. */}
+                      {onFillSlot && closedTopHeight > 0 && (
+                        <ClosedSlotBlock
+                          top={0}
+                          height={closedTopHeight}
+                          gridStart={gridStart}
+                          pxPerMinute={pxPerMinute}
+                          onPressAt={(tappedMinutes) => {
+                            const dayBase = new Date(date);
+                            dayBase.setHours(0, 0, 0, 0);
+                            const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
+                            onFillSlot(startsAt, col.id === 'unassigned' ? null : col.id, true);
+                          }}
+                        />
+                      )}
+                      {onFillSlot && closedBottomHeight > 0 && (
+                        <ClosedSlotBlock
+                          top={closedBottomTop}
+                          height={closedBottomHeight}
+                          gridStart={gridStart}
+                          pxPerMinute={pxPerMinute}
+                          onPressAt={(tappedMinutes) => {
+                            const dayBase = new Date(date);
+                            dayBase.setHours(0, 0, 0, 0);
+                            const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
+                            onFillSlot(startsAt, col.id === 'unassigned' ? null : col.id, true);
+                          }}
+                        />
+                      )}
                       {colBookings.map(b => (
                         <AppointmentBlock
                           key={b.id}
@@ -312,14 +411,44 @@ function AppointmentBlock({
   );
 }
 
-function OpenSlotBlock({ gap, gridStart, pxPerMinute, onPress }: { gap: EmptySpace; gridStart: number; pxPerMinute: number; onPress: () => void }) {
+// Open/bookable time is left visually plain (no box, no pill) -- only the
+// closed-hours fringe gets a gray treatment, so this is just an invisible
+// tap target over the gap, same footprint the old boxed version used.
+// Booking for "the exact time tapped" (not just the gap's start) means
+// reading where inside this Pressable the tap landed and converting that
+// back to minutes-since-midnight.
+function OpenSlotBlock({ gap, gridStart, pxPerMinute, onPressAt }: {
+  gap: EmptySpace; gridStart: number; pxPerMinute: number; onPressAt: (tappedMinutes: number) => void;
+}) {
   const top = (gap.startMinutes - gridStart) * pxPerMinute;
   const height = Math.max(28, gap.durationMinutes * pxPerMinute);
   return (
-    <Pressable onPress={onPress} style={[styles.openBlock, { top, height }]}>
-      <Ionicons name="add-circle-outline" size={16} color={P.accentGold} />
-      <Text style={styles.openBlockText}>Open Slot</Text>
-    </Pressable>
+    <Pressable
+      style={[styles.openTapTarget, { top, height }]}
+      onPress={(e) => {
+        const offsetMinutes = snapMinutes(e.nativeEvent.locationY / pxPerMinute);
+        const maxMinutes = gap.startMinutes + Math.max(0, gap.durationMinutes - 5);
+        const tappedMinutes = Math.min(maxMinutes, Math.max(gap.startMinutes, gap.startMinutes + offsetMinutes));
+        onPressAt(tappedMinutes);
+      }}
+    />
+  );
+}
+
+// Same tap target as OpenSlotBlock, but spanning an arbitrary top/height
+// range in column coordinates instead of a computed gap -- used for the
+// closed-hours fringe, which is still tappable to book.
+function ClosedSlotBlock({ top, height, gridStart, pxPerMinute, onPressAt }: {
+  top: number; height: number; gridStart: number; pxPerMinute: number; onPressAt: (tappedMinutes: number) => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.openTapTarget, { top, height }]}
+      onPress={(e) => {
+        const tappedMinutes = snapMinutes(gridStart + (top + e.nativeEvent.locationY) / pxPerMinute);
+        onPressAt(tappedMinutes);
+      }}
+    />
   );
 }
 
@@ -327,6 +456,7 @@ const styles = StyleSheet.create({
   hourLabel: { position: 'absolute', fontSize: 12, fontWeight: '700', color: P.textSecondary, right: 6, width: TIME_GUTTER - 6, textAlign: 'right' },
   gridBackground: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: P.border },
+  closedBand: { position: 'absolute', left: 0, backgroundColor: 'rgba(120,120,135,0.16)' },
   nowLine: { position: 'absolute', left: 0, height: 2, backgroundColor: P.error, zIndex: 5 },
   columnLabel: { fontSize: 11, fontWeight: '700', color: P.textSecondary, textAlign: 'center', paddingVertical: 4 },
   timelineRail: {
@@ -352,11 +482,5 @@ const styles = StyleSheet.create({
   blockMeta: { fontSize: 11, color: P.textSecondary, marginTop: 1 },
   blockBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: BorderRadius.full, borderWidth: 1 },
   blockBadgeText: { fontSize: 9.5, fontWeight: '700' },
-  openBlock: {
-    position: 'absolute', left: RAIL_X + 10, right: 8, borderRadius: BorderRadius.md,
-    borderWidth: 1.5, borderStyle: 'dashed', borderColor: P.accentGold,
-    backgroundColor: 'rgba(255,200,87,0.06)', alignItems: 'center', justifyContent: 'center',
-    flexDirection: 'row', gap: 6,
-  },
-  openBlockText: { fontSize: 11, fontWeight: '700', color: P.accentGold },
+  openTapTarget: { position: 'absolute', left: RAIL_X + 10, right: 8 },
 });
