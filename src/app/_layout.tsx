@@ -268,7 +268,6 @@ function AuthRedirectGate() {
   const pushRegistered = useRef(false);
 
   useEffect(() => {
-    console.log('[DIAG] AuthRedirectGate effect', { loading, hasUser: !!user, role, segments });
     if (loading) return;
     const onAuthStack = segments[0] === 'auth';
     // The owner sign-up wizard calls supabase.auth.signUp() partway through
@@ -283,13 +282,11 @@ function AuthRedirectGate() {
     const onOwnerSignupWizard = segments[0] === 'auth' && segments[1] === 'owner-signup';
     if (onOwnerSignupWizard) return;
     if (user && onAuthStack) {
-      console.log('[DIAG] AuthRedirectGate: redirecting to home', { role, dest: roleHome(role) });
       router.replace(roleHome(role) as never);
     } else if (!user && !onAuthStack) {
       // Covers sign-out from any screen -- without this, a signed-out user
       // stays stuck on their last screen until a force-close/reopen
       // triggers the cold-start check in handleSplashDone instead.
-      console.log('[DIAG] AuthRedirectGate: redirecting to /auth after sign-out');
       router.replace('/auth');
     }
   }, [user, role, loading, segments]);
@@ -316,46 +313,52 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
   // decision chain -- marking it ready early would fade it out and expose
   // the app's default route for however long the async checks below took,
   // before the real destination was known.
-  console.log('[DIAG] handleSplashDone: start');
-
-  // 1. Check onboarding
-  const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
-  console.log('[DIAG] handleSplashDone: onboarding check', { onboardingDone });
-  if (!onboardingDone) {
-    router.replace('/onboarding');
-    setSplashReady(true);
-    return;
-  }
-
-  // 2. Auth is mandatory — no session, no entry
-  const { data: { session } } = await supabase.auth.getSession();
-  console.log('[DIAG] handleSplashDone: session check', { hasSession: !!session, userId: session?.user?.id });
-  if (!session) {
-    router.replace('/auth');
-    setSplashReady(true);
-    return;
-  }
-
-  // 3. Signed in — check biometrics lock before letting them into tabs
-  const biometricsEnabled = await SecureStore.getItemAsync(BIOMETRICS_KEY);
-  if (biometricsEnabled === 'true') {
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const isEnrolled   = await LocalAuthentication.isEnrolledAsync();
-    console.log('[DIAG] handleSplashDone: biometrics check', { hasHardware, isEnrolled });
-    if (hasHardware && isEnrolled) {
-      router.replace('/auth/biometrics');
-      setSplashReady(true);
+  //
+  // Everything below is wrapped in try/catch/finally: this whole chain runs
+  // on every cold launch, so any single failure here (a network blip on
+  // getSession(), a storage read failure, etc.) with no safety net would
+  // leave the splash screen spinning forever with no way for the user to
+  // proceed -- the app would look completely frozen. On failure, fall back
+  // to /auth (the safest default -- if the user actually has a valid
+  // session, AuthContext's own session check and AuthRedirectGate will
+  // still route them home once it resolves).
+  try {
+    // 1. Check onboarding
+    const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
+    if (!onboardingDone) {
+      router.replace('/onboarding');
       return;
     }
-  }
 
-  // 4. Signed in, no biometrics lock — route by role
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', session.user.id)
-    .maybeSingle();
-  console.log('[DIAG] handleSplashDone: profile fetch', { profile, error: profileError?.message, dest: roleHome(profile?.role ?? null) });
-  router.replace(roleHome(profile?.role ?? null) as never);
-  setSplashReady(true);
+    // 2. Auth is mandatory — no session, no entry
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      router.replace('/auth');
+      return;
+    }
+
+    // 3. Signed in — check biometrics lock before letting them into tabs
+    const biometricsEnabled = await SecureStore.getItemAsync(BIOMETRICS_KEY);
+    if (biometricsEnabled === 'true') {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled   = await LocalAuthentication.isEnrolledAsync();
+      if (hasHardware && isEnrolled) {
+        router.replace('/auth/biometrics');
+        return;
+      }
+    }
+
+    // 4. Signed in, no biometrics lock — route by role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    router.replace(roleHome(profile?.role ?? null) as never);
+  } catch (error) {
+    console.error('handleSplashDone: falling back to /auth after an error', error);
+    router.replace('/auth');
+  } finally {
+    setSplashReady(true);
+  }
 }

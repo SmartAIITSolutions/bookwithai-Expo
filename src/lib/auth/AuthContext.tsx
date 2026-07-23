@@ -37,7 +37,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const latestProfileRequest = useRef<string | null>(null);
 
   async function loadProfile(userId: string) {
-    console.log('[DIAG] loadProfile: start', { userId });
     latestProfileRequest.current = userId;
     const { data, error } = await supabase
       .from('profiles')
@@ -45,10 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .maybeSingle();
 
-    console.log('[DIAG] loadProfile: query result', { userId, data, error: error?.message });
-
     if (latestProfileRequest.current !== userId) {
-      console.log('[DIAG] loadProfile: superseded, dropping result', { userId, latest: latestProfileRequest.current });
       return; // superseded by a newer request
     }
 
@@ -56,25 +52,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('AuthContext: failed to load profile role', error);
     }
     const resolvedRole = (data?.role as UserRole) ?? 'customer';
-    console.log('[DIAG] loadProfile: setting role', { userId, resolvedRole, clientId: data?.client_id ?? null });
     setRole(resolvedRole);
     setClientId(data?.client_id ?? null);
   }
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log('[DIAG] getSession (initial): result', { hasSession: !!session, userId: session?.user?.id });
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) await loadProfile(session.user.id);
-      setLoading(false);
-      console.log('[DIAG] getSession (initial): setLoading(false) called');
-    });
+    // Get initial session. Wrapped in try/catch/finally -- this gates the
+    // app's entire initial `loading` state, so if getSession() or
+    // loadProfile() ever throws (a real network failure, not just a
+    // Supabase-shaped {error} response), the whole app would otherwise be
+    // stuck on `loading: true` forever with nothing able to render.
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) await loadProfile(session.user.id);
+      } catch (error) {
+        console.error('AuthContext: initial getSession failed', error);
+      } finally {
+        setLoading(false);
+      }
+    })();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log('[DIAG] onAuthStateChange fired', { event: _event, hasSession: !!session, userId: session?.user?.id });
       // `loading` may already be false from a previous settled auth state --
       // reset it here so consumers (AuthRedirectGate) don't act on a stale
       // `role` while this event's loadProfile() is still in flight. This was
@@ -82,17 +84,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // slow profile fetch left a multi-second window where loading=false
       // but role hadn't been refreshed yet.
       setLoading(true);
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await loadProfile(session.user.id);
-      } else {
-        latestProfileRequest.current = null;
-        setRole(null);
-        setClientId(null);
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await loadProfile(session.user.id);
+        } else {
+          latestProfileRequest.current = null;
+          setRole(null);
+          setClientId(null);
+        }
+      } catch (error) {
+        console.error('AuthContext: onAuthStateChange handler failed', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-      console.log('[DIAG] onAuthStateChange: setLoading(false) called', { event: _event });
     });
 
     return () => subscription.unsubscribe();

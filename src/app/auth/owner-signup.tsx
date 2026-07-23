@@ -266,84 +266,91 @@ function OwnerSignupInner() {
   async function handleCreateAccount() {
     setError('');
     setLoading(true);
+    // Wrapped in try/catch/finally (matching handleConnectStripe below) --
+    // without it, a thrown exception anywhere in this chain (a real network
+    // failure, not just a Supabase-shaped {error} response) would skip every
+    // setLoading(false) call below and leave the wizard's Continue button
+    // spinning forever with no way to retry.
+    try {
+      const howHeardStored = howHeard === HOW_HEARD_REFERRAL
+        ? `${HOW_HEARD_REFERRAL} — Friend: ${referralFriendName.trim()}, Business: ${referralFriendBusiness.trim()}`
+        : howHeard;
 
-    const howHeardStored = howHeard === HOW_HEARD_REFERRAL
-      ? `${HOW_HEARD_REFERRAL} — Friend: ${referralFriendName.trim()}, Business: ${referralFriendBusiness.trim()}`
-      : howHeard;
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (authErr || !authData.user) {
+        setError(authErr?.message ?? 'Could not create account. Email may already be in use.');
+        return;
+      }
 
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    if (authErr || !authData.user) {
-      setError(authErr?.message ?? 'Could not create account. Email may already be in use.');
+      const bonusExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: clientData, error: clientErr } = await supabase
+        .from('agency_clients')
+        .insert({
+          user_id:                 authData.user.id,
+          business_name:           businessName.trim(),
+          owner_name:              ownerName.trim(),
+          owner_email:             email.trim().toLowerCase(),
+          owner_phone:             phone.trim(),
+          address_line1:           addressLine1.trim(),
+          address_line2:           addressLine2.trim() || null,
+          city:                    city.trim(),
+          state:                   stateVal.trim(),
+          postal_code:             postalCode.trim(),
+          slug,
+          plan_tier:               1,
+          status:                  'active',
+          theme:                   'nebula',
+          is_beta:                 false,
+          signup_bonus_expires_at: bonusExpiry,
+          business_hours:          hours,
+          business_type:           bizType,
+          staff_count:             staffCount,
+          how_they_heard:          howHeardStored,
+          require_online_payment: true,
+          pass_stripe_fee:        true,
+        })
+        .select('id')
+        .single();
+
+      if (clientErr || !clientData) {
+        await supabase.auth.signOut();
+        setError(clientErr?.message ?? 'Account could not be saved. Please try again or contact support@bookwithai.app');
+        return;
+      }
+
+      // profiles.role defaults to 'customer' via a DB trigger on every new
+      // auth.users row -- flip it to 'owner' and link the salon now, so this
+      // account routes to the owner dashboard everywhere role is checked.
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .update({ role: 'owner', client_id: clientData.id })
+        .eq('id', authData.user.id);
+      if (profileErr) {
+        console.error('Failed to set owner role on profiles row:', profileErr.message);
+      }
+
+      setClientId(clientData.id as string);
+      await refreshProfile();
+      setStep(4);
+
+      void (async () => {
+        const headers = await authHeaders();
+        if (!headers) return;
+        fetch(`${API_BASE}/api/signup/welcome-email`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ client_id: clientData.id }),
+        }).catch(() => { /* welcome email is best-effort */ });
+      })();
+    } catch {
+      setError('Could not create account. Please check your connection and try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const bonusExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
-
-    const { data: clientData, error: clientErr } = await supabase
-      .from('agency_clients')
-      .insert({
-        user_id:                 authData.user.id,
-        business_name:           businessName.trim(),
-        owner_name:              ownerName.trim(),
-        owner_email:             email.trim().toLowerCase(),
-        owner_phone:             phone.trim(),
-        address_line1:           addressLine1.trim(),
-        address_line2:           addressLine2.trim() || null,
-        city:                    city.trim(),
-        state:                   stateVal.trim(),
-        postal_code:             postalCode.trim(),
-        slug,
-        plan_tier:               1,
-        status:                  'active',
-        theme:                   'nebula',
-        is_beta:                 false,
-        signup_bonus_expires_at: bonusExpiry,
-        business_hours:          hours,
-        business_type:           bizType,
-        staff_count:             staffCount,
-        how_they_heard:          howHeardStored,
-        require_online_payment: true,
-        pass_stripe_fee:        true,
-      })
-      .select('id')
-      .single();
-
-    if (clientErr || !clientData) {
-      await supabase.auth.signOut();
-      setError(clientErr?.message ?? 'Account could not be saved. Please try again or contact support@bookwithai.app');
-      setLoading(false);
-      return;
-    }
-
-    // profiles.role defaults to 'customer' via a DB trigger on every new
-    // auth.users row -- flip it to 'owner' and link the salon now, so this
-    // account routes to the owner dashboard everywhere role is checked.
-    const { error: profileErr } = await supabase
-      .from('profiles')
-      .update({ role: 'owner', client_id: clientData.id })
-      .eq('id', authData.user.id);
-    if (profileErr) {
-      console.error('Failed to set owner role on profiles row:', profileErr.message);
-    }
-
-    setClientId(clientData.id as string);
-    await refreshProfile();
-    setLoading(false);
-    setStep(4);
-
-    void (async () => {
-      const headers = await authHeaders();
-      if (!headers) return;
-      fetch(`${API_BASE}/api/signup/welcome-email`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ client_id: clientData.id }),
-      }).catch(() => { /* welcome email is best-effort */ });
-    })();
   }
 
   async function handleConnectStripe() {
@@ -377,29 +384,32 @@ function OwnerSignupInner() {
     if (!clientId) return;
     setCardSaving(true);
     setError('');
-    const { paymentMethod, error: pmErr } = await stripe.createPaymentMethod({
-      paymentMethodType: 'Card',
-    });
-    if (pmErr || !paymentMethod) {
-      setError(pmErr?.message ?? 'Card validation failed');
+    try {
+      const { paymentMethod, error: pmErr } = await stripe.createPaymentMethod({
+        paymentMethodType: 'Card',
+      });
+      if (pmErr || !paymentMethod) {
+        setError(pmErr?.message ?? 'Card validation failed');
+        return;
+      }
+      const headers = await authHeaders();
+      if (!headers) { setError('Not signed in.'); return; }
+      const res  = await fetch(`${API_BASE}/api/stripe/save-card`, {
+        method:  'POST',
+        headers,
+        body:    JSON.stringify({ client_id: clientId, payment_method_id: paymentMethod.id }),
+      });
+      const json = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok || !json.success) {
+        setError(json.error ?? 'Could not save card');
+        return;
+      }
+      setCardSaved(true);
+    } catch {
+      setError('Could not reach Stripe. Please try again.');
+    } finally {
       setCardSaving(false);
-      return;
     }
-    const headers = await authHeaders();
-    if (!headers) { setError('Not signed in.'); setCardSaving(false); return; }
-    const res  = await fetch(`${API_BASE}/api/stripe/save-card`, {
-      method:  'POST',
-      headers,
-      body:    JSON.stringify({ client_id: clientId, payment_method_id: paymentMethod.id }),
-    });
-    const json = await res.json() as { success?: boolean; error?: string };
-    if (!res.ok || !json.success) {
-      setError(json.error ?? 'Could not save card');
-      setCardSaving(false);
-      return;
-    }
-    setCardSaved(true);
-    setCardSaving(false);
   }
 
   function handleFinish() {

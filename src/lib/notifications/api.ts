@@ -21,24 +21,40 @@ async function authHeaders(): Promise<Record<string, string> | null> {
   };
 }
 
+// Wrapped in try/catch so a real network failure resolves to an empty list
+// instead of rejecting -- callers do `.then(items => { ...; setLoading(false)
+// })` with no .catch, so a rejection here used to leave their loading
+// spinner stuck forever with no error shown.
 export async function fetchNotifications(): Promise<NotificationItem[]> {
-  const headers = await authHeaders();
-  if (!headers) return [];
+  try {
+    const headers = await authHeaders();
+    if (!headers) return [];
 
-  const res = await fetch(`${API_BASE}/api/mobile/notifications`, { headers });
-  if (!res.ok) return [];
-  const json = await res.json();
-  return json.data ?? [];
+    const res = await fetch(`${API_BASE}/api/mobile/notifications`, { headers });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  const headers = await authHeaders();
-  if (!headers) return;
-  await fetch(`${API_BASE}/api/mobile/notifications/${id}`, { method: 'PATCH', headers });
+  try {
+    const headers = await authHeaders();
+    if (!headers) return;
+    await fetch(`${API_BASE}/api/mobile/notifications/${id}`, { method: 'PATCH', headers });
+  } catch {
+    // Best-effort -- a failed read-receipt isn't worth surfacing an error for.
+  }
 }
 
 export async function deleteNotification(id: string): Promise<void> {
-  const headers = await authHeaders();
-  if (!headers) return;
-  await fetch(`${API_BASE}/api/mobile/notifications/${id}`, { method: 'DELETE', headers });
+  try {
+    const headers = await authHeaders();
+    if (!headers) return;
+    await fetch(`${API_BASE}/api/mobile/notifications/${id}`, { method: 'DELETE', headers });
+  } catch {
+    // Best-effort -- see markNotificationRead.
+  }
 }

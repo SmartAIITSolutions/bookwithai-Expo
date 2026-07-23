@@ -14,17 +14,23 @@ async function staffFetch<T>(
   path: string,
   options: { method?: string; body?: unknown } = {}
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
-  const headers = await authHeaders();
-  if (!headers) return { ok: false, error: 'Not signed in.' };
+  // Wrapped so this always resolves to { ok } rather than rejecting on a
+  // real network failure -- see the identical comment in ownerApi.ts for why.
+  try {
+    const headers = await authHeaders();
+    if (!headers) return { ok: false, error: 'Not signed in.' };
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: options.method ?? 'GET',
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) return { ok: false, error: json.error || 'Something went wrong.' };
-  return { ok: true, data: json as T };
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: options.method ?? 'GET',
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: json.error || 'Something went wrong.' };
+    return { ok: true, data: json as T };
+  } catch {
+    return { ok: false, error: 'Unable to connect. Please check your connection and try again.' };
+  }
 }
 
 export async function linkStaffInvite() {

@@ -76,9 +76,16 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Book With AI needs photo library access to set a profile photo.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.app.bookwithai.app",
           "enableGooglePay": true
         }
       ],
