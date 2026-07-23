@@ -248,6 +248,7 @@ export default function AuthWelcomeScreen() {
 
           <Reanimated.View style={signInBreathe}>
             <Pressable
+              testID="welcome-sign-in-with-email"
               style={({ pressed }) => [styles.signInBtn, pressed && styles.btnPressed]}
               onPress={() => router.push('/auth/sign-in')}>
               <Text style={styles.signInBtnText}>Sign In with Email</Text>

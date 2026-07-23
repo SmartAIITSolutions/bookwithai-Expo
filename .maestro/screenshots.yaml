@@ -1,0 +1,34 @@
+appId: app.bookwithai.app
+---
+- launchApp:
+    clearState: true
+- tapOn: "Skip"
+- tapOn: "Sign In"
+- tapOn:
+    id: "sign-in-email"
+- inputText: "demo.owner@bookwithai.app"
+- tapOn:
+    id: "sign-in-password"
+- inputText: "BookWithAI-Demo-2026!"
+- hideKeyboard
+- tapOn:
+    id: "sign-in-submit"
+- extendedWaitUntil:
+    visible: "Dashboard"
+    timeout: 15000
+- takeScreenshot: "01_dashboard"
+- tapOn: "Calendar"
+- extendedWaitUntil:
+    visible: "Calendar"
+    timeout: 10000
+- takeScreenshot: "02_calendar"
+- tapOn: "Customers"
+- extendedWaitUntil:
+    visible: "Customers"
+    timeout: 10000
+- takeScreenshot: "03_customers"
+- tapOn: "Reports"
+- extendedWaitUntil:
+    visible: "Reports"
+    timeout: 10000
+- takeScreenshot: "04_reports"

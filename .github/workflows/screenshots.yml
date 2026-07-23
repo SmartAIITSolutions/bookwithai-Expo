@@ -1,0 +1,61 @@
+name: Generate App Store Screenshots
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build iOS Simulator app via EAS (local)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --local --platform ios --profile ios-simulator --non-interactive --output ./bwa-simulator.tar.gz
+
+      - name: Extract .app bundle
+        run: |
+          mkdir -p build_output
+          tar -xf bwa-simulator.tar.gz -C build_output
+          APP_PATH=$(find build_output -maxdepth 3 -name "*.app" | head -n 1)
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          echo "Found app bundle at: $APP_PATH"
+
+      - name: Boot iPhone 16 Pro Max simulator
+        run: |
+          xcrun simctl list devices available
+          xcrun simctl boot "iPhone 16 Pro Max"
+          xcrun simctl bootstatus "iPhone 16 Pro Max" -b
+
+      - name: Install and launch app
+        run: |
+          xcrun simctl install booted "$APP_PATH"
+          xcrun simctl launch booted app.bookwithai.app
+          sleep 5
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run screenshot flow
+        run: |
+          mkdir -p screenshots-output
+          cd screenshots-output
+          maestro test ../.maestro/screenshots.yaml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: screenshots-output/*.png
+          retention-days: 30

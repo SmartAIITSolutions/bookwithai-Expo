@@ -102,6 +102,7 @@ export default function SignInScreen() {
               <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Email</Text>
                 <TextInput
+                  testID="sign-in-email"
                   style={styles.input}
                   value={email}
                   onChangeText={setEmail}
@@ -120,6 +121,7 @@ export default function SignInScreen() {
                 <Text style={styles.label}>Password</Text>
                 <View style={styles.passwordWrap}>
                   <TextInput
+                    testID="sign-in-password"
                     style={[styles.input, styles.passwordInput]}
                     value={password}
                     onChangeText={setPassword}
@@ -146,6 +148,7 @@ export default function SignInScreen() {
 
             <Reanimated.View style={breatheStyle}>
               <Pressable
+                testID="sign-in-submit"
                 style={({ pressed }) => [styles.submitBtn, pressed && { opacity: 0.85 }]}
                 onPress={handleSignIn}
                 disabled={loading}>
