@@ -76,8 +76,8 @@
 | 18 | Native Polish | ✅ Done | 2026-07-15 |
 | 18.5 | Push Notifications (pulled forward from V2) | ✅ Done | 2026-07-16 |
 | 18.6 | Customer self-serve reschedule/cancel | ✅ Done | 2026-07-16 |
-| 19 | Internal Testing | 🔄 In progress — Phases 1–9 of 13 done | Started 2026-07-17, continued 2026-07-18 |
-| 20 | Android Build + Google Play | ⬜ | |
+| 19 | Internal Testing | ✅ Done — all hard submission blockers resolved (see 2026-07-20 confirmation pass) | 2026-07-17 to 2026-07-20 |
+| 20 | Android Build + Google Play | 🔄 In Google Play's mandatory Closed Testing period — 12/12 testers opted in, day 3 of 14 as of 2026-07-23. Started 2026-07-20, clears 2026-08-03. Production submission follows once Google grants access. | Started 2026-07-20 |
 | 21 | iOS Build (EAS) + App Store | ⬜ | |
 
 ---
