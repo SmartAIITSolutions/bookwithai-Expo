@@ -945,11 +945,29 @@ Created the app record in App Store Connect (Bundle ID `app.bookwithai.app`, SKU
 - **Version 1.0 page**: Promotional Text, full Description (owner-features-first per earlier direction), Keywords, Support URL (`https://bookwithai.app/support`), Marketing URL (`https://bookwithai.app`), Copyright ("2026 Farheen Dhanani" — no separate legal entity to attribute it to). All confirmed saved (Save button showed a checkmark).
 - **Still open**: screenshots (need a real device/simulator to capture — can't be done without a running build) and attaching the actual build once EAS produces one.
 
+### Real-device screenshots via LambdaTest, then full App Store Connect submission (2026-07-23)
+
+GitHub Actions CI (`screenshots.yml`, EAS cloud build → boot iOS Simulator → Maestro flow) failed 8 consecutive times trying to automate screenshot capture; abandoned that approach rather than keep re-triggering blind. Pivoted to a real-device cloud instead: compared LambdaTest vs BrowserStack paid plans, bought a LambdaTest plan (~$49/mo), and used it to launch a real **iPhone 16 Pro Max** via TestFlight with the seeded demo owner account (`demo.owner@bookwithai.app`), then captured 4 screens live: Dashboard, Calendar, Customers, Reports.
+
+- **LambdaTest's "Screenshot" button captures the low-bandwidth video-stream frame (380×824), not native device resolution** — confirmed via `file` on the downloads regardless of browser zoom. Also, LambdaTest's remote-control streaming triggers iOS's real screen-recording system indicator (red dot + "◄ TestFlight" badge baked into every frame) — both disqualifying for official App Store screenshots.
+- Fixed with a `sharp`-based two-stage pipeline (Lanczos3 upscale 380×824 → 1290×2796, crop out the top 190px status-bar strip, rescale back to exact 1290×2796) producing clean, correctly-dimensioned, artifact-free finals for Apple's required 6.9" display class. (`node -e` inline eval intermittently threw a `libvips` TypeError requiring `sharp` — fixed by writing the script to a `.js` file and running it normally instead of `-e`.)
+- Uploaded all 4 into App Store Connect's 6.9" Display media slot (one failed attempt from the wrong source folder first); auto-applied across all smaller iPhone display sizes as expected.
+
+**Then did a full "make sure everything is done and ready" sweep of App Store Connect** per explicit user instruction, and found/fixed four real gaps that would each have blocked submission on their own:
+1. No build was attached to the version.
+2. "Sign-in required" was checked for reviewer access, but no demo credentials were actually provided.
+3. App Review contact info (name/phone/email) was empty.
+4. **Pricing and Availability was completely unconfigured** — this was the actual cause of a real "Unable to Add for Review" error the user hit (`You must choose a price tier in Pricing`). Fixed via Add Pricing → United States (USD) → $0.00 → applied to all 174 comparable countries, then Set Up Availability → All Countries or Regions (175 total).
+
+Also verified (live, not assumed) as correctly *not* an issue: the persistent red "Complete Compliance Requirements" DSA banner (the detailed table underneath actually shows "Active" — a known Apple UI quirk); Paid Apps Agreement not signed (correctly not needed, since owner subscriptions are 100% Stripe-billed, not Apple IAP); App Encryption Documentation (correctly not required, `ITSAppUsesNonExemptEncryption: false` already set); Age Ratings (4+ globally, correct regional overrides intact); App Privacy (still published correctly); App Information fields (Subtitle/Category/Content Rights all intact).
+
+**Submitted for Apple review 2026-07-23, 9:53 PM** — Submission ID `ca55accc-9f75-4baf-bcc1-b273890e24bf`, iOS App 1.0 (build 1.0.0 (2)), status "Waiting for Review", Manual release selected. This is a real, live submission — not a draft.
+
 ### Step 21 — iOS Build + App Store
 - ~~Buy Apple Developer account ($99/year) at this point~~ ✅ done (2026-07-23), Individual/Sole Proprietor enrollment approved.
-- **Sign in with Apple — ✅ fully wired (2026-07-22 built, 2026-07-23 configured end-to-end)**, see full write-ups above. Only remaining dependency is a fresh EAS production build to actually bake in the entitlement.
-- **App Store Connect listing — ✅ complete (2026-07-23)**, see write-up above. Only screenshots and the build itself remain.
-- Expo EAS cloud build (no Mac needed) — deliberately saved for last per user's explicit direction, so everything else is locked in before spending a build
-- TestFlight internal testing
-- Screenshots (blocked on having a build to run)
-- Review typically 1–7 days
+- **Sign in with Apple — ✅ fully wired (2026-07-22 built, 2026-07-23 configured end-to-end)**, see full write-ups above.
+- **App Store Connect listing — ✅ complete (2026-07-23)**, see write-up above.
+- ~~Expo EAS cloud build~~ ✅ done — real device (LambdaTest iPhone 16 Pro Max via TestFlight) used for final screenshot capture.
+- ~~TestFlight internal testing~~ ✅ done — confirmed working live on a real device with the demo account.
+- ~~Screenshots~~ ✅ done (2026-07-23) — 4 screens (Dashboard, Calendar, Customers, Reports), 1290×2796, uploaded to the 6.9" Display slot.
+- **~~Submit for review~~ ✅ done (2026-07-23, 9:53 PM)** — Submission ID `ca55accc-9f75-4baf-bcc1-b273890e24bf`, status "Waiting for Review". Review typically 1–7 days; watch for Apple's email updates.
