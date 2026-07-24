@@ -18,13 +18,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build iOS Simulator app via EAS (local)
+      - name: Build iOS Simulator app via EAS (cloud)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli build --local --platform ios --profile ios-simulator --non-interactive --output ./bwa-simulator.tar.gz --verbose-logs
+        run: npx eas-cli build --platform ios --profile ios-simulator --non-interactive --wait --json > eas-build-result.json
 
-      - name: Extract .app bundle
+      - name: Download built .app bundle
         run: |
+          BUILD_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('eas-build-result.json','utf8'))[0].artifacts.buildUrl)")
+          echo "Downloading build from: $BUILD_URL"
+          curl -L -o bwa-simulator.tar.gz "$BUILD_URL"
           mkdir -p build_output
           tar -xf bwa-simulator.tar.gz -C build_output
           APP_PATH=$(find build_output -maxdepth 3 -name "*.app" | head -n 1)
