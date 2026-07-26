@@ -77,7 +77,7 @@
 | 18.5 | Push Notifications (pulled forward from V2) | ✅ Done | 2026-07-16 |
 | 18.6 | Customer self-serve reschedule/cancel | ✅ Done | 2026-07-16 |
 | 19 | Internal Testing | ✅ Done — all hard submission blockers resolved (see 2026-07-20 confirmation pass) | 2026-07-17 to 2026-07-20 |
-| 20 | Android Build + Google Play | 🔄 In Google Play's mandatory Closed Testing period — 12/12 testers opted in, day 3 of 14 as of 2026-07-23. Started 2026-07-20, clears 2026-08-03. Production submission follows once Google grants access. | Started 2026-07-20 |
+| 20 | Android Build + Google Play | 🔄 In Google Play's mandatory Closed Testing period — 12/12 testers opted in, day 3 of 14 as of 2026-07-23. Started 2026-07-20, clears 2026-08-03. Production submission follows once Google grants access. **Updated to versionCode 9 on 2026-07-26** — see build note below. | Started 2026-07-20 |
 | 21 | iOS Build (EAS) + App Store | ✅ Submitted to Apple for review 2026-07-23, 9:53 PM (Submission ID `ca55accc-9f75-4baf-bcc1-b273890e24bf`), status "Waiting for Review" | 2026-07-23 |
 
 ---
@@ -971,3 +971,11 @@ Also verified (live, not assumed) as correctly *not* an issue: the persistent re
 - ~~TestFlight internal testing~~ ✅ done — confirmed working live on a real device with the demo account.
 - ~~Screenshots~~ ✅ done (2026-07-23) — 4 screens (Dashboard, Calendar, Customers, Reports), 1290×2796, uploaded to the 6.9" Display slot.
 - **~~Submit for review~~ ✅ done (2026-07-23, 9:53 PM)** — Submission ID `ca55accc-9f75-4baf-bcc1-b273890e24bf`, status "Waiting for Review". Review typically 1–7 days; watch for Apple's email updates.
+
+### Android — versionCode 9 pushed to the same Closed Testing track (2026-07-26)
+
+The iOS submission (Step 21) shipped a more refined build than what Android's Closed Testing track was running, since both platforms share this one Expo codebase but Android hadn't had a fresh build cut since versionCode 8 (2026-07-20). To get the refinements onto Android for testing, ran a new EAS production build (`eas build --platform android --profile production`, build ID `76450a9e-3067-4cda-8242-a5a0d16147e1`, versionCode auto-incremented 8 → 9) and uploaded the resulting `.aab` to the **existing "alpha" Closed Testing release track** in Play Console — not a new track, not a new tester list.
+
+**Confirmed before doing this**: researched whether uploading a new build mid-test resets Google's mandatory 14-day/12-tester countdown. Community consensus (Google's own docs don't spell it out explicitly) is that pushing an update to the *same* track does not reset the clock — only a tester count dropping below 12 does. Proceeded on that basis: same track, same tester list untouched, only the binary updated.
+
+**Mechanics**: downloaded the built `.aab` locally (145 MB, `file_upload` tool's 10 MB cap ruled out automated upload), user manually dragged it into Play Console's existing empty draft release on the "alpha" track. Save flagged 2 benign warnings (7 devices no longer supported — a normal minSdk/build-tooling delta; no deobfuscation/R8 mapping file — cosmetic, doesn't block rollout), same class of warning seen on prior Android builds. Submitted for review 2026-07-26 — status "Changes in review" as of this entry. Once approved, testers on the existing track receive the update automatically; the 14-day/12-tester window (started 2026-07-20, clears 2026-08-03) is unaffected.
