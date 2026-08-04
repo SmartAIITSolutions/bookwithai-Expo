@@ -9,6 +9,7 @@ import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { checkIn, startService, completeService, completeAndReadyForCheckout, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
 import { getAddOnSuggestion, AddOnSuggestion } from '@/lib/api/ownerServices';
 import { bookingStatusColor, nextAction, CheckinFlowMode } from '@/lib/calendar/bookingStatus';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 interface AppointmentSheetProps {
@@ -41,6 +42,8 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
   function AppointmentSheet({ booking, onChanged, onReadyForCheckout, flowMode = 'full' }, ref) {
     const [working, setWorking] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
+    const [confirmNoShow, setConfirmNoShow] = useState(false);
     const [addOn, setAddOn] = useState<AddOnSuggestion | null>(null);
     const [, forceTick] = useState(0);
     const snapPoints = useMemo(() => ['85%'], []);
@@ -104,18 +107,12 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
 
     function handleCancel() {
       setMenuOpen(false);
-      Alert.alert('Cancel appointment?', 'This cannot be undone.', [
-        { text: 'Keep it', style: 'cancel' },
-        { text: 'Cancel appointment', style: 'destructive', onPress: () => runAction(cancelBooking) },
-      ]);
+      setConfirmCancel(true);
     }
 
     function handleNoShow() {
       setMenuOpen(false);
-      Alert.alert('Mark as no-show?', undefined, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Mark No-Show', style: 'destructive', onPress: () => runAction((id) => markNoShow(id)) },
-      ]);
+      setConfirmNoShow(true);
     }
 
     function handleRestore() {
@@ -251,6 +248,25 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
             </TouchableOpacity>
           )}
         </BottomSheetView>
+        <ConfirmModal
+          visible={confirmCancel}
+          title="Cancel this appointment?"
+          message="This appointment will be removed from your calendar and the client schedule."
+          cancelLabel="Keep it"
+          confirmLabel="Cancel appointment"
+          destructive
+          onCancel={() => setConfirmCancel(false)}
+          onConfirm={() => { setConfirmCancel(false); runAction(cancelBooking); }}
+        />
+        <ConfirmModal
+          visible={confirmNoShow}
+          title="Mark as no-show?"
+          cancelLabel="Cancel"
+          confirmLabel="Mark No-Show"
+          destructive
+          onCancel={() => setConfirmNoShow(false)}
+          onConfirm={() => { setConfirmNoShow(false); runAction((id) => markNoShow(id)); }}
+        />
       </BottomSheetModal>
     );
   }

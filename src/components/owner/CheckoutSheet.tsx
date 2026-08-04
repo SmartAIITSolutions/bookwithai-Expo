@@ -3,17 +3,25 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Activi
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { OwnerBooking } from '@/lib/api/ownerBookings';
+import { OwnerBooking, createBooking } from '@/lib/api/ownerBookings';
 import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine } from '@/lib/api/ownerCheckout';
 import { getStoreCredit } from '@/lib/api/ownerCheckout';
 import { validateGiftCard } from '@/lib/api/giftCards';
 import { listProducts, Product } from '@/lib/api/ownerProducts';
 import { listServices, Service } from '@/lib/api/ownerServices';
 import { StaffMember } from '@/lib/api/ownerStaff';
+import { cardChargeFromVisitDueCents } from '@/lib/stripe/fees';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function money(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
+
+// YYYY-MM-DDTHH:mm, in the device's local time -- what `toISOString()`
+// would give in UTC isn't what a date/time text field should show back.
+function toLocalDateStr(d: Date) { return d.toISOString().slice(0, 10); }
+function toLocalTimeStr(d: Date) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 function CardOverlay() {
   return (
@@ -43,7 +51,7 @@ export interface CheckoutSheetHandle {
 // sheet is what the appointment sheet hands off to when the sticky bar
 // reaches "READY FOR CHECKOUT."
 //
-// Built on React Native's own Modal rather than @gorhom/bottom-sheet --
+// Built on React Native's own Modal rather than @gorhom/bottom-sheet —
 // the library silently failed to open here (present() called, ref valid,
 // data loaded, but the modal's internal state never transitioned; matches
 // known open issues in @gorhom/bottom-sheet v5 around animation-timing
@@ -64,19 +72,23 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const [upgradedService, setUpgradedService] = useState<Service | null>(null);
     const [showServicePicker, setShowServicePicker] = useState(false);
     const [discountCents, setDiscountCents] = useState(0);
+    const [customDiscount, setCustomDiscount] = useState(false);
+    const [customDiscountText, setCustomDiscountText] = useState('');
     const [tipCents, setTipCents] = useState(0);
+    const [customTip, setCustomTip] = useState(false);
+    const [customTipText, setCustomTipText] = useState('');
     const [tenders, setTenders] = useState<Tender[]>([]);
-    const [addingTender, setAddingTender] = useState(false);
     const [tenderMethod, setTenderMethod] = useState<Tender['method']>('cash');
     const [tenderAmount, setTenderAmount] = useState('');
     const [giftCode, setGiftCode] = useState('');
     const [giftBalance, setGiftBalance] = useState<number | null>(null);
     const [storeCreditBalance, setStoreCreditBalance] = useState(0);
     const [sendEmail, setSendEmail] = useState(true);
-    const [sendSms, setSendSms] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<{ status: 'completed' | 'awaiting_card_payment'; payment_url?: string } | null>(null);
     const [bookNext, setBookNext] = useState(false);
+    const [rebookDate, setRebookDate] = useState('');
+    const [rebookTime, setRebookTime] = useState('');
     const [performedByStaffId, setPerformedByStaffId] = useState<string | null>(null);
 
     const load = useCallback(async () => {
@@ -86,7 +98,18 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         listProducts(),
         listServices(),
       ]);
-      if (previewResult.ok) setPreview(previewResult.data);
+      if (previewResult.ok) {
+        setPreview(previewResult.data);
+        // Most walk-in/manual checkouts are cash; a booking that already
+        // has money on it (an online deposit at booking time) almost
+        // always means the rest is being settled the same way it started.
+        setTenderMethod(previewResult.data.already_paid_cents > 0 ? 'card' : 'cash');
+        if (previewResult.data.rebook_suggestion) {
+          const suggested = new Date(previewResult.data.rebook_suggestion.starts_at);
+          setRebookDate(toLocalDateStr(suggested));
+          setRebookTime(toLocalTimeStr(suggested));
+        }
+      }
       if (productsResult.ok) setCatalog(productsResult.data.data);
       if (servicesResult.ok) setServices(servicesResult.data.data.filter(s => s.active && s.id !== booking.service_id));
       if (booking.customer_id) {
@@ -98,10 +121,43 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     useEffect(() => {
       if (booking) {
         setResult(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setUpgradedService(null);
-        setPerformedByStaffId(booking.staff_id);
+        setCustomDiscount(false); setCustomDiscountText(''); setCustomTip(false); setCustomTipText('');
+        setBookNext(false); setPerformedByStaffId(booking.staff_id);
         load();
       }
     }, [booking, load]);
+
+    // Derived totals -- computed with safe fallbacks so this can run every
+    // render (including before `preview` has loaded), since the effect
+    // below it must be called unconditionally, same as every other hook in
+    // this component (an early `if (!booking || !preview) return` used to
+    // sit above this, which made the tenderAmount-sync effect conditional
+    // and threw "rendered more hooks than during the previous render").
+    const serviceBaseCents = upgradedService ? upgradedService.price_cents : preview?.subtotal_cents ?? 0;
+    const productTotal = products.reduce((s, p) => s + p.quantity * p.price_cents_each, 0);
+    const subtotal = serviceBaseCents + productTotal;
+    // Recomputed reactively, not frozen from the initial preview call --
+    // tax must reflect products/discount chosen during this checkout.
+    const taxableBase = Math.max(0, subtotal - discountCents);
+    const taxCents = preview?.tax.inclusive ? 0 : Math.round(taxableBase * ((preview?.tax.rate_percent ?? 0) / 100));
+    const total = subtotal - discountCents + taxCents + tipCents;
+    const tenderedTotal = tenders.reduce((s, t) => s + t.amount_cents, 0);
+    const remaining = total - tenderedTotal;
+
+    // Amount auto-fills with whatever's still due -- only changes when the
+    // due amount itself changes (a tender gets added/removed, or the total
+    // changes), never while the owner is mid-keystroke in the field.
+    useEffect(() => {
+      setTenderAmount(remaining > 0 ? (remaining / 100).toFixed(2) : '');
+    }, [remaining]);
+
+    // Preview only -- the actual charge is computed the same way, again,
+    // server-side (createSalonBalanceCheckoutSession) when the card tender
+    // is submitted. This just shows the owner what to expect before they
+    // get there, matching the web dashboard's checkout preview.
+    const cardFeePreview = preview?.pass_stripe_fee && tenderMethod === 'card' && remaining > 0
+      ? cardChargeFromVisitDueCents(remaining, true)
+      : null;
 
     if (!booking || !preview) {
       return (
@@ -110,17 +166,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         </SheetModal>
       );
     }
-
-    const serviceBaseCents = upgradedService ? upgradedService.price_cents : preview.subtotal_cents;
-    const productTotal = products.reduce((s, p) => s + p.quantity * p.price_cents_each, 0);
-    const subtotal = serviceBaseCents + productTotal;
-    // Recomputed reactively, not frozen from the initial preview call --
-    // tax must reflect products/discount chosen during this checkout.
-    const taxableBase = Math.max(0, subtotal - discountCents);
-    const taxCents = preview.tax.inclusive ? 0 : Math.round(taxableBase * (preview.tax.rate_percent / 100));
-    const total = subtotal - discountCents + taxCents + tipCents;
-    const tenderedTotal = tenders.reduce((s, t) => s + t.amount_cents, 0);
-    const remaining = total - tenderedTotal;
 
     function addProduct(p: Product) {
       setProducts(list => {
@@ -151,7 +196,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       } else {
         setTenders(t => [...t, { method: tenderMethod, amount_cents: amount }]);
       }
-      setTenderAmount(''); setAddingTender(false);
     }
 
     async function handleSubmit() {
@@ -160,12 +204,30 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       setSubmitting(true);
       const res = await submitCheckout(booking.id, {
         tip_cents: tipCents, discount_cents: discountCents, tax_cents: taxCents,
-        products, tenders, send_receipt_email: sendEmail, send_receipt_sms: sendSms,
+        products, tenders, send_receipt_email: sendEmail,
         upgraded_service_id: upgradedService?.id, upgraded_price_cents: upgradedService?.price_cents,
         staff_id: performedByStaffId !== booking.staff_id ? performedByStaffId : undefined,
       });
       setSubmitting(false);
       if (!res.ok) { Alert.alert('Checkout failed', res.error); return; }
+
+      // Rebook -- only attempted after a successful checkout, and only if
+      // the owner actually confirmed the (editable) suggested date/time.
+      if (bookNext && booking.customer_id && rebookDate && rebookTime) {
+        const rebookServiceId = upgradedService?.id ?? booking.service_id;
+        const durationMinutes = upgradedService?.duration_minutes ?? booking.service?.duration_minutes ?? 60;
+        const startsAt = new Date(`${rebookDate}T${rebookTime}:00`);
+        if (rebookServiceId && !isNaN(startsAt.getTime())) {
+          const endsAt = new Date(startsAt.getTime() + durationMinutes * 60000);
+          const bookResult = await createBooking({
+            customer_id: booking.customer_id, service_id: rebookServiceId,
+            staff_id: performedByStaffId, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(),
+            source: 'manual',
+          });
+          if (!bookResult.ok) Alert.alert('Checkout completed, but rebooking failed', bookResult.error);
+        }
+      }
+
       setResult(res.data);
       if (res.data.status === 'completed') {
         setTimeout(onDone, 2200);
@@ -200,7 +262,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             <Text style={styles.successTitle}>✅ Payment collected</Text>
             <Text style={styles.successLine}>✅ Receipt sent</Text>
             <Text style={styles.successLine}>✅ Loyalty updated</Text>
-            <Text style={styles.successLine}>{preview.rebook_suggestion ? '✅ Next appointment suggested' : 'Not booked'}</Text>
+            <Text style={styles.successLine}>{bookNext ? '✅ Next appointment booked' : preview.rebook_suggestion ? 'Not booked' : ''}</Text>
           </View>
         </SheetModal>
       );
@@ -275,27 +337,61 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
           <Section title="Discount">
             <View style={styles.chipRow}>
               {[10, 15, 20].map(pct => (
-                <TouchableOpacity key={pct} style={styles.chip} onPress={() => setDiscountCents(Math.round(subtotal * pct / 100))}>
-                  <Text style={styles.chipText}>{pct}%</Text>
+                <TouchableOpacity
+                  key={pct}
+                  style={[styles.chip, !customDiscount && discountCents === Math.round(subtotal * pct / 100) && styles.chipActive]}
+                  onPress={() => { setCustomDiscount(false); setDiscountCents(Math.round(subtotal * pct / 100)); }}
+                >
+                  <Text style={[styles.chipText, !customDiscount && discountCents === Math.round(subtotal * pct / 100) && styles.chipTextActive]}>{pct}%</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={styles.chip} onPress={() => setDiscountCents(0)}>
-                <Text style={styles.chipText}>None</Text>
+              <TouchableOpacity style={[styles.chip, !customDiscount && discountCents === 0 && styles.chipActive]} onPress={() => { setCustomDiscount(false); setDiscountCents(0); }}>
+                <Text style={[styles.chipText, !customDiscount && discountCents === 0 && styles.chipTextActive]}>None</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.chip, customDiscount && styles.chipActive]} onPress={() => setCustomDiscount(true)}>
+                <Text style={[styles.chipText, customDiscount && styles.chipTextActive]}>Custom</Text>
               </TouchableOpacity>
             </View>
+            {customDiscount && (
+              <TextInput
+                style={styles.input}
+                placeholder="Discount amount ($)"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={customDiscountText}
+                onChangeText={t => { setCustomDiscountText(t); setDiscountCents(Math.round((parseFloat(t) || 0) * 100)); }}
+                keyboardType="decimal-pad"
+              />
+            )}
           </Section>
 
           <Section title="Tip">
             <View style={styles.chipRow}>
               {[18, 20, 25].map(pct => (
-                <TouchableOpacity key={pct} style={[styles.chip, tipCents === Math.round(subtotal * pct / 100) && styles.chipActive]} onPress={() => setTipCents(Math.round(subtotal * pct / 100))}>
-                  <Text style={[styles.chipText, tipCents === Math.round(subtotal * pct / 100) && styles.chipTextActive]}>{pct}%</Text>
+                <TouchableOpacity
+                  key={pct}
+                  style={[styles.chip, !customTip && tipCents === Math.round(subtotal * pct / 100) && styles.chipActive]}
+                  onPress={() => { setCustomTip(false); setTipCents(Math.round(subtotal * pct / 100)); }}
+                >
+                  <Text style={[styles.chipText, !customTip && tipCents === Math.round(subtotal * pct / 100) && styles.chipTextActive]}>{pct}%</Text>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[styles.chip, tipCents === 0 && styles.chipActive]} onPress={() => setTipCents(0)}>
-                <Text style={[styles.chipText, tipCents === 0 && styles.chipTextActive]}>None</Text>
+              <TouchableOpacity style={[styles.chip, !customTip && tipCents === 0 && styles.chipActive]} onPress={() => { setCustomTip(false); setTipCents(0); }}>
+                <Text style={[styles.chipText, !customTip && tipCents === 0 && styles.chipTextActive]}>None</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.chip, customTip && styles.chipActive]} onPress={() => setCustomTip(true)}>
+                <Text style={[styles.chipText, customTip && styles.chipTextActive]}>Custom</Text>
               </TouchableOpacity>
             </View>
+            {customTip && (
+              <TextInput
+                style={styles.input}
+                placeholder="Tip amount ($)"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={customTipText}
+                onChangeText={t => { setCustomTipText(t); setTipCents(Math.round((parseFloat(t) || 0) * 100)); }}
+                keyboardType="decimal-pad"
+              />
+            )}
           </Section>
 
           <BlurView intensity={90} tint="dark" style={styles.totalsCard}>
@@ -317,7 +413,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                 </TouchableOpacity>
               </View>
             ))}
-            {addingTender ? (
+            {remaining > 0 && (
               <BlurView intensity={90} tint="dark" style={styles.addCard}>
                 <CardOverlay />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -339,17 +435,20 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                 {tenderMethod === 'store_credit' && (
                   <Text style={styles.hint}>Available: {money(storeCreditBalance)}</Text>
                 )}
+                {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
+                  <View style={styles.feeRow}>
+                    <Text style={styles.feeText}>Card processing fee (passed to customer)</Text>
+                    <Text style={styles.feeAmount}>+{money(cardFeePreview.stripeFeesCents)}</Text>
+                  </View>
+                )}
+                {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
+                  <Text style={styles.hint}>Customer's card will be charged {money(cardFeePreview.totalChargeCents)} total ({money(remaining)} due + {money(cardFeePreview.stripeFeesCents)} fee).</Text>
+                )}
                 <TextInput style={styles.input} placeholder="Amount ($)" placeholderTextColor="rgba(255,255,255,0.4)" value={tenderAmount} onChangeText={setTenderAmount} keyboardType="decimal-pad" />
                 <View style={styles.inlineActions}>
-                  <TouchableOpacity onPress={() => setAddingTender(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={addTender}><Text style={styles.linkText}>Add</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={addTender}><Text style={styles.linkText}>Add payment</Text></TouchableOpacity>
                 </View>
               </BlurView>
-            ) : (
-              <TouchableOpacity style={styles.addRow} onPress={() => setAddingTender(true)}>
-                <Ionicons name="add" size={16} color="#F4D77A" />
-                <Text style={styles.linkText}>Add payment method</Text>
-              </TouchableOpacity>
             )}
           </Section>
 
@@ -358,17 +457,23 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
               <TouchableOpacity style={styles.rebookCard} onPress={() => setBookNext(v => !v)}>
                 <Ionicons name={bookNext ? 'checkbox' : 'square-outline'} size={18} color="#F4D77A" />
                 <Text style={styles.rebookText}>
-                  Suggest next visit — {new Date(preview.rebook_suggestion.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (usually every {preview.rebook_suggestion.interval_days} days)
+                  Suggest next visit (usually every {preview.rebook_suggestion.interval_days} days)
                 </Text>
               </TouchableOpacity>
+              {bookNext && (
+                <View style={styles.rebookFields}>
+                  <TextInput style={[styles.input, { flex: 1 }]} placeholder="YYYY-MM-DD" placeholderTextColor="rgba(255,255,255,0.4)" value={rebookDate} onChangeText={setRebookDate} />
+                  <TextInput style={[styles.input, { flex: 1 }]} placeholder="24h time, e.g. 14:30" placeholderTextColor="rgba(255,255,255,0.4)" value={rebookTime} onChangeText={setRebookTime} />
+                </View>
+              )}
             </Section>
           )}
 
           <Section title="Receipt">
             <View style={styles.chipRow}>
               <TouchableOpacity style={[styles.chip, sendEmail && styles.chipActive]} onPress={() => setSendEmail(v => !v)}><Text style={[styles.chipText, sendEmail && styles.chipTextActive]}>Email</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.chip, sendSms && styles.chipActive]} onPress={() => setSendSms(v => !v)}><Text style={[styles.chipText, sendSms && styles.chipTextActive]}>SMS</Text></TouchableOpacity>
             </View>
+            <Text style={styles.hint}>An in-app notification receipt is always sent — SMS isn't reliable yet, so it's been removed here.</Text>
           </Section>
 
           <TouchableOpacity style={[styles.primaryButton, remaining !== 0 && styles.primaryButtonDisabled]} onPress={handleSubmit} disabled={submitting || remaining !== 0}>
@@ -458,6 +563,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm, gap: Spacing.xs,
   },
   giftRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  feeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  feeText: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', flex: 1 },
+  feeAmount: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#FBBF24' },
   input: {
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm, paddingVertical: 8, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF',
@@ -472,6 +580,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm,
   },
   rebookText: { flex: 1, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
+  rebookFields: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
   primaryButton: { backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center' },
   primaryButtonDisabled: { backgroundColor: 'rgba(212,175,55,0.3)' },
   primaryButtonText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: FontSize.base },

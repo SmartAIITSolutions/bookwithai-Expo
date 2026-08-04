@@ -6,6 +6,9 @@ export interface CheckoutPreview {
   pass_stripe_fee: boolean;
   subtotal_cents: number;
   tax_cents: number;
+  // Non-zero when the customer already paid something online at booking
+  // time (e.g. a deposit) -- used to default the first tender to "card".
+  already_paid_cents: number;
   checklist: { label: string; ok: boolean }[];
   rebook_suggestion: { starts_at: string; interval_days: number } | null;
 }
@@ -29,8 +32,8 @@ export interface CheckoutRequest {
   tax_cents: number;
   products: ProductLine[];
   tenders: Tender[];
+  // SMS receipts were removed -- an in-app push receipt now always sends.
   send_receipt_email?: boolean;
-  send_receipt_sms?: boolean;
   upgraded_service_id?: string;
   upgraded_price_cents?: number;
   // Only sent when it differs from the booking's own staff_id -- corrects

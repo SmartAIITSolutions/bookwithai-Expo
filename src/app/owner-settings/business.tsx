@@ -1,19 +1,32 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { FontFamily } from '@/constants/Theme';
 import { Stack, router } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { getBusiness, updateBusiness, addHoliday, removeHoliday, Business, Holiday } from '@/lib/api/ownerBusiness';
 import { listClosures, addClosure, removeClosure, BusinessClosure } from '@/lib/api/ownerDailyOps';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 // Business Setup — Sprint 1, Phase 1 "Business Setup" group. Includes the
 // two confirmed-missing fields from the audit: structured address and
 // holiday hours (shared with SANAA via sanaa_holidays).
+//
+// Re-themed 2026-08-04 to match the dark/gold glass look the rest of the
+// owner app (Dashboard, Calendar, More) already has -- this screen (like
+// several owner-settings screens) was never brought over from the original
+// light theme; only the visual layer changed here, no logic touched.
 export default function BusinessSetupScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -111,7 +124,7 @@ export default function BusinessSetupScreen() {
     return (
       <View style={styles.centered}>
         <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Business Setup' }} />
-        <BreathingHeart size={40} color={Colors.primary} />
+        <BreathingHeart size={40} color="#F4D77A" />
       </View>
     );
   }
@@ -238,7 +251,7 @@ export default function BusinessSetupScreen() {
                 <Text style={styles.holidayMessage}>{h.message}</Text>
               </View>
               <TouchableOpacity onPress={() => handleRemoveHoliday(h.id)} hitSlop={8}>
-                <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                <Ionicons name="trash-outline" size={18} color="#F09595" />
               </TouchableOpacity>
             </View>
           ))}
@@ -247,21 +260,21 @@ export default function BusinessSetupScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Date (YYYY-MM-DD)"
-                placeholderTextColor={Colors.textDisabled}
+                placeholderTextColor="rgba(255,255,255,0.35)"
                 value={newDate}
                 onChangeText={setNewDate}
               />
               <TextInput
                 style={styles.input}
                 placeholder="Name (e.g. Christmas Day)"
-                placeholderTextColor={Colors.textDisabled}
+                placeholderTextColor="rgba(255,255,255,0.35)"
                 value={newName}
                 onChangeText={setNewName}
               />
               <TextInput
                 style={styles.input}
                 placeholder="Message (what SANAA/customers hear)"
-                placeholderTextColor={Colors.textDisabled}
+                placeholderTextColor="rgba(255,255,255,0.35)"
                 value={newMessage}
                 onChangeText={setNewMessage}
               />
@@ -276,7 +289,7 @@ export default function BusinessSetupScreen() {
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAddingHoliday(true)}>
-              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Ionicons name="add" size={18} color="#F4D77A" />
               <Text style={styles.addRowText}>Add closed date</Text>
             </TouchableOpacity>
           )}
@@ -291,15 +304,15 @@ export default function BusinessSetupScreen() {
                 {c.reason && <Text style={styles.holidayMessage}>{c.reason}</Text>}
               </View>
               <TouchableOpacity onPress={() => handleRemoveClosure(c.id)} hitSlop={8}>
-                <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                <Ionicons name="trash-outline" size={18} color="#F09595" />
               </TouchableOpacity>
             </View>
           ))}
           {addingClosure ? (
             <View style={styles.inlineForm}>
-              <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={closureStart} onChangeText={setClosureStart} />
-              <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={closureEnd} onChangeText={setClosureEnd} />
-              <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={Colors.textDisabled} value={closureReason} onChangeText={setClosureReason} />
+              <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor="rgba(255,255,255,0.35)" value={closureStart} onChangeText={setClosureStart} />
+              <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor="rgba(255,255,255,0.35)" value={closureEnd} onChangeText={setClosureEnd} />
+              <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor="rgba(255,255,255,0.35)" value={closureReason} onChangeText={setClosureReason} />
               <View style={styles.inlineFormActions}>
                 <TouchableOpacity onPress={() => setAddingClosure(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                 <TouchableOpacity onPress={handleAddClosure}><Text style={styles.addRowText}>Save</Text></TouchableOpacity>
@@ -307,14 +320,14 @@ export default function BusinessSetupScreen() {
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAddingClosure(true)}>
-              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Ionicons name="add" size={18} color="#F4D77A" />
               <Text style={styles.addRowText}>Add closure</Text>
             </TouchableOpacity>
           )}
         </Section>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-          {saving ? <BreathingHeart size={18} color={Colors.textOnPrimary} /> : <Text style={styles.saveButtonText}>Save</Text>}
+          {saving ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.saveButtonText}>Save</Text>}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -325,7 +338,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>{children}</View>
+      <BlurView intensity={90} tint="dark" style={styles.card}>
+        <CardOverlay />
+        {children}
+      </BlurView>
     </View>
   );
 }
@@ -343,7 +359,7 @@ function Field(props: {
         onChangeText={props.onChangeText}
         keyboardType={props.keyboardType ?? 'default'}
         multiline={props.multiline}
-        placeholderTextColor={Colors.textDisabled}
+        placeholderTextColor="rgba(255,255,255,0.35)"
       />
     </View>
   );
@@ -351,50 +367,57 @@ function Field(props: {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#040108' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.backgroundMain },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#040108' },
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
   hourRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-  hourChip: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full, backgroundColor: Colors.backgroundMain, borderWidth: 1, borderColor: Colors.border },
-  hourChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  hourChipText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600' },
-  hourChipTextActive: { color: Colors.textOnPrimary },
+  hourChip: {
+    paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
+  },
+  hourChipActive: { backgroundColor: '#F4D77A', borderColor: '#F4D77A' },
+  hourChipText: { fontFamily: FontFamily.soraSemiBold, fontSize: 13, color: '#FFFFFF' },
+  hourChipTextActive: { color: '#09000F' },
   staffModeCol: { gap: Spacing.sm, marginTop: Spacing.xs },
   staffModeOption: {
     padding: Spacing.md, borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundMain, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
   },
-  staffModeOptionActive: { borderColor: Colors.primary, backgroundColor: Colors.card },
-  staffModeTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
-  staffModeTitleActive: { color: Colors.primary },
-  staffModeDesc: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 2 },
+  staffModeOptionActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.1)' },
+  staffModeTitle: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#FFFFFF' },
+  staffModeTitleActive: { color: '#F4D77A' },
+  staffModeDesc: { fontFamily: FontFamily.sora, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
   section: { gap: Spacing.xs },
   sectionTitle: {
-    fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase',
-    color: Colors.textSecondary, marginLeft: Spacing.xs,
+    fontFamily: FontFamily.soraSemiBold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase',
+    color: '#F4D77A', marginLeft: Spacing.xs,
   },
-  card: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.md, ...Shadows.subtle },
+  card: {
+    borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md, gap: Spacing.md,
+  },
   field: { gap: 6 },
-  fieldLabel: { fontSize: 13, color: Colors.textSecondary },
+  fieldLabel: { fontFamily: FontFamily.sora, fontSize: 13, color: 'rgba(255,255,255,0.6)' },
   input: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 10, fontSize: 15, color: Colors.textPrimary,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 10, fontFamily: FontFamily.sora, fontSize: 15,
+    color: '#FFFFFF', backgroundColor: 'rgba(0,0,0,0.15)',
   },
   inputMultiline: { minHeight: 72, textAlignVertical: 'top' },
   holidayRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: Spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    paddingVertical: Spacing.xs, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.15)',
   },
-  holidayName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
-  holidayMessage: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 2 },
-  emptyHint: { fontSize: 13, color: Colors.textSecondary },
+  holidayName: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#FFFFFF' },
+  holidayMessage: { fontFamily: FontFamily.sora, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
+  emptyHint: { fontFamily: FontFamily.sora, fontSize: 13, color: 'rgba(255,255,255,0.5)' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
-  addRowText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  addRowText: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#F4D77A' },
   inlineForm: { gap: Spacing.sm, paddingTop: Spacing.xs },
   inlineFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg, paddingTop: 2 },
-  cancelText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
+  cancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: 'rgba(255,255,255,0.6)' },
   saveButton: {
-    backgroundColor: Colors.buttonPrimaryBg, borderRadius: BorderRadius.lg,
-    paddingVertical: 14, alignItems: 'center', ...Shadows.button,
+    backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg,
+    paddingVertical: 14, alignItems: 'center',
   },
-  saveButtonText: { color: Colors.buttonPrimaryText, fontSize: 15, fontWeight: '700' },
+  saveButtonText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: FontSize.base },
 });
