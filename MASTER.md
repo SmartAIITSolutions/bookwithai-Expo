@@ -1,6 +1,6 @@
 # 📱 Book With AI — Expo App MASTER.md
 ### Single source of truth for the customer mobile app
-**Last updated:** 2026-07-23 (iOS submitted to Apple for review; Android status corrected to reflect Closed Testing in progress)
+**Last updated:** 2026-08-04 (Android closed testing complete; applied for production access; deep link verification fixed)
 
 > Always pull this at the start of every session.
 > For platform-wide decisions (SANAA, booking backend, web app), see `C:\Dev\booking-app\MASTER.md`
@@ -77,7 +77,7 @@
 | 18.5 | Push Notifications (pulled forward from V2) | ✅ Done | 2026-07-16 |
 | 18.6 | Customer self-serve reschedule/cancel | ✅ Done | 2026-07-16 |
 | 19 | Internal Testing | ✅ Done — all hard submission blockers resolved (see 2026-07-20 confirmation pass) | 2026-07-17 to 2026-07-20 |
-| 20 | Android Build + Google Play | 🔄 In Google Play's mandatory Closed Testing period — 12/12 testers opted in, day 3 of 14 as of 2026-07-23. Started 2026-07-20, clears 2026-08-03. Production submission follows once Google grants access. **Updated to versionCode 9 on 2026-07-26** — see build note below. | Started 2026-07-20 |
+| 20 | Android Build + Google Play | 🔄 14-day/12-tester Closed Testing window completed 2026-08-03. Applied for production access 2026-08-04, 23:39 — Google reviewing the application (not the binary itself), expect a reply within 7 days per Play Console. See production-application entry below. | Started 2026-07-20, applied for production 2026-08-04 |
 | 21 | iOS Build (EAS) + App Store | ✅ Submitted to Apple for review 2026-07-23, 9:53 PM (Submission ID `ca55accc-9f75-4baf-bcc1-b273890e24bf`), status "Waiting for Review" | 2026-07-23 |
 
 ---
@@ -979,3 +979,11 @@ The iOS submission (Step 21) shipped a more refined build than what Android's Cl
 **Confirmed before doing this**: researched whether uploading a new build mid-test resets Google's mandatory 14-day/12-tester countdown. Community consensus (Google's own docs don't spell it out explicitly) is that pushing an update to the *same* track does not reset the clock — only a tester count dropping below 12 does. Proceeded on that basis: same track, same tester list untouched, only the binary updated.
 
 **Mechanics**: downloaded the built `.aab` locally (145 MB, `file_upload` tool's 10 MB cap ruled out automated upload), user manually dragged it into Play Console's existing empty draft release on the "alpha" track. Save flagged 2 benign warnings (7 devices no longer supported — a normal minSdk/build-tooling delta; no deobfuscation/R8 mapping file — cosmetic, doesn't block rollout), same class of warning seen on prior Android builds. Submitted for review 2026-07-26 — status "Changes in review" as of this entry. Once approved, testers on the existing track receive the update automatically; the 14-day/12-tester window (started 2026-07-20, clears 2026-08-03) is unaffected.
+
+### Android readiness sweep + deep link fix + applied for production access (2026-08-04)
+
+**Readiness sweep, requested before applying for production**: confirmed live in Play Console (not assumed from memory) — Policy status "No issues found"; App content "You've caught up with everything" (data safety, content rating, target audience, ads all still current); all 3 closed-testing prerequisites green (published release, 12+ testers, 14 days run); "Apply for production" button live. Also confirmed versionCode 9 (uploaded 2026-07-26) is the same refined build that was submitted for iOS review — not a stale/mismatched build, per Submission Activity showing that upload published the same day.
+
+**Real bug found via Play Console's notification bell, not part of the sweep itself**: "One deep link may be failing because your web domains aren't associated with your app." Root-caused to `bookwithai-expo/app.json`'s Android intent filter (`autoVerify: true`, host `bookwithai.app`, `pathPrefix: /book`) and iOS `associatedDomains` entry both requiring verification files the `booking-app` website had never published. Confirmed via a direct request that `https://bookwithai.app/.well-known/assetlinks.json` returned a real 404, not a stale cache. Fixed in the `booking-app` repo (see its own MASTER.md section 23 for the full writeup) by adding `public/.well-known/assetlinks.json` (package `app.bookwithai.app`, SHA-256 fingerprint pulled live from Play Console's App Signing page) and `public/.well-known/apple-app-site-association` (appID `6ZATGS9FC8.app.bookwithai.app`, using the `appleTeamId` from this repo's `eas.json`, scoped to `/book` + `/book/*` to match the Android intent filter). After the user deployed it, triggered "Recheck verification" in Play Console — confirmed fixed: domain went from "2 issues found" to "No issues found," and the Deep Links page shows "All links working."
+
+**Applied for production access, 2026-08-04, 23:39.** Filled Google's 3-step questionnaire (recruitment, app description, readiness) with real, grounded answers rather than filler — pulled from actual testing history in this doc (friends/family testers, real-device pass on customer auth/booking/owner checkout, the launch-crash and booking-grouping fixes, the deep link fix above). Confirmed each field's content with the user before advancing each step, since this is a real submission to Google, not a draft. Play Console confirmed: "We have your application for production access... usually takes seven days or less." This is a review of the *application*, not the binary — approval unlocks a second step (creating an actual Production release) which hasn't happened yet.
