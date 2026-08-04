@@ -24,6 +24,19 @@ export async function cancelBooking(bookingId: string, reason?: string): Promise
   return { ok: true };
 }
 
+export async function checkInBooking(bookingId: string): Promise<{ ok: boolean; error?: string }> {
+  const headers = await authHeaders();
+  if (!headers) return { ok: false, error: 'Not signed in.' };
+
+  const res = await fetch(`${API_BASE}/api/mobile/bookings/${bookingId}/check-in`, {
+    method: 'POST',
+    headers,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: json.error || 'Could not check in.' };
+  return { ok: true };
+}
+
 export async function rescheduleBooking(
   bookingId: string,
   startsAt: string,

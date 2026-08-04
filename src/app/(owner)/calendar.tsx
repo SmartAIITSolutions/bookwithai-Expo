@@ -14,6 +14,7 @@ import { WalkInSheet } from '@/components/owner/WalkInSheet';
 import { TimelineCalendar } from '@/components/owner/TimelineCalendar';
 import { MonthView } from '@/components/owner/MonthView';
 import { MultiDayView } from '@/components/owner/MultiDayView';
+import { QueueFlowView } from '@/components/owner/QueueFlowView';
 import { useOwnerBookings } from '@/lib/calendar/useOwnerBookings';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { getBusiness, Business } from '@/lib/api/ownerBusiness';
@@ -38,10 +39,10 @@ function CardOverlay() {
 // The old separate "Timeline" mode (a compact single-row day overview) was
 // dropped once the Today grid got a real live "now" line -- that covered
 // the same "where are we right now" need this mode existed for.
-type CalendarMode = '3day' | 'week' | 'month' | 'agenda';
+type CalendarMode = '3day' | 'week' | 'month' | 'agenda' | 'queue';
 const MODES: { key: CalendarMode; label: string }[] = [
-  { key: 'agenda', label: 'Today' }, { key: '3day', label: '3-Day' }, { key: 'week', label: 'Week' },
-  { key: 'month', label: 'Month' },
+  { key: 'agenda', label: 'Today' }, { key: 'queue', label: 'Queue' }, { key: '3day', label: '3-Day' },
+  { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' },
 ];
 
 // Day view (Phase 0.3 default) — full hour-grid timeline with drag-to-move,
@@ -166,6 +167,14 @@ export default function OwnerCalendarScreen() {
     checkoutRef.current?.present();
   }, []);
 
+  // Queue view's "Ready to Pay" bucket opens Checkout directly, bypassing
+  // AppointmentSheet entirely -- there's nothing left to see there once a
+  // booking has already reached service_completed_at.
+  function openForCheckout(b: OwnerBooking) {
+    setSelectedBooking(b);
+    checkoutRef.current?.present();
+  }
+
   const handleCheckoutDone = useCallback(() => {
     checkoutRef.current?.dismiss();
     sheetRef.current?.dismiss();
@@ -255,6 +264,14 @@ export default function OwnerCalendarScreen() {
         <ErrorState message={`Couldn't load your business settings: ${businessError}`} onRetry={loadBusiness} />
       ) : loading || !business || !schedule ? (
         <View style={styles.centered}><BreathingHeart size={40} color={P.accentGold} /></View>
+      ) : mode === 'queue' ? (
+        <QueueFlowView
+          bookings={visibleBookings}
+          onOpen={openBooking}
+          onReadyForCheckout={openForCheckout}
+          onChanged={reload}
+          onAddWalkIn={openWalkInGeneric}
+        />
       ) : mode === 'agenda' ? (
         // Option A: the grid sits on a fully opaque panel, so the animated
         // background only shows in the margins/chrome above -- the working
@@ -286,8 +303,8 @@ export default function OwnerCalendarScreen() {
         <MultiDayView startDate={date} numDays={7} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} intervalMinutes={gridInterval} />
       )}
 
-      <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={handleChanged} onReadyForCheckout={handleReadyForCheckout} />
-      <CheckoutSheet ref={checkoutRef} booking={selectedBooking} onDone={handleCheckoutDone} />
+      <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={handleChanged} onReadyForCheckout={handleReadyForCheckout} flowMode={business?.checkin_flow_mode ?? 'full'} />
+      <CheckoutSheet ref={checkoutRef} booking={selectedBooking} onDone={handleCheckoutDone} staff={staff} />
       <WalkInSheet
         ref={walkInRef}
         staff={staff}

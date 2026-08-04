@@ -99,6 +99,13 @@ export async function updateBooking(id: string, patch: Partial<{
 export function checkIn(id: string)            { return updateBooking(id, { checked_in_at: new Date().toISOString() }); }
 export function startService(id: string)        { return updateBooking(id, { service_started_at: new Date().toISOString() }); }
 export function completeService(id: string)     { return updateBooking(id, { service_completed_at: new Date().toISOString() }); }
+
+// Quick Flow's single action -- collapses Check In / Start Service / Mark
+// Complete into one PATCH for salons with no handoff between steps to track.
+export function completeAndReadyForCheckout(id: string) {
+  const now = new Date().toISOString();
+  return updateBooking(id, { checked_in_at: now, service_started_at: now, service_completed_at: now });
+}
 export function cancelBooking(id: string)        { return updateBooking(id, { status: 'cancelled' }); }
 
 export function markNoShow(id: string) {

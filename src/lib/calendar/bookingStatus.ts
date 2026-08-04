@@ -41,13 +41,23 @@ export function bookingStatusColor(b: BookingLike): { color: string; label: Stat
   return { color: Colors.primary, label: 'Confirmed' };
 }
 
+export type CheckinFlowMode = 'full' | 'quick';
+
 // The Phase 0.4/0.6 sticky action bar — the one next action the current
 // state calls for. READY FOR CHECKOUT now opens real Checkout Mode
 // (Sprint 4) instead of the Sprint 2 placeholder disabled state.
-export function nextAction(b: BookingLike): { label: string; disabled?: boolean } | null {
+//
+// flowMode 'quick' collapses Check In / Start Service / Mark Complete into a
+// single COMPLETE & CHARGE action -- for solo/home-based salons where
+// there's no one to hand the client off between steps to. Once a booking
+// already has service_completed_at set (e.g. the salon switched modes
+// mid-day), the normal READY FOR CHECKOUT / BOOK NEXT APPOINTMENT tail end
+// of the flow still applies unchanged in either mode.
+export function nextAction(b: BookingLike, flowMode: CheckinFlowMode = 'full'): { label: string; disabled?: boolean } | null {
   if (b.status === 'cancelled' || b.status === 'no_show') return null;
   if (b.status === 'completed') return { label: 'BOOK NEXT APPOINTMENT' };
   if (b.service_completed_at) return { label: 'READY FOR CHECKOUT' };
+  if (flowMode === 'quick') return { label: 'COMPLETE & CHARGE' };
   if (b.service_started_at)   return { label: 'MARK SERVICE COMPLETE' };
   if (b.checked_in_at)        return { label: 'START SERVICE' };
   return { label: 'CHECK IN' };

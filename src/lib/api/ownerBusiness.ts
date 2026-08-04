@@ -19,6 +19,7 @@ export interface Business {
   morning_brief_hour: number;
   max_daily_bookings: number | null;
   staff_login_mode: 'shared_device' | 'individual_accounts';
+  checkin_flow_mode: 'full' | 'quick';
 }
 
 export interface Holiday {

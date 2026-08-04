@@ -9,6 +9,7 @@ import { getStoreCredit } from '@/lib/api/ownerCheckout';
 import { validateGiftCard } from '@/lib/api/giftCards';
 import { listProducts, Product } from '@/lib/api/ownerProducts';
 import { listServices, Service } from '@/lib/api/ownerServices';
+import { StaffMember } from '@/lib/api/ownerStaff';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
@@ -26,6 +27,11 @@ function CardOverlay() {
 interface CheckoutSheetProps {
   booking: OwnerBooking | null;
   onDone: () => void;
+  // Only rendered as a "Performed by" picker when there's more than one
+  // active staff member -- lets the salon correct who actually did the
+  // service if it differs from who the booking was originally scheduled
+  // with, so commission credits the right person.
+  staff?: StaffMember[];
 }
 
 export interface CheckoutSheetHandle {
@@ -43,7 +49,7 @@ export interface CheckoutSheetHandle {
 // known open issues in @gorhom/bottom-sheet v5 around animation-timing
 // races). Plain Modal has no such issue and needs no external library.
 export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>(
-  function CheckoutSheet({ booking, onDone }, ref) {
+  function CheckoutSheet({ booking, onDone, staff = [] }, ref) {
     const [visible, setVisible] = useState(false);
     useImperativeHandle(ref, () => ({
       present: () => setVisible(true),
@@ -71,6 +77,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<{ status: 'completed' | 'awaiting_card_payment'; payment_url?: string } | null>(null);
     const [bookNext, setBookNext] = useState(false);
+    const [performedByStaffId, setPerformedByStaffId] = useState<string | null>(null);
 
     const load = useCallback(async () => {
       if (!booking) return;
@@ -91,6 +98,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     useEffect(() => {
       if (booking) {
         setResult(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setUpgradedService(null);
+        setPerformedByStaffId(booking.staff_id);
         load();
       }
     }, [booking, load]);
@@ -154,6 +162,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         tip_cents: tipCents, discount_cents: discountCents, tax_cents: taxCents,
         products, tenders, send_receipt_email: sendEmail, send_receipt_sms: sendSms,
         upgraded_service_id: upgradedService?.id, upgraded_price_cents: upgradedService?.price_cents,
+        staff_id: performedByStaffId !== booking.staff_id ? performedByStaffId : undefined,
       });
       setSubmitting(false);
       if (!res.ok) { Alert.alert('Checkout failed', res.error); return; }
@@ -208,6 +217,23 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             <View style={styles.checklistCard}>
               {preview.checklist.filter(c => !c.ok).map((c, i) => <Text key={i} style={styles.checklistItem}>⚠ {c.label}</Text>)}
             </View>
+          )}
+
+          {staff.filter(s => s.active).length > 1 && (
+            <Section title="Performed by">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                {staff.filter(s => s.active).map(s => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[styles.chip, performedByStaffId === s.id && styles.chipActive]}
+                    onPress={() => setPerformedByStaffId(s.id)}
+                  >
+                    <Text style={[styles.chipText, performedByStaffId === s.id && styles.chipTextActive]}>{s.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.hint}>Who actually did the service -- used for commission credit.</Text>
+            </Section>
           )}
 
           <Section title="Service">

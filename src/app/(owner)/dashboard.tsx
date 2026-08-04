@@ -12,6 +12,8 @@ import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutS
 import { WaitingQueue } from '@/components/owner/WaitingQueue';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { getDashboard, DashboardData } from '@/lib/api/ownerDashboard';
+import { getBusiness } from '@/lib/api/ownerBusiness';
+import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { listBookingsForDate, getPaymentStatusForDate, getUpcomingActivity, getBooking, serviceDisplayName, OwnerBooking, PaymentStatusResult, UpcomingActivityItem } from '@/lib/api/ownerBookings';
 import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
@@ -98,6 +100,8 @@ export default function OwnerDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [healthExpanded, setHealthExpanded] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
+  const [checkinFlowMode, setCheckinFlowMode] = useState<'full' | 'quick'>('full');
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const sheetRef = useRef<BottomSheetModal>(null);
   const checkoutRef = useRef<CheckoutSheetHandle>(null);
 
@@ -106,14 +110,18 @@ export default function OwnerDashboardScreen() {
   const dayIndex = now.getDate() % THOUGHTS.length;
 
   const load = useCallback(async () => {
-    const [dash, bookings, payment] = await Promise.all([
+    const [dash, bookings, payment, business, staffResult] = await Promise.all([
       getDashboard(),
       listBookingsForDate(todayKey),
       getPaymentStatusForDate(todayKey),
+      getBusiness(),
+      listStaff(),
     ]);
     if (dash.ok) setData(dash.data);
     if (bookings.ok) setTodaysBookings(bookings.data.data);
     if (payment.ok) setPaymentStatus(payment.data);
+    if (business.ok) setCheckinFlowMode(business.data.business.checkin_flow_mode ?? 'full');
+    if (staffResult.ok) setStaff(staffResult.data.data);
     setLoading(false);
   }, [todayKey]);
 
@@ -233,11 +241,13 @@ export default function OwnerDashboardScreen() {
         booking={selectedBooking}
         onChanged={() => { sheetRef.current?.dismiss(); load(); }}
         onReadyForCheckout={() => checkoutRef.current?.present()}
+        flowMode={checkinFlowMode}
       />
       <CheckoutSheet
         ref={checkoutRef}
         booking={selectedBooking}
         onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); load(); }}
+        staff={staff}
       />
       </View>
     </View>

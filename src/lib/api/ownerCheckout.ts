@@ -33,6 +33,9 @@ export interface CheckoutRequest {
   send_receipt_sms?: boolean;
   upgraded_service_id?: string;
   upgraded_price_cents?: number;
+  // Only sent when it differs from the booking's own staff_id -- corrects
+  // who actually performed the service, so commission credits them instead.
+  staff_id?: string | null;
 }
 
 export interface CheckoutResult {

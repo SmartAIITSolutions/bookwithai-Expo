@@ -39,6 +39,8 @@ import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
+import { checkInBooking } from '@/lib/api/bookingActions';
+import { Alert } from 'react-native';
 
 // Extract salon slug from a bookwithai.app/book/<slug> URL
 function extractSlugFromUrl(url: string): string | null {
@@ -115,6 +117,23 @@ export default function RootLayout() {
       if (url) handleDeepLink(url);
     });
     const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+    return () => sub.remove();
+  }, []);
+
+  // "Tap to check in" push -- fires the check-in immediately on tap rather
+  // than navigating somewhere requiring a second confirmation, matching the
+  // "tap to check in" framing literally. No equivalent listener existed
+  // before this; every other notification type is only ever seen via the
+  // in-app inbox (notifications.tsx), which doesn't need this since tapping
+  // an inbox row is already an explicit in-app action.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+      const data = response.notification.request.content.data as { action?: string; bookingId?: string } | undefined;
+      if (data?.action === 'checkin' && data.bookingId) {
+        const result = await checkInBooking(data.bookingId);
+        if (result.ok) Alert.alert("You're checked in!", 'The salon has been notified.');
+      }
+    });
     return () => sub.remove();
   }, []);
 

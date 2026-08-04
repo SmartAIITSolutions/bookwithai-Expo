@@ -6,15 +6,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { OwnerBooking } from '@/lib/api/ownerBookings';
-import { checkIn, startService, completeService, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
+import { checkIn, startService, completeService, completeAndReadyForCheckout, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
 import { getAddOnSuggestion, AddOnSuggestion } from '@/lib/api/ownerServices';
-import { bookingStatusColor, nextAction } from '@/lib/calendar/bookingStatus';
+import { bookingStatusColor, nextAction, CheckinFlowMode } from '@/lib/calendar/bookingStatus';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 interface AppointmentSheetProps {
   booking: OwnerBooking | null;
   onChanged: () => void;
   onReadyForCheckout: () => void;
+  flowMode?: CheckinFlowMode;
 }
 
 function elapsedLabel(startedAt: string, durationMinutes: number): string {
@@ -37,7 +38,7 @@ function CardOverlay() {
 // calendar stays visible behind this; closing it returns exactly where the
 // owner was, no navigation. Rises to ~85% via snapPoints.
 export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetProps>(
-  function AppointmentSheet({ booking, onChanged, onReadyForCheckout }, ref) {
+  function AppointmentSheet({ booking, onChanged, onReadyForCheckout, flowMode = 'full' }, ref) {
     const [working, setWorking] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [addOn, setAddOn] = useState<AddOnSuggestion | null>(null);
@@ -67,7 +68,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     if (!booking) return null;
 
     const { color, label } = bookingStatusColor(booking);
-    const action = nextAction(booking);
+    const action = nextAction(booking, flowMode);
 
     async function runAction(fn: (id: string) => Promise<{ ok: boolean; error?: string }>) {
       if (!booking) return;
@@ -78,11 +79,21 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       else Alert.alert('Could not update', result.error);
     }
 
+    async function handleCompleteAndCharge() {
+      if (!booking) return;
+      setWorking(true);
+      const result = await completeAndReadyForCheckout(booking.id);
+      setWorking(false);
+      if (result.ok) { onChanged(); onReadyForCheckout(); }
+      else Alert.alert('Could not update', result.error);
+    }
+
     function handleActionPress() {
       if (!action) return;
       if (action.label === 'CHECK IN') runAction(checkIn);
       else if (action.label === 'START SERVICE') runAction(startService);
       else if (action.label === 'MARK SERVICE COMPLETE') runAction(completeService);
+      else if (action.label === 'COMPLETE & CHARGE') handleCompleteAndCharge();
       else if (action.label === 'READY FOR CHECKOUT') {
         onReadyForCheckout();
       }

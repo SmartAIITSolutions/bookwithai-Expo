@@ -62,6 +62,7 @@ export default function BusinessSetupScreen() {
       morning_brief_hour: business.morning_brief_hour,
       max_daily_bookings: business.max_daily_bookings,
       staff_login_mode: business.staff_login_mode,
+      checkin_flow_mode: business.checkin_flow_mode,
     });
     setSaving(false);
     if (!result.ok) Alert.alert('Could not save', result.error);
@@ -199,6 +200,31 @@ export default function BusinessSetupScreen() {
               <Text style={styles.staffModeDesc}>Each staff member signs in on their own device with their own account.</Text>
             </TouchableOpacity>
           </View>
+        </Section>
+
+        <Section title="Check-in & Checkout Style">
+          <Text style={styles.fieldLabel}>How should checking a client in and out work?</Text>
+          <View style={styles.staffModeCol}>
+            <TouchableOpacity
+              style={[styles.staffModeOption, business.checkin_flow_mode === 'full' && styles.staffModeOptionActive]}
+              onPress={() => set('checkin_flow_mode', 'full')}
+            >
+              <Text style={[styles.staffModeTitle, business.checkin_flow_mode === 'full' && styles.staffModeTitleActive]}>
+                Full flow (default)
+              </Text>
+              <Text style={styles.staffModeDesc}>Check In, Start Service, Mark Complete, then Checkout — four steps, good for tracking real service time and handoffs between staff.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.staffModeOption, business.checkin_flow_mode === 'quick' && styles.staffModeOptionActive]}
+              onPress={() => set('checkin_flow_mode', 'quick')}
+            >
+              <Text style={[styles.staffModeTitle, business.checkin_flow_mode === 'quick' && styles.staffModeTitleActive]}>
+                Quick flow
+              </Text>
+              <Text style={styles.staffModeDesc}>One "Complete & Charge" button — best for solo or home-based salons with no one to hand a client off to between steps.</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.emptyHint}>The Queue view (in Calendar) is always available too, for busy walk-in-heavy salons.</Text>
         </Section>
 
         <Section title="Holiday Hours">
