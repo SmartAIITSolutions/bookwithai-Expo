@@ -400,6 +400,9 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             <TotalRow label="Discount" value={-discountCents} />
             <TotalRow label={preview.tax.label} value={taxCents} />
             <TotalRow label="Tip" value={tipCents} />
+            {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
+              <TotalRow label="Fees" value={cardFeePreview.stripeFeesCents} color="#FBBF24" />
+            )}
             <TotalRow label="Total" value={total} bold />
             <TotalRow label="Remaining" value={remaining} bold color={remaining === 0 ? '#4ADE80' : '#F09595'} />
           </BlurView>
@@ -434,15 +437,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                 )}
                 {tenderMethod === 'store_credit' && (
                   <Text style={styles.hint}>Available: {money(storeCreditBalance)}</Text>
-                )}
-                {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
-                  <View style={styles.feeRow}>
-                    <Text style={styles.feeText}>Card processing fee (passed to customer)</Text>
-                    <Text style={styles.feeAmount}>+{money(cardFeePreview.stripeFeesCents)}</Text>
-                  </View>
-                )}
-                {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
-                  <Text style={styles.hint}>Customer's card will be charged {money(cardFeePreview.totalChargeCents)} total ({money(remaining)} due + {money(cardFeePreview.stripeFeesCents)} fee).</Text>
                 )}
                 <TextInput style={styles.input} placeholder="Amount ($)" placeholderTextColor="rgba(255,255,255,0.4)" value={tenderAmount} onChangeText={setTenderAmount} keyboardType="decimal-pad" />
                 <View style={styles.inlineActions}>
@@ -563,9 +557,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm, gap: Spacing.xs,
   },
   giftRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  feeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  feeText: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', flex: 1 },
-  feeAmount: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#FBBF24' },
   input: {
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm, paddingVertical: 8, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF',
