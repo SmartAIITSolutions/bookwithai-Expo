@@ -458,18 +458,11 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                       <Text style={styles.orderTotalDueLabel}>Total due</Text>
                       <Text style={styles.orderTotalDueValue}>{money(cardFeePreview.totalChargeCents)}</Text>
                     </View>
-                    <Text style={styles.hint}>Visit balance {money(remaining)} → customer pays {money(cardFeePreview.totalChargeCents)} on Stripe</Text>
                   </View>
                 )}
 
                 <View style={styles.inlineActions}>
-                  <TouchableOpacity onPress={addTender}>
-                    <Text style={styles.linkText}>
-                      {cardFeePreview && cardFeePreview.stripeFeesCents > 0
-                        ? `Collect card payment (${money(cardFeePreview.totalChargeCents)})`
-                        : 'Add payment'}
-                    </Text>
-                  </TouchableOpacity>
+                  <TouchableOpacity onPress={addTender}><Text style={styles.linkText}>Add payment</Text></TouchableOpacity>
                 </View>
               </BlurView>
             )}
