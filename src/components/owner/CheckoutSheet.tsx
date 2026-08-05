@@ -10,17 +10,28 @@ import { validateGiftCard } from '@/lib/api/giftCards';
 import { listProducts, Product } from '@/lib/api/ownerProducts';
 import { listServices, Service } from '@/lib/api/ownerServices';
 import { StaffMember } from '@/lib/api/ownerStaff';
+import { RebookDateTimeModal } from '@/components/owner/RebookDateTimeModal';
 import { cardChargeFromVisitDueCents } from '@/lib/stripe/fees';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function money(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
 
-// YYYY-MM-DDTHH:mm, in the device's local time -- what `toISOString()`
-// would give in UTC isn't what a date/time text field should show back.
-function toLocalDateStr(d: Date) { return d.toISOString().slice(0, 10); }
+// YYYY-MM-DD / HH:mm in the device's actual local time. `toISOString()`
+// always converts to UTC first, which silently shows the wrong calendar
+// day whenever the device's timezone offset crosses midnight relative to
+// UTC -- a real bug, not just a style choice, so built from the local
+// getters instead.
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function toLocalTimeStr(d: Date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function formatRebookDateTime(dateStr: string, timeStr: string): string {
+  const d = new Date(`${dateStr}T${timeStr}:00`);
+  if (isNaN(d.getTime())) return `${dateStr} ${timeStr}`;
+  return `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
 }
 
 function CardOverlay() {
@@ -89,6 +100,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const [bookNext, setBookNext] = useState(false);
     const [rebookDate, setRebookDate] = useState('');
     const [rebookTime, setRebookTime] = useState('');
+    const [showRebookPicker, setShowRebookPicker] = useState(false);
     const [performedByStaffId, setPerformedByStaffId] = useState<string | null>(null);
 
     const load = useCallback(async () => {
@@ -476,11 +488,14 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                   Suggest next visit (usually every {preview.rebook_suggestion.interval_days} days)
                 </Text>
               </TouchableOpacity>
-              {bookNext && (
-                <View style={styles.rebookFields}>
-                  <TextInput style={[styles.input, { flex: 1 }]} placeholder="YYYY-MM-DD" placeholderTextColor="rgba(255,255,255,0.4)" value={rebookDate} onChangeText={setRebookDate} />
-                  <TextInput style={[styles.input, { flex: 1 }]} placeholder="24h time, e.g. 14:30" placeholderTextColor="rgba(255,255,255,0.4)" value={rebookTime} onChangeText={setRebookTime} />
-                </View>
+              {bookNext && rebookDate && rebookTime && (
+                <TouchableOpacity style={styles.rebookDateRow} onPress={() => setShowRebookPicker(true)}>
+                  <Ionicons name="calendar-outline" size={16} color="#F4D77A" />
+                  <Text style={styles.rebookDateText}>
+                    {formatRebookDateTime(rebookDate, rebookTime)}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.4)" />
+                </TouchableOpacity>
               )}
             </Section>
           )}
@@ -496,6 +511,15 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             {submitting ? <ActivityIndicator color="#09000F" /> : <Text style={styles.primaryButtonText}>Complete Checkout</Text>}
           </TouchableOpacity>
         </ScrollView>
+
+        {rebookDate && rebookTime && (
+          <RebookDateTimeModal
+            visible={showRebookPicker}
+            initialDate={new Date(`${rebookDate}T${rebookTime}:00`)}
+            onCancel={() => setShowRebookPicker(false)}
+            onConfirm={(d) => { setRebookDate(toLocalDateStr(d)); setRebookTime(toLocalTimeStr(d)); setShowRebookPicker(false); }}
+          />
+        )}
       </SheetModal>
     );
   }
@@ -607,7 +631,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)', backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm,
   },
   rebookText: { flex: 1, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
-  rebookFields: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
+  rebookDateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xs,
+    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.2)', paddingVertical: 10, paddingHorizontal: Spacing.sm,
+  },
+  rebookDateText: { flex: 1, fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#FFFFFF' },
   primaryButton: { backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center' },
   primaryButtonDisabled: { backgroundColor: 'rgba(212,175,55,0.3)' },
   primaryButtonText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: FontSize.base },
