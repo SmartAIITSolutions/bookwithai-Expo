@@ -400,9 +400,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             <TotalRow label="Discount" value={-discountCents} />
             <TotalRow label={preview.tax.label} value={taxCents} />
             <TotalRow label="Tip" value={tipCents} />
-            {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
-              <TotalRow label="Fees" value={cardFeePreview.stripeFeesCents} color="#FBBF24" />
-            )}
             <TotalRow label="Total" value={total} bold />
             <TotalRow label="Remaining" value={remaining} bold color={remaining === 0 ? '#4ADE80' : '#F09595'} />
           </BlurView>
@@ -439,8 +436,40 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                   <Text style={styles.hint}>Available: {money(storeCreditBalance)}</Text>
                 )}
                 <TextInput style={styles.input} placeholder="Amount ($)" placeholderTextColor="rgba(255,255,255,0.4)" value={tenderAmount} onChangeText={setTenderAmount} keyboardType="decimal-pad" />
+
+                {/* Matches the web dashboard's own "Order Total" card exactly:
+                    a separate, payment-method-specific summary, not folded into
+                    the Subtotal/Tax/Tip breakdown above. The actual submitted
+                    tender amount is still the real visit balance (`remaining`)
+                    -- the backend grosses it up the same way the web app's own
+                    checkout does; this box only previews what that comes out to. */}
+                {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
+                  <View style={styles.orderTotalCard}>
+                    <Text style={styles.orderTotalLabel}>ORDER TOTAL</Text>
+                    <View style={styles.tenderRow}>
+                      <Text style={styles.tenderText}>Service</Text>
+                      <Text style={styles.tenderText}>{money(remaining)}</Text>
+                    </View>
+                    <View style={styles.tenderRow}>
+                      <Text style={styles.tenderText}>Card processing (estimate)</Text>
+                      <Text style={styles.tenderText}>+{money(cardFeePreview.stripeFeesCents)}</Text>
+                    </View>
+                    <View style={styles.orderTotalDueRow}>
+                      <Text style={styles.orderTotalDueLabel}>Total due</Text>
+                      <Text style={styles.orderTotalDueValue}>{money(cardFeePreview.totalChargeCents)}</Text>
+                    </View>
+                    <Text style={styles.hint}>Visit balance {money(remaining)} → customer pays {money(cardFeePreview.totalChargeCents)} on Stripe</Text>
+                  </View>
+                )}
+
                 <View style={styles.inlineActions}>
-                  <TouchableOpacity onPress={addTender}><Text style={styles.linkText}>Add payment</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={addTender}>
+                    <Text style={styles.linkText}>
+                      {cardFeePreview && cardFeePreview.stripeFeesCents > 0
+                        ? `Collect card payment (${money(cardFeePreview.totalChargeCents)})`
+                        : 'Add payment'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </BlurView>
             )}
@@ -557,6 +586,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm, gap: Spacing.xs,
   },
   giftRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  orderTotalCard: {
+    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm, gap: 4,
+  },
+  orderTotalLabel: {
+    fontFamily: FontFamily.soraSemiBold, fontSize: 10, textTransform: 'uppercase',
+    letterSpacing: 0.6, color: 'rgba(255,255,255,0.45)', marginBottom: 2,
+  },
+  orderTotalDueRow: {
+    flexDirection: 'row', justifyContent: 'space-between', paddingTop: 6, marginTop: 2,
+    borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.2)',
+  },
+  orderTotalDueLabel: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#FFFFFF' },
+  orderTotalDueValue: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#4ADE80' },
   input: {
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm, paddingVertical: 8, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF',
