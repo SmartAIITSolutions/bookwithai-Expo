@@ -34,8 +34,11 @@ export interface CheckoutRequest {
   tenders: Tender[];
   // SMS receipts were removed -- an in-app push receipt now always sends.
   send_receipt_email?: boolean;
-  upgraded_service_id?: string;
-  upgraded_price_cents?: number;
+  // Extra services performed during this visit, additive to the booking's
+  // own service (not a swap). total_service_price_cents is the combined
+  // price across the original service plus every added one.
+  added_service_ids?: string[];
+  total_service_price_cents?: number;
   // Only sent when it differs from the booking's own staff_id -- corrects
   // who actually performed the service, so commission credits them instead.
   staff_id?: string | null;
@@ -53,6 +56,27 @@ export async function getCheckoutPreview(bookingId: string) {
 
 export async function submitCheckout(bookingId: string, body: CheckoutRequest) {
   return ownerFetch<CheckoutResult>(`/api/owner/bookings/${bookingId}/checkout`, { method: 'POST', body });
+}
+
+export async function sendBalancePaymentEmail(bookingId: string, paymentUrl: string, visitDueCents: number, cardTotalCents: number) {
+  return ownerFetch<{ ok: true }>(`/api/owner/bookings/${bookingId}/balance-payment-email`, {
+    method: 'POST',
+    body: { payment_url: paymentUrl, visit_due_cents: visitDueCents, card_total_cents: cardTotalCents },
+  });
+}
+
+export async function sendBalancePaymentPush(bookingId: string, paymentUrl: string, cardTotalCents: number) {
+  return ownerFetch<{ ok: true }>(`/api/owner/bookings/${bookingId}/balance-payment-push`, {
+    method: 'POST',
+    body: { payment_url: paymentUrl, card_total_cents: cardTotalCents },
+  });
+}
+
+// Fallback "grab your next spot" push -- server-side no-ops if one was
+// already sent for this booking, so it's safe to call unconditionally
+// whenever checkout completes without an inline rebook.
+export async function sendRebookNudge(bookingId: string) {
+  return ownerFetch<{ ok: true }>(`/api/owner/bookings/${bookingId}/rebook-nudge`, { method: 'POST' });
 }
 
 export async function refundBooking(bookingId: string, amount_cents: number, reason?: string) {

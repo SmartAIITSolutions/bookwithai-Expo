@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
-import { listBookingsForDate, OwnerBooking } from '@/lib/api/ownerBookings';
-import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
+import { listBookingsForDate, OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
 import { WeekSchedule, dayScheduleFor, gridBoundsMinutes, minutesSinceMidnight, hourLabels, localDateKey, snapMinutes } from '@/lib/calendar/timeGrid';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
@@ -200,7 +200,7 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
               )}
 
               {lanes.map(({ booking: b, lane, laneCount }) => {
-                const { color } = bookingStatusColor(b);
+                const color = isRebookNudgeBooking(b) ? REBOOK_NUDGE_COLOR : bookingStatusColor(b).color;
                 const startMin = minutesSinceMidnight(b.starts_at);
                 const endMin = minutesSinceMidnight(b.ends_at);
                 const top = (startMin - gridStart) * pxPerMinute;
@@ -232,7 +232,7 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
                   <Pressable key={b.id} style={[styles.block, { top, height, borderLeftColor: color }]} onPress={() => onOpen(b)}>
                     <Text style={styles.time}>{new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
                     <Text style={styles.customer} numberOfLines={1}>{b.customer?.name ?? 'Customer'}</Text>
-                    {height > 44 && <Text style={styles.service} numberOfLines={1}>{b.service?.name ?? 'Service'}</Text>}
+                    {height > 44 && <Text style={styles.service} numberOfLines={1}>{serviceDisplayName(b)}</Text>}
                   </Pressable>
                 );
               })}

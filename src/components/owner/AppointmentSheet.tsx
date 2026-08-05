@@ -5,7 +5,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { OwnerBooking } from '@/lib/api/ownerBookings';
+import { OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
 import { checkIn, startService, completeService, completeAndReadyForCheckout, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
 import { getAddOnSuggestion, AddOnSuggestion } from '@/lib/api/ownerServices';
 import { bookingStatusColor, nextAction, CheckinFlowMode } from '@/lib/calendar/bookingStatus';
@@ -17,6 +17,11 @@ interface AppointmentSheetProps {
   onChanged: () => void;
   onReadyForCheckout: () => void;
   flowMode?: CheckinFlowMode;
+  // This popup only has room for the fast status actions
+  // (check-in/no-show/cancel/etc.) -- reschedule, staff/service changes,
+  // direct contact, and notes all live on the full Appointment Detail
+  // screen instead. When provided, tapping the customer's name opens it.
+  onOpenDetail?: (booking: OwnerBooking) => void;
 }
 
 function elapsedLabel(startedAt: string, durationMinutes: number): string {
@@ -39,7 +44,7 @@ function CardOverlay() {
 // calendar stays visible behind this; closing it returns exactly where the
 // owner was, no navigation. Rises to ~85% via snapPoints.
 export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetProps>(
-  function AppointmentSheet({ booking, onChanged, onReadyForCheckout, flowMode = 'full' }, ref) {
+  function AppointmentSheet({ booking, onChanged, onReadyForCheckout, flowMode = 'full', onOpenDetail }, ref) {
     const [working, setWorking] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
@@ -158,10 +163,21 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       >
         <BottomSheetView style={styles.container}>
           <View style={styles.header}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-              <Text style={styles.customerName}>{booking.customer?.name ?? 'Customer'}</Text>
-              {booking.locked && <Ionicons name="lock-closed" size={14} color="rgba(255,255,255,0.5)" />}
-            </View>
+            {onOpenDetail ? (
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}
+                onPress={() => onOpenDetail(booking)}
+              >
+                <Text style={styles.customerName}>{booking.customer?.name ?? 'Customer'}</Text>
+                {booking.locked && <Ionicons name="lock-closed" size={14} color="rgba(255,255,255,0.5)" />}
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                <Text style={styles.customerName}>{booking.customer?.name ?? 'Customer'}</Text>
+                {booking.locked && <Ionicons name="lock-closed" size={14} color="rgba(255,255,255,0.5)" />}
+              </View>
+            )}
             <View style={[styles.statusPill, { backgroundColor: color }]}>
               <Text style={styles.statusPillText}>{label}</Text>
             </View>
@@ -198,7 +214,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
 
           <Text style={styles.meta}>
             {new Date(booking.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-            {'  ·  '}{booking.service?.name ?? 'Service'}
+            {'  ·  '}{serviceDisplayName(booking)}
             {booking.staff?.name ? `  ·  ${booking.staff.name}` : ''}
           </Text>
 
@@ -209,6 +225,12 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
           {booking.source === 'voice_ai' && (
             <View style={styles.sanaaBadge}>
               <Text style={styles.sanaaBadgeText}>Booked by SANAA AI</Text>
+            </View>
+          )}
+
+          {booking.source === 'rebook_nudge' && (
+            <View style={styles.rebookNudgeBadge}>
+              <Text style={styles.rebookNudgeBadgeText}>We brought them back</Text>
             </View>
           )}
 
@@ -295,6 +317,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(123,63,228,0.3)',
   },
   sanaaBadgeText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: '#B794F6' },
+  rebookNudgeBadge: {
+    alignSelf: 'flex-start', backgroundColor: 'rgba(236,72,153,0.15)',
+    borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4,
+    borderWidth: 1, borderColor: 'rgba(236,72,153,0.3)',
+  },
+  rebookNudgeBadgeText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: '#EC4899' },
   notesCard: {
     borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md,

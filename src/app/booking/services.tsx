@@ -29,11 +29,21 @@ function CardOverlay() {
 
 export default function ServicesScreen() {
   const { user } = useAuth();
-  const { salonId, salonSlug, salonName, requireOnlinePayment } = useLocalSearchParams<{
+  const {
+    salonId, salonSlug, salonName, requireOnlinePayment,
+    prefillServiceIds, prefillStaffId, prefillStartsAt, rebookSource,
+  } = useLocalSearchParams<{
     salonId: string;
     salonSlug: string;
     salonName: string;
     requireOnlinePayment: string;
+    // Rebook-nudge deep link only -- suggested picks, pre-selected but fully
+    // editable at every step. Forwarded unchanged through the rest of the
+    // flow so review/payment can tag the resulting booking's source.
+    prefillServiceIds?: string;
+    prefillStaffId?: string;
+    prefillStartsAt?: string;
+    rebookSource?: string;
   }>();
 
   const [groups, setGroups] = useState<{ category: string; items: Service[] }[]>([]);
@@ -52,6 +62,10 @@ export default function ServicesScreen() {
           (s) => !s.bundle_only && s.bookable_online !== false
         );
         setGroups(groupServicesByCategory(bookable));
+        if (prefillServiceIds) {
+          const ids = prefillServiceIds.split(',').filter(Boolean);
+          setSelected(bookable.filter((s) => ids.includes(s.id)));
+        }
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
@@ -93,6 +107,9 @@ export default function ServicesScreen() {
         serviceNames: selected.map((s) => s.name).join('||'),
         totalCents: String(totalCents),
         totalMins: String(totalMins),
+        ...(prefillStaffId ? { prefillStaffId } : {}),
+        ...(prefillStartsAt ? { prefillStartsAt } : {}),
+        ...(rebookSource ? { rebookSource } : {}),
       },
     });
   }

@@ -4,9 +4,9 @@ import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handl
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring,
 } from 'react-native-reanimated';
-import { OwnerBooking, updateBooking, checkIn, startService, completeService } from '@/lib/api/ownerBookings';
+import { OwnerBooking, updateBooking, checkIn, startService, completeService, serviceDisplayName } from '@/lib/api/ownerBookings';
 import { StaffMember } from '@/lib/api/ownerStaff';
-import { bookingStatusColor, nextAction } from '@/lib/calendar/bookingStatus';
+import { bookingStatusColor, nextAction, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { WeekSchedule, dayScheduleFor, minutesSinceMidnight, hourLabels, snapMinutes } from '@/lib/calendar/timeGrid';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
@@ -192,7 +192,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                         <RailDot key={`gap-${gi}`} top={(g.startMinutes - gridStart) * pxPerMinute} color={P.accentGold} />
                       ))}
                       {colBookings.map(b => (
-                        <RailDot key={`dot-${b.id}`} top={(minutesSinceMidnight(b.starts_at) - gridStart) * pxPerMinute} color={bookingStatusColor(b).color} />
+                        <RailDot key={`dot-${b.id}`} top={(minutesSinceMidnight(b.starts_at) - gridStart) * pxPerMinute} color={isRebookNudgeBooking(b) ? REBOOK_NUDGE_COLOR : bookingStatusColor(b).color} />
                       ))}
                       {gaps.filter(g => g.durationMinutes >= 30).map((g, gi) => (
                         <OpenSlotBlock
@@ -305,7 +305,8 @@ function AppointmentBlock({
   const dragging = useSharedValue(false);
   const [busy, setBusy] = useState(false);
 
-  const { color } = bookingStatusColor(booking);
+  const { color: statusColor } = bookingStatusColor(booking);
+  const color = isRebookNudgeBooking(booking) ? REBOOK_NUDGE_COLOR : statusColor;
   const action = nextAction(booking);
 
   async function commitMove(newStartMinutes: number, newColIndex: number) {
@@ -399,7 +400,7 @@ function AppointmentBlock({
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.blockCustomer} numberOfLines={1}>{booking.customer?.name ?? 'Customer'}</Text>
-          {showMeta && <Text style={styles.blockMeta} numberOfLines={1}>{booking.service?.name ?? 'Service'}</Text>}
+          {showMeta && <Text style={styles.blockMeta} numberOfLines={1}>{serviceDisplayName(booking)}</Text>}
         </View>
         {showBadge && (
           <View style={[styles.blockBadge, { backgroundColor: color + '26', borderColor: color }]}>

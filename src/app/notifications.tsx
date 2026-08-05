@@ -31,6 +31,7 @@ const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   reminder_2h:        'alarm-outline',
   checkin_ready:      'location-outline',
   receipt:            'receipt-outline',
+  balance_due:        'card-outline',
   rescheduled:        'calendar-outline',
   cancelled:          'close-circle-outline',
 };

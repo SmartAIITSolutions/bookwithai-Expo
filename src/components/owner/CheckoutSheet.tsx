@@ -1,16 +1,18 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, Share, Modal, Pressable } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, Modal, Pressable, Linking, Image } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { OwnerBooking, createBooking } from '@/lib/api/ownerBookings';
-import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine } from '@/lib/api/ownerCheckout';
+import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine, sendBalancePaymentEmail, sendBalancePaymentPush, sendRebookNudge } from '@/lib/api/ownerCheckout';
 import { getStoreCredit } from '@/lib/api/ownerCheckout';
 import { validateGiftCard } from '@/lib/api/giftCards';
 import { listProducts, Product } from '@/lib/api/ownerProducts';
 import { listServices, Service } from '@/lib/api/ownerServices';
 import { StaffMember } from '@/lib/api/ownerStaff';
 import { RebookDateTimeModal } from '@/components/owner/RebookDateTimeModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { cardChargeFromVisitDueCents } from '@/lib/stripe/fees';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -80,7 +82,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const [catalog, setCatalog] = useState<Product[]>([]);
     const [products, setProducts] = useState<ProductLine[]>([]);
     const [services, setServices] = useState<Service[]>([]);
-    const [upgradedService, setUpgradedService] = useState<Service | null>(null);
+    const [addedServices, setAddedServices] = useState<Service[]>([]);
     const [showServicePicker, setShowServicePicker] = useState(false);
     const [discountCents, setDiscountCents] = useState(0);
     const [customDiscount, setCustomDiscount] = useState(false);
@@ -94,9 +96,17 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const [giftCode, setGiftCode] = useState('');
     const [giftBalance, setGiftBalance] = useState<number | null>(null);
     const [storeCreditBalance, setStoreCreditBalance] = useState(0);
-    const [sendEmail, setSendEmail] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<{ status: 'completed' | 'awaiting_card_payment'; payment_url?: string } | null>(null);
+    // Snapshot of the card tender submitted alongside an awaiting_card_payment
+    // result -- the checkout endpoint doesn't echo the grossed-up charge back,
+    // so this is recomputed with the same cardChargeFromVisitDueCents call the
+    // backend itself uses, purely to render the "Visit balance / Card charge"
+    // line the web dashboard shows on its own Collect-card-payment panel.
+    const [cardResultInfo, setCardResultInfo] = useState<{ visitDueCents: number; cardTotalCents: number } | null>(null);
+    const [emailLinkSending, setEmailLinkSending] = useState(false);
+    const [pushLinkSending, setPushLinkSending] = useState(false);
+    const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null);
     const [bookNext, setBookNext] = useState(false);
     const [rebookDate, setRebookDate] = useState('');
     const [rebookTime, setRebookTime] = useState('');
@@ -132,7 +142,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
     useEffect(() => {
       if (booking) {
-        setResult(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setUpgradedService(null);
+        setResult(null); setCardResultInfo(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setAddedServices([]);
         setCustomDiscount(false); setCustomDiscountText(''); setCustomTip(false); setCustomTipText('');
         setBookNext(false); setPerformedByStaffId(booking.staff_id);
         load();
@@ -145,7 +155,8 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     // this component (an early `if (!booking || !preview) return` used to
     // sit above this, which made the tenderAmount-sync effect conditional
     // and threw "rendered more hooks than during the previous render").
-    const serviceBaseCents = upgradedService ? upgradedService.price_cents : preview?.subtotal_cents ?? 0;
+    const addedServicesTotal = addedServices.reduce((s, sv) => s + sv.price_cents, 0);
+    const serviceBaseCents = (preview?.subtotal_cents ?? 0) + addedServicesTotal;
     const productTotal = products.reduce((s, p) => s + p.quantity * p.price_cents_each, 0);
     const subtotal = serviceBaseCents + productTotal;
     // Recomputed reactively, not frozen from the initial preview call --
@@ -170,6 +181,22 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const cardFeePreview = preview?.pass_stripe_fee && tenderMethod === 'card' && remaining > 0
       ? cardChargeFromVisitDueCents(remaining, true)
       : null;
+
+    // The picked method + auto-filled amount counts toward the total as
+    // soon as it's valid -- the owner shouldn't have to tap "Add payment"
+    // just to confirm the single, already-selected tender that's already
+    // sized to cover the whole balance. "Add payment" still exists for
+    // splitting the balance across more than one method.
+    const pendingTenderAmount = Math.round(parseFloat(tenderAmount || '0') * 100) || 0;
+    const pendingTenderValid = remaining > 0 && pendingTenderAmount > 0 && (
+      tenderMethod === 'gift_card' ? giftBalance != null && pendingTenderAmount <= giftBalance :
+      tenderMethod === 'store_credit' ? pendingTenderAmount <= storeCreditBalance :
+      true
+    );
+    const pendingTender: Tender | null = !pendingTenderValid ? null :
+      tenderMethod === 'gift_card' ? { method: 'gift_card', amount_cents: pendingTenderAmount, gift_card_code: giftCode.trim() } :
+      { method: tenderMethod, amount_cents: pendingTenderAmount };
+    const checkoutRemaining = remaining - (pendingTender?.amount_cents ?? 0);
 
     if (!booking || !preview) {
       return (
@@ -212,12 +239,14 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
     async function handleSubmit() {
       if (!booking || !preview) return;
-      if (remaining !== 0) { Alert.alert('Payments must add up to the total due.'); return; }
+      if (checkoutRemaining !== 0) { Alert.alert('Payments must add up to the total due.'); return; }
+      const finalTenders = pendingTender ? [...tenders, pendingTender] : tenders;
       setSubmitting(true);
       const res = await submitCheckout(booking.id, {
         tip_cents: tipCents, discount_cents: discountCents, tax_cents: taxCents,
-        products, tenders, send_receipt_email: sendEmail,
-        upgraded_service_id: upgradedService?.id, upgraded_price_cents: upgradedService?.price_cents,
+        products, tenders: finalTenders, send_receipt_email: true,
+        added_service_ids: addedServices.length > 0 ? addedServices.map(s => s.id) : undefined,
+        total_service_price_cents: addedServices.length > 0 ? serviceBaseCents : undefined,
         staff_id: performedByStaffId !== booking.staff_id ? performedByStaffId : undefined,
       });
       setSubmitting(false);
@@ -225,9 +254,12 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
       // Rebook -- only attempted after a successful checkout, and only if
       // the owner actually confirmed the (editable) suggested date/time.
+      // Always rebooks the original service, not any one-off extras added
+      // during this visit.
+      let rebooked = false;
       if (bookNext && booking.customer_id && rebookDate && rebookTime) {
-        const rebookServiceId = upgradedService?.id ?? booking.service_id;
-        const durationMinutes = upgradedService?.duration_minutes ?? booking.service?.duration_minutes ?? 60;
+        const rebookServiceId = booking.service_id;
+        const durationMinutes = booking.service?.duration_minutes ?? 60;
         const startsAt = new Date(`${rebookDate}T${rebookTime}:00`);
         if (rebookServiceId && !isNaN(startsAt.getTime())) {
           const endsAt = new Date(startsAt.getTime() + durationMinutes * 60000);
@@ -237,32 +269,130 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             source: 'manual',
           });
           if (!bookResult.ok) Alert.alert('Checkout completed, but rebooking failed', bookResult.error);
+          else rebooked = true;
         }
       }
 
+      // Fallback nudge -- fire-and-forget, must never block/interrupt the
+      // checkout-complete UI even if it fails. Only when the salon didn't
+      // just rebook the customer inline above.
+      if (!rebooked) {
+        sendRebookNudge(booking.id).catch(() => {});
+      }
+
       setResult(res.data);
+      if (res.data.status === 'awaiting_card_payment') {
+        const cardTender = finalTenders.find(t => t.method === 'card');
+        if (cardTender) {
+          const charge = cardChargeFromVisitDueCents(cardTender.amount_cents, preview.pass_stripe_fee);
+          setCardResultInfo({ visitDueCents: cardTender.amount_cents, cardTotalCents: charge.totalChargeCents });
+        }
+      }
       if (res.data.status === 'completed') {
         setTimeout(onDone, 2200);
       }
     }
 
-    async function shareLink(url: string) {
-      await Share.share({ message: `Please complete your payment here: ${url}` });
+    async function copyLink(url: string) {
+      await Clipboard.setStringAsync(url);
+      setInfoModal({ title: 'Copied', message: 'Payment link copied to clipboard.' });
     }
 
+    async function emailLink(url: string) {
+      if (!booking || !cardResultInfo) return;
+      setEmailLinkSending(true);
+      const res = await sendBalancePaymentEmail(booking.id, url, cardResultInfo.visitDueCents, cardResultInfo.cardTotalCents);
+      setEmailLinkSending(false);
+      if (!res.ok) setInfoModal({ title: 'Could not send email', message: res.error });
+      else setInfoModal({ title: 'Sent', message: 'Payment link emailed to the customer.' });
+    }
+
+    async function pushLink(url: string) {
+      if (!booking || !cardResultInfo) return;
+      setPushLinkSending(true);
+      const res = await sendBalancePaymentPush(booking.id, url, cardResultInfo.cardTotalCents);
+      setPushLinkSending(false);
+      if (!res.ok) setInfoModal({ title: 'Could not send notification', message: res.error });
+      else setInfoModal({ title: 'Sent', message: "Push notification sent -- they can pay right from the app, no phone number or email needed." });
+    }
+
+    // Matches the web dashboard's own "Collect card payment" panel exactly
+    // -- same copy, same Visit balance/Card charge line, same three actions
+    // plus a scannable QR code, same "Cancel" escape hatch back to picking
+    // a different method. Nothing about the underlying Stripe session
+    // changes here; this only mirrors how it's presented.
     if (result?.status === 'awaiting_card_payment' && result.payment_url) {
+      const url = result.payment_url;
+      const showBreakdown = !!cardResultInfo && cardResultInfo.cardTotalCents !== cardResultInfo.visitDueCents;
       return (
-        <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="50%">
-          <View style={styles.content}>
-            <Text style={styles.sectionTitle}>Card payment</Text>
-            <Text style={styles.hint}>Send this link to the customer to complete payment on their own device.</Text>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => shareLink(result.payment_url!)}>
-              <Text style={styles.primaryButtonText}>Share Payment Link</Text>
+        <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="90%">
+          <ScrollView contentContainerStyle={styles.content}>
+            <Text style={styles.sectionTitle}>Collect card payment</Text>
+            <Text style={styles.hint}>
+              Share this link with the customer. They can add a tip, then pay securely. This visit completes automatically after payment succeeds (usually within seconds).
+            </Text>
+
+            {showBreakdown && cardResultInfo && (
+              <View style={styles.balanceBox}>
+                <Text style={styles.balanceBoxText}>
+                  Visit balance: {money(cardResultInfo.visitDueCents)} · <Text style={styles.balanceBoxStrong}>Card charge: {money(cardResultInfo.cardTotalCents)}</Text>
+                </Text>
+                <Text style={styles.balanceBoxHint}>Difference covers card processing when your salon passes fees to the customer.</Text>
+              </View>
+            )}
+
+            <View style={styles.cardActionsRow}>
+              <TouchableOpacity style={styles.cardActionPrimary} onPress={() => Linking.openURL(url)}>
+                <Text style={styles.cardActionPrimaryText}>Open payment page</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cardActionSecondary} onPress={() => copyLink(url)}>
+                <Text style={styles.cardActionSecondaryText}>Copy link</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cardActionSecondary, !booking?.customer?.email && styles.cardActionDisabled]}
+                onPress={() => emailLink(url)}
+                disabled={!booking?.customer?.email || emailLinkSending}
+              >
+                <Text style={styles.cardActionSecondaryText}>{emailLinkSending ? 'Sending…' : 'Email link'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cardActionSecondary, !booking?.customer_id && styles.cardActionDisabled]}
+                onPress={() => pushLink(url)}
+                disabled={!booking?.customer_id || pushLinkSending}
+              >
+                <Text style={styles.cardActionSecondaryText}>{pushLinkSending ? 'Sending…' : 'Send app notification'}</Text>
+              </TouchableOpacity>
+            </View>
+            {!booking?.customer?.email && (
+              <Text style={styles.hint}>Save a customer email on their profile to send this link by email.</Text>
+            )}
+            <Text style={styles.hint}>App notification only reaches the customer if they've signed into the app on a device.</Text>
+
+            <View style={styles.qrBox}>
+              <Image
+                source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}` }}
+                style={styles.qrImage}
+              />
+              <Text style={styles.qrHint}>Customer can scan to pay</Text>
+            </View>
+
+            <TouchableOpacity style={styles.cancelCardRow} onPress={() => { setResult(null); setCardResultInfo(null); }}>
+              <Text style={styles.cancelCardText}>Cancel card payment · pay with cash or other instead</Text>
             </TouchableOpacity>
+
             <TouchableOpacity style={styles.doneRow} onPress={onDone}>
               <Text style={styles.doneText}>Done for now</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
+          <ConfirmModal
+            visible={!!infoModal}
+            title={infoModal?.title ?? ''}
+            message={infoModal?.message}
+            confirmLabel="OK"
+            hideCancel
+            onCancel={() => setInfoModal(null)}
+            onConfirm={() => setInfoModal(null)}
+          />
         </SheetModal>
       );
     }
@@ -311,21 +441,22 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
           )}
 
           <Section title="Service">
-            {upgradedService ? (
-              <View style={styles.tenderRow}>
-                <Text style={styles.tenderText}>Upgraded to {upgradedService.name} — {money(upgradedService.price_cents)}</Text>
-                <TouchableOpacity onPress={() => setUpgradedService(null)}><Ionicons name="close" size={16} color="#F09595" /></TouchableOpacity>
+            {addedServices.map(s => (
+              <View key={s.id} style={styles.tenderRow}>
+                <Text style={styles.tenderText}>+ {s.name} — {money(s.price_cents)}</Text>
+                <TouchableOpacity onPress={() => setAddedServices(list => list.filter(x => x.id !== s.id))}>
+                  <Ionicons name="close" size={16} color="#F09595" />
+                </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity style={styles.addRow} onPress={() => setShowServicePicker(v => !v)}>
-                <Ionicons name="arrow-up-circle-outline" size={16} color="#F4D77A" />
-                <Text style={styles.linkText}>Upgrade service</Text>
-              </TouchableOpacity>
-            )}
+            ))}
+            <TouchableOpacity style={styles.addRow} onPress={() => setShowServicePicker(v => !v)}>
+              <Ionicons name="add-circle-outline" size={16} color="#F4D77A" />
+              <Text style={styles.linkText}>Add service</Text>
+            </TouchableOpacity>
             {showServicePicker && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                {services.map(s => (
-                  <TouchableOpacity key={s.id} style={styles.chip} onPress={() => { setUpgradedService(s); setShowServicePicker(false); }}>
+                {services.filter(s => !addedServices.some(a => a.id === s.id)).map(s => (
+                  <TouchableOpacity key={s.id} style={styles.chip} onPress={() => setAddedServices(list => [...list, s])}>
                     <Text style={styles.chipText}>{s.name} · {money(s.price_cents)}</Text>
                   </TouchableOpacity>
                 ))}
@@ -413,7 +544,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             <TotalRow label={preview.tax.label} value={taxCents} />
             <TotalRow label="Tip" value={tipCents} />
             <TotalRow label="Total" value={total} bold />
-            <TotalRow label="Remaining" value={remaining} bold color={remaining === 0 ? '#4ADE80' : '#F09595'} />
+            <TotalRow label="Remaining" value={checkoutRemaining} bold color={checkoutRemaining === 0 ? '#4ADE80' : '#F09595'} />
           </BlurView>
 
           <Section title="Payment">
@@ -500,22 +631,20 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             </Section>
           )}
 
-          <Section title="Receipt">
-            <View style={styles.chipRow}>
-              <TouchableOpacity style={[styles.chip, sendEmail && styles.chipActive]} onPress={() => setSendEmail(v => !v)}><Text style={[styles.chipText, sendEmail && styles.chipTextActive]}>Email</Text></TouchableOpacity>
-            </View>
-            <Text style={styles.hint}>An in-app notification receipt is always sent — SMS isn't reliable yet, so it's been removed here.</Text>
-          </Section>
+          <Text style={styles.hint}>An in-app notification receipt is always sent — SMS isn't reliable yet, so it's been removed here.</Text>
 
-          <TouchableOpacity style={[styles.primaryButton, remaining !== 0 && styles.primaryButtonDisabled]} onPress={handleSubmit} disabled={submitting || remaining !== 0}>
+          <TouchableOpacity style={[styles.primaryButton, checkoutRemaining !== 0 && styles.primaryButtonDisabled]} onPress={handleSubmit} disabled={submitting || checkoutRemaining !== 0}>
             {submitting ? <ActivityIndicator color="#09000F" /> : <Text style={styles.primaryButtonText}>Complete Checkout</Text>}
           </TouchableOpacity>
         </ScrollView>
 
-        {rebookDate && rebookTime && (
+        {rebookDate && rebookTime && clientId && (
           <RebookDateTimeModal
             visible={showRebookPicker}
             initialDate={new Date(`${rebookDate}T${rebookTime}:00`)}
+            salonId={clientId}
+            serviceId={booking.service_id ?? null}
+            staffId={performedByStaffId}
             onCancel={() => setShowRebookPicker(false)}
             onConfirm={(d) => { setRebookDate(toLocalDateStr(d)); setRebookTime(toLocalTimeStr(d)); setShowRebookPicker(false); }}
           />
@@ -570,6 +699,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6, color: '#F4D77A', marginBottom: 4,
   },
   section: { gap: Spacing.xs },
+  balanceBox: {
+    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)',
+    backgroundColor: 'rgba(74,222,128,0.08)', padding: Spacing.sm, gap: 4,
+  },
+  balanceBoxText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.75)' },
+  balanceBoxStrong: { fontFamily: FontFamily.soraSemiBold, color: '#FFFFFF' },
+  balanceBoxHint: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)' },
+  cardActionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  cardActionPrimary: {
+    backgroundColor: '#4ADE80', borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10,
+  },
+  cardActionPrimaryText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#09000F' },
+  cardActionSecondary: {
+    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: Spacing.md, paddingVertical: 10,
+  },
+  cardActionSecondaryText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A' },
+  cardActionDisabled: { opacity: 0.4 },
+  qrBox: { alignItems: 'center', marginTop: Spacing.sm },
+  qrImage: { width: 160, height: 160, borderRadius: 10 },
+  qrHint: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)', marginTop: 6 },
+  cancelCardRow: {
+    marginTop: Spacing.xs, alignItems: 'center', borderRadius: BorderRadius.md, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)', paddingVertical: 10,
+  },
+  cancelCardText: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)' },
   checklistOk: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#4ADE80' },
   checklistCard: {
     backgroundColor: 'rgba(251,191,36,0.08)', borderRadius: BorderRadius.sm, padding: Spacing.sm, gap: 4,

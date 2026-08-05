@@ -19,6 +19,9 @@ interface ConfirmModalProps {
   cancelLabel?: string;
   confirmLabel: string;
   destructive?: boolean;
+  // Single-button mode -- for plain info notices (e.g. "Copied") that don't
+  // need a cancel/confirm choice, just an acknowledgement.
+  hideCancel?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -26,8 +29,8 @@ interface ConfirmModalProps {
 // Native Alert.alert renders as the OS's own white dialog and can't be
 // re-themed -- this is the dark/gold equivalent for confirmations that
 // need to visually match the rest of the app (destructive actions like
-// cancelling an appointment or marking a no-show).
-export function ConfirmModal({ visible, title, message, cancelLabel = 'Cancel', confirmLabel, destructive, onCancel, onConfirm }: ConfirmModalProps) {
+// cancelling an appointment or marking a no-show, or plain info notices).
+export function ConfirmModal({ visible, title, message, cancelLabel = 'Cancel', confirmLabel, destructive, hideCancel, onCancel, onConfirm }: ConfirmModalProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.root}>
@@ -36,10 +39,12 @@ export function ConfirmModal({ visible, title, message, cancelLabel = 'Cancel', 
           <CardOverlay />
           <Text style={styles.title}>{title}</Text>
           {message && <Text style={styles.message}>{message}</Text>}
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelText}>{cancelLabel}</Text>
-            </TouchableOpacity>
+          <View style={[styles.actions, hideCancel && styles.actionsSingle]}>
+            {!hideCancel && (
+              <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+                <Text style={styles.cancelText}>{cancelLabel}</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
               <Text style={[styles.confirmText, destructive && styles.confirmTextDestructive]}>{confirmLabel}</Text>
             </TouchableOpacity>
@@ -61,6 +66,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.lg, color: '#FFFFFF' },
   message: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.65)' },
   actions: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.lg, marginTop: Spacing.sm },
+  actionsSingle: { justifyContent: 'flex-end' },
   cancelButton: { paddingVertical: 8, paddingHorizontal: 4 },
   cancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A' },
   confirmButton: { paddingVertical: 8, paddingHorizontal: 4 },

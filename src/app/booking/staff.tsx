@@ -22,7 +22,10 @@ function CardOverlay() {
 }
 
 export default function StaffScreen() {
-  const { salonId, salonSlug, salonName, requireOnlinePayment, serviceIds, serviceNames, totalCents, totalMins } =
+  const {
+    salonId, salonSlug, salonName, requireOnlinePayment, serviceIds, serviceNames, totalCents, totalMins,
+    prefillStaffId, prefillStartsAt, rebookSource,
+  } =
     useLocalSearchParams<{
       salonId: string;
       salonSlug: string;
@@ -32,6 +35,9 @@ export default function StaffScreen() {
       serviceNames: string;
       totalCents: string;
       totalMins: string;
+      prefillStaffId?: string;
+      prefillStartsAt?: string;
+      rebookSource?: string;
     }>();
 
   const { user } = useAuth();
@@ -47,7 +53,13 @@ export default function StaffScreen() {
     setLoadError(false);
     const ids = serviceIds ? serviceIds.split(',').filter(Boolean) : [];
     fetchStaffBySalonId(salonId, ids)
-      .then((data) => setStaff(data))
+      .then((data) => {
+        setStaff(data);
+        if (prefillStaffId) {
+          const match = data.find((s) => s.id === prefillStaffId);
+          if (match) setSelected(match);
+        }
+      })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }
@@ -85,6 +97,8 @@ export default function StaffScreen() {
         totalMins,
         staffId: anyAvailable ? '' : (selected?.id ?? ''),
         staffName: anyAvailable ? 'Any Available' : (selected?.name ?? ''),
+        ...(prefillStartsAt ? { prefillStartsAt } : {}),
+        ...(rebookSource ? { rebookSource } : {}),
       },
     });
   }

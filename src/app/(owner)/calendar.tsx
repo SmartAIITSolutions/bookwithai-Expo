@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
@@ -18,7 +18,7 @@ import { QueueFlowView } from '@/components/owner/QueueFlowView';
 import { useOwnerBookings } from '@/lib/calendar/useOwnerBookings';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { getBusiness, Business } from '@/lib/api/ownerBusiness';
-import { OwnerBooking } from '@/lib/api/ownerBookings';
+import { OwnerBooking, getBooking } from '@/lib/api/ownerBookings';
 import { dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { ErrorState } from '@/components/ErrorState';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
@@ -67,6 +67,29 @@ export default function OwnerCalendarScreen() {
 
   const dateKey = toDateKey(date);
   const { bookings, loading, reload } = useOwnerBookings(dateKey);
+
+  // Deep link from Dashboard's quick-view popup ("tap the customer's name")
+  // -- jumps to this specific booking's day and opens the same
+  // AppointmentSheet here, where drag-to-reschedule and the rest of the
+  // real calendar grid are actually available. A ref guards against
+  // re-opening on every re-render/refocus once the params have been
+  // consumed once.
+  const { openBookingId, date: openDateParam } = useLocalSearchParams<{ openBookingId?: string; date?: string }>();
+  const handledOpenBookingId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!openBookingId || handledOpenBookingId.current === openBookingId) return;
+    handledOpenBookingId.current = openBookingId;
+    if (openDateParam) {
+      const [y, m, d] = openDateParam.split('-').map(Number);
+      if (y && m && d) setDate(new Date(y, m - 1, d));
+    }
+    getBooking(openBookingId).then(result => {
+      if (result.ok) {
+        setSelectedBooking(result.data.data);
+        sheetRef.current?.present();
+      }
+    });
+  }, [openBookingId, openDateParam]);
 
   // Keep the open Appointment Sheet's booking in sync with fresh data --
   // without this, actions like Check-In/No-Show correctly update the
@@ -187,9 +210,14 @@ export default function OwnerCalendarScreen() {
     reload();
   }, [reload]);
 
+  // Unassigned bookings (staff_id null -- e.g. a customer-initiated booking
+  // that never got a staff pick) still need to show up when a specific
+  // staff is selected, not just under "All" -- otherwise a single-staff
+  // salon (which auto-selects its own column) silently loses them off the
+  // grid entirely, with no way to see or claim them.
   const visibleBookings = selectedStaffId === 'all'
     ? bookings
-    : bookings.filter(b => b.staff_id === selectedStaffId);
+    : bookings.filter(b => b.staff_id === selectedStaffId || b.staff_id === null);
 
   const isToday = toDateKey(new Date()) === dateKey;
   const schedule = business ? dayScheduleFor(business.week_schedule, date) : null;
@@ -303,7 +331,14 @@ export default function OwnerCalendarScreen() {
         <MultiDayView startDate={date} numDays={7} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} intervalMinutes={gridInterval} />
       )}
 
-      <AppointmentSheet ref={sheetRef} booking={selectedBooking} onChanged={handleChanged} onReadyForCheckout={handleReadyForCheckout} flowMode={business?.checkin_flow_mode ?? 'full'} />
+      <AppointmentSheet
+        ref={sheetRef}
+        booking={selectedBooking}
+        onChanged={handleChanged}
+        onReadyForCheckout={handleReadyForCheckout}
+        flowMode={business?.checkin_flow_mode ?? 'full'}
+        onOpenDetail={(b) => { sheetRef.current?.dismiss(); router.push(`/appointment/${b.id}` as never); }}
+      />
       <CheckoutSheet ref={checkoutRef} booking={selectedBooking} onDone={handleCheckoutDone} staff={staff} />
       <WalkInSheet
         ref={walkInRef}

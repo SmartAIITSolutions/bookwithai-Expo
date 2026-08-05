@@ -128,10 +128,40 @@ export default function RootLayout() {
   // an inbox row is already an explicit in-app action.
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      const data = response.notification.request.content.data as { action?: string; bookingId?: string } | undefined;
+      const data = response.notification.request.content.data as {
+        action?: string; bookingId?: string; url?: string;
+        salonId?: string; salonSlug?: string; salonName?: string; requireOnlinePayment?: string;
+        serviceIds?: string[]; staffId?: string; suggestedStartsAt?: string;
+      } | undefined;
       if (data?.action === 'checkin' && data.bookingId) {
         const result = await checkInBooking(data.bookingId);
         if (result.ok) Alert.alert("You're checked in!", 'The salon has been notified.');
+      }
+      // Salon's "Send app notification" checkout action -- opens the same
+      // secure pay page "Open payment page"/"Copy link"/"Email link" all
+      // point at, so the customer can pay without the salon needing their
+      // phone number or email at all.
+      if (data?.action === 'pay_balance' && data.url) {
+        Linking.openURL(data.url);
+      }
+      // Rebook nudge (immediate post-checkout, or the weekly "it's time to
+      // book" cron) -- lands on the same booking flow a normal "Book Now"
+      // tap would, just pre-seeded with the suggested service/staff/time.
+      // Every field stays fully editable; nothing here is forced.
+      if (data?.action === 'rebook' && data.salonId) {
+        router.push({
+          pathname: '/booking/services',
+          params: {
+            salonId: data.salonId,
+            salonSlug: data.salonSlug ?? '',
+            salonName: data.salonName ?? '',
+            requireOnlinePayment: data.requireOnlinePayment ?? 'true',
+            ...(data.serviceIds && data.serviceIds.length > 0 ? { prefillServiceIds: data.serviceIds.join(',') } : {}),
+            ...(data.staffId ? { prefillStaffId: data.staffId } : {}),
+            ...(data.suggestedStartsAt ? { prefillStartsAt: data.suggestedStartsAt } : {}),
+            rebookSource: 'rebook_nudge',
+          },
+        } as never);
       }
     });
     return () => sub.remove();
@@ -247,6 +277,7 @@ export default function RootLayout() {
         <Stack.Screen name="owner-settings/membership-plans" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/service-packages" options={{ headerShown: true }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true }} />
+        <Stack.Screen name="appointment/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="customer/merge-duplicates" options={{ headerShown: true }} />
         <Stack.Screen name="owner-notifications" options={{ headerShown: true }} />
         <Stack.Screen name="account-security" options={{ headerShown: true }} />

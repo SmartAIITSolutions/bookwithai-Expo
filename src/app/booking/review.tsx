@@ -61,11 +61,13 @@ export default function ReviewScreen() {
     serviceIds, serviceNames, totalCents, totalMins,
     staffId, staffName,
     startsAt, endsAt,
+    rebookSource,
   } = useLocalSearchParams<{
     salonId: string; salonSlug: string; salonName: string; requireOnlinePayment: string;
     serviceIds: string; serviceNames: string; totalCents: string; totalMins: string;
     staffId: string; staffName: string;
     startsAt: string; endsAt: string;
+    rebookSource?: string;
   }>();
 
   const [notes, setNotes] = useState('');
@@ -128,6 +130,7 @@ export default function ReviewScreen() {
           startsAt, endsAt,
           notes,
           idempotencyKey,
+          ...(rebookSource ? { rebookSource } : {}),
         },
       });
       return;
@@ -151,6 +154,7 @@ export default function ReviewScreen() {
           customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
           auth_user_id:   user?.id || undefined,
           idempotency_key: idempotencyKey,
+          source:         rebookSource || undefined,
         }),
       });
 

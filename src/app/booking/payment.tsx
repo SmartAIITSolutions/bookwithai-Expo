@@ -68,12 +68,14 @@ function PaymentForm() {
     staffId, staffName,
     startsAt, endsAt,
     notes, idempotencyKey,
+    rebookSource,
   } = useLocalSearchParams<{
     salonId: string; salonSlug: string; salonName: string;
     serviceIds: string; serviceNames: string; totalCents: string; totalMins: string;
     staffId: string; staffName: string;
     startsAt: string; endsAt: string;
     notes: string; idempotencyKey: string;
+    rebookSource?: string;
   }>();
 
   const breatheVal = useSharedValue(0);
@@ -194,6 +196,7 @@ function PaymentForm() {
           customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
           auth_user_id:   user?.id || undefined,
           idempotency_key: idempotencyKey || undefined,
+          source:         rebookSource || undefined,
         }),
       });
 

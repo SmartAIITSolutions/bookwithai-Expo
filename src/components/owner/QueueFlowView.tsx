@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { OwnerBooking, checkIn, startService, completeService } from '@/lib/api/ownerBookings';
+import { OwnerBooking, checkIn, startService, completeService, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 
@@ -125,7 +126,7 @@ export function QueueFlowView({ bookings, onOpen, onReadyForCheckout, onChanged,
             working={false}
             actionLabel="Charge"
             onAction={() => onReadyForCheckout(b)}
-            meta={b.service?.name ?? 'Service'}
+            meta={serviceDisplayName(b)}
           />
         ))}
       </Bucket>
@@ -155,6 +156,7 @@ function Row({ booking, onPress, working, actionLabel, onAction, meta }: {
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           {booking.customer?.priority && <Ionicons name="star" size={12} color="#F4D77A" />}
+          {isRebookNudgeBooking(booking) && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: REBOOK_NUDGE_COLOR }} />}
           <Text style={styles.name} numberOfLines={1}>{booking.customer?.name ?? 'Customer'}</Text>
         </View>
         <Text style={styles.meta} numberOfLines={1}>{meta}{booking.staff?.name ? `  ·  ${booking.staff.name}` : ''}</Text>

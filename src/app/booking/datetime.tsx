@@ -67,11 +67,14 @@ export default function DateTimeScreen() {
     serviceIds, serviceNames, totalCents, totalMins,
     staffId, staffName,
     rescheduleBookingId,
+    prefillStartsAt, rebookSource,
   } = useLocalSearchParams<{
     salonId: string; salonSlug: string; salonName: string; requireOnlinePayment: string;
     serviceIds: string; serviceNames: string; totalCents: string; totalMins: string;
     staffId: string; staffName: string;
     rescheduleBookingId?: string;
+    prefillStartsAt?: string;
+    rebookSource?: string;
   }>();
 
   const isRescheduling = !!rescheduleBookingId;
@@ -79,9 +82,12 @@ export default function DateTimeScreen() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const prefillDateObj = prefillStartsAt ? new Date(prefillStartsAt) : null;
+  const [viewYear, setViewYear] = useState(prefillDateObj?.getFullYear() ?? today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(prefillDateObj?.getMonth() ?? today.getMonth());
+  // Rebook-nudge deep link only -- jumps straight to the suggested day
+  // (still fully navigable/changeable) instead of leaving no date picked.
+  const [selectedDate, setSelectedDate] = useState<Date | null>(prefillDateObj);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -135,6 +141,17 @@ export default function DateTimeScreen() {
       const available = (json.slots as TimeSlot[]).filter((s) => s.available);
       setSlots(available);
       if (available.length === 0) setSlotsError('No available slots for this date.');
+
+      // Rebook-nudge deep link only -- auto-select the slot matching the
+      // suggested time, if it's still actually open. Just a head start;
+      // the customer can still tap any other slot.
+      if (prefillStartsAt) {
+        const suggested = new Date(prefillStartsAt);
+        if (toLocalDateStr(suggested) === toLocalDateStr(date)) {
+          const match = available.find((s) => new Date(s.starts_at).getTime() === suggested.getTime());
+          if (match) selectSlot(match);
+        }
+      }
     } catch (e: any) {
       setSlotsError('Could not load availability. Please try another date.');
     } finally {
@@ -180,6 +197,7 @@ export default function DateTimeScreen() {
         staffName: selectedSlot.staff_name,
         startsAt: selectedSlot.starts_at,
         endsAt: selectedSlot.ends_at,
+        ...(rebookSource ? { rebookSource } : {}),
       },
     });
   }

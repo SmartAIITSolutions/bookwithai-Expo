@@ -12,6 +12,7 @@ export interface OwnerBooking {
   internal_notes: string | null;
   staff_id: string | null;
   service_id: string | null;
+  service_line_ids?: string[] | null;
   customer_id: string | null;
   checked_in_at: string | null;
   service_started_at: string | null;
@@ -91,6 +92,7 @@ export async function createBooking(body: {
 export async function updateBooking(id: string, patch: Partial<{
   starts_at: string; ends_at: string; staff_id: string | null;
   status: string; internal_notes: string | null;
+  service_line_ids: string[] | null; price_cents: number | null;
   checked_in_at: string | null; service_started_at: string | null; service_completed_at: string | null;
 }>) {
   return ownerFetch(`/api/owner/bookings/${id}`, { method: 'PATCH', body: patch });

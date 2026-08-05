@@ -41,6 +41,17 @@ export function bookingStatusColor(b: BookingLike): { color: string; label: Stat
   return { color: Colors.primary, label: 'Confirmed' };
 }
 
+// Rebook-nudge attribution accent -- deliberately kept OUT of
+// bookingStatusColor's own logic above (that stays status-only, per its own
+// constitution comment). Call sites that render a booking's color check
+// `booking.source` separately and swap this accent in for the dot/border
+// while leaving the real status label untouched, so a nudge-driven booking
+// is visually flagged on the calendar without pretending to be a status.
+export const REBOOK_NUDGE_COLOR = '#EC4899';
+export function isRebookNudgeBooking(b: { source?: string | null }): boolean {
+  return b.source === 'rebook_nudge';
+}
+
 export type CheckinFlowMode = 'full' | 'quick';
 
 // The Phase 0.4/0.6 sticky action bar — the one next action the current

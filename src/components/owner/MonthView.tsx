@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { getMonthSummary } from '@/lib/api/ownerCalendarSummary';
-import { listBookingsForDate, OwnerBooking } from '@/lib/api/ownerBookings';
-import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
+import { listBookingsForDate, OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
 import { WeekSchedule, dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
@@ -92,7 +92,8 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
         </Text>
 
         {sortedBookings.slice(0, 2).map((b) => {
-          const { color, label } = bookingStatusColor(b);
+          const { color: statusColor, label } = bookingStatusColor(b);
+          const color = isRebookNudgeBooking(b) ? REBOOK_NUDGE_COLOR : statusColor;
           return (
             <Pressable key={b.id} style={styles.summaryRow} onPress={() => onOpenBooking(b)}>
               <Text style={styles.summaryTime}>
@@ -100,7 +101,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
               </Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.summaryCustomer} numberOfLines={1}>{b.customer?.name ?? 'Customer'}</Text>
-                <Text style={styles.summaryService} numberOfLines={1}>{b.service?.name ?? 'Service'}</Text>
+                <Text style={styles.summaryService} numberOfLines={1}>{serviceDisplayName(b)}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: color + '26', borderColor: color }]}>
                 <Text style={[styles.badgeText, { color }]}>{label}</Text>

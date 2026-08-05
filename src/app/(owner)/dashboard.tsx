@@ -242,6 +242,13 @@ export default function OwnerDashboardScreen() {
         onChanged={() => { sheetRef.current?.dismiss(); load(); }}
         onReadyForCheckout={() => checkoutRef.current?.present()}
         flowMode={checkinFlowMode}
+        onOpenDetail={(b) => {
+          sheetRef.current?.dismiss();
+          router.push({
+            pathname: '/(owner)/calendar',
+            params: { openBookingId: b.id, date: localDateKey(new Date(b.starts_at)) },
+          } as never);
+        }}
       />
       <CheckoutSheet
         ref={checkoutRef}
