@@ -10,7 +10,10 @@ async function authHeaders(): Promise<Record<string, string> | null> {
   };
 }
 
-export async function cancelBooking(bookingId: string, reason?: string): Promise<{ ok: boolean; error?: string }> {
+export async function cancelBooking(
+  bookingId: string,
+  reason?: string
+): Promise<{ ok: boolean; error?: string; deposit_refund_outcome?: 'refunded' | 'forfeited' | null }> {
   const headers = await authHeaders();
   if (!headers) return { ok: false, error: 'Not signed in.' };
 
@@ -21,7 +24,7 @@ export async function cancelBooking(bookingId: string, reason?: string): Promise
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, error: json.error || 'Could not cancel booking.' };
-  return { ok: true };
+  return { ok: true, deposit_refund_outcome: json.deposit_refund_outcome ?? null };
 }
 
 export async function checkInBooking(bookingId: string): Promise<{ ok: boolean; error?: string }> {
