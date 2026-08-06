@@ -460,4 +460,65 @@ New `customer_favorite_salons` table (RLS `auth.uid() = auth_user_id`), so a sal
 - ⬜ **Nudge deep link — prefilled but editable**: tap the push. Confirm it lands on Select Services with the same service(s) already checked (not a blank screen), Continue lands on Choose Professional with the same stylist already selected, Continue lands on Date & Time with the suggested day already open and (if that exact slot is still free) already selected. Confirm every one of these can still be changed — pick a different service/stylist/day/time and continue anyway.
 - ⬜ **Booking via the nudge gets tagged**: complete a booking through the nudge deep link. On the owner's Calendar, this appointment should render in a distinct pink accent color (not the normal status color) on Today/3-Day/Week/Month/Queue views, and the AppointmentSheet popup should show a "We brought them back" badge (same style/position as the existing "Booked by SANAA AI" badge).
 - ⬜ **Owner gets notified**: after that booking completes, the owner should get a notification/push saying something like "We brought them back! [Customer] rebooked via your reminder for [date]."
-- ⬜ **Nudge 2 (weekly cron) — cannot self-trigger, needs manual verification**: this requires (a) the external scheduler (cron-job.org, same one hitting `/api/cron/appointment-reminders`) to have a new entry added for `/api/cron/rebook-nudges` — **confirm this was actually added**, it does not happen automatically — and (b) a customer with a completed visit 14+ days in the past and no booking since. Once both are true, confirm a weekly reminder push arrives, and that it stops once they book (via any method, not just the nudge).
+- ✅ **Nudge 2 (weekly cron) scheduler entry**: `/api/cron/rebook-nudges` added to cron-job.org, tested and confirmed working by the user (2026-08-04). Still worth a live end-to-end check: a customer with a completed visit 14+ days in the past and no booking since should get a weekly reminder push, which should stop once they book via any method.
+
+## Salon directory — Discover tab, search, list, map (2026-08-05, not yet verified live)
+
+- ⬜ **Directory list**: open the Discover tab (was "Find Salon"/"Book"). Confirm salons that have `publicly_listed = true` show up with logo/initial, name, and city/state; search bar filters by name and city as you type.
+- ⬜ **Opt-out works**: in owner settings → Business Setup → "Salon Directory", toggle "Show my salon in the customer app's Discover list" off. Confirm that salon disappears from the customer app's directory (a direct link/QR/slug entry should still work — opt-out only affects browsing).
+- ⬜ **Favorite from directory**: tap the heart on a directory card. Confirm it appears in My Salons, and the heart shows filled on both screens.
+- ⬜ **Tab always visible**: confirm the Discover tab no longer disappears from the tab bar once you have favorites (this was the old behavior — it should be gone now).
+- ⬜ **Map view**: toggle to map. Confirm pins appear for salons with coordinates; tapping a pin's callout navigates to that salon's page. **Android tiles need a Google Maps API key that hasn't been added yet — expect a blank/grey map on Android until that key is configured; iOS (Apple Maps) should work with no key.**
+- ⬜ **Manual link / QR still work**: the link and QR icon buttons at the top of Discover should behave exactly like the old screen's "enter salon link" and "scan QR" did.
+
+## Owner-settings Stripe Connect screen (2026-08-05, not yet verified live)
+
+- ⬜ **Not connected**: as an owner with no Stripe account yet, go to More → Payments. Confirm "Not connected yet" shows with a "Connect bank account" button; tapping it opens Stripe onboarding full-screen in-app; completing it (test mode) and closing the browser should flip the screen to "✓ Bank connected".
+- ⬜ **Partial onboarding resume**: start Stripe onboarding, close the browser partway through (before finishing KYC). Confirm the screen shows "Setup incomplete — continue onboarding" with a button that reopens onboarding at the same point (not from scratch).
+- ⬜ **Disconnect**: with an account connected, tap "Disconnect bank", confirm the alert, confirm status reverts to "Not connected yet". Then reconnect and confirm it resumes onboarding rather than asking for all KYC info again (since the Stripe account itself isn't deleted, only the stored link).
+- ⬜ **Consistency with web**: confirm the connect/disconnect state matches whatever the web dashboard's Payouts view shows for the same salon (both read the same live Stripe status, so they should never disagree).
+
+## Deposit-at-booking (2026-08-05, not yet verified live)
+
+- ⬜ **Salon-default percent deposit**: set the salon default to 20% in owner settings (web or mobile), require online payment on. Book a $50 service online (web widget and mobile): confirm only $10 is charged at booking, and the summary shows "Deposit due now: $10" + "Balance due at your appointment: $40".
+- ⬜ **Salon-default fixed deposit**: set a $15 fixed deposit. Book a $20 service: confirm the deposit is capped at $20 (never charges more than the service costs) — try a $10 service too, to confirm the cap.
+- ⬜ **Per-service override**: leave the salon default at 20%, set one specific service to "Full payment" (no deposit) and another to a different percentage. Book both in the same visit (multi-service booking): confirm each service's own rule applies and the total deposit is the sum of both.
+- ⬜ **No deposit configured (regression check)**: for a salon with deposit_type = none (the default), confirm online booking still charges the full amount exactly as before — no behavior change.
+- ⬜ **Checkout collects the right balance**: check out a booking that was paid via deposit, on both the web dashboard and mobile Checkout Mode. Confirm the amount due at checkout is the remaining balance (not the full price again), and that submitting the checkout doesn't double-charge the deposit portion.
+- ⬜ **Mobile CheckoutSheet regression check**: for a salon charging 100% online (no deposit, existing behavior), confirm mobile Checkout Mode now shows $0 due (or just tip/add-ons) rather than asking to collect the full price again — this was a real pre-existing bug fixed as part of this feature.
+- ⬜ **Tip still deferred to checkout**: confirm no tip UI appears during the deposit-charge booking flow, and tip can still be added normally at checkout.
+- ⬜ **Owner settings toggle wiring**: confirm `require_online_payment` (now on mobile for the first time) and the deposit type/amount fields save correctly and match between web and mobile for the same salon.
+
+## Deposit forfeiture/refund policy (2026-08-05, not yet verified live)
+
+- ⬜ **Auto-refund before cutoff**: with the policy enabled (24h cutoff), book a deposit appointment more than 24h out, then cancel via the mobile app more than 24h before the appointment. Confirm the deposit is actually refunded in Stripe (check the customer's card/Stripe dashboard), `deposit_refund_outcome` shows 'refunded', and the app shows "Your deposit has been refunded."
+- ⬜ **Auto-forfeit after cutoff**: book a deposit appointment, then cancel within the 24h window. Confirm NO refund happens, `deposit_refund_outcome` shows 'forfeited', and the app shows the forfeiture message.
+- ⬜ **No-show always forfeits**: with the policy enabled, mark a deposit-paid booking as a no-show from the owner dashboard/app. Confirm no refund is attempted and the booking is tagged forfeited.
+- ⬜ **Policy disabled = no change**: with the policy OFF (default), cancel a deposit-paid booking. Confirm nothing happens automatically — same as before this feature existed.
+- ⬜ **Mobile refund actually works (the real fix)**: this is the important one — confirm a refund on a booking that was created via the *mobile* app (destination charge) actually succeeds in Stripe, not just a booking created via the web widget. Check Stripe's dashboard for the refund and confirm the connected account's balance is correctly debited (via `reverse_transfer`).
+- ⬜ **Owner manual override still works**: regardless of the auto-policy setting, confirm an owner can still manually refund any amount via the web dashboard's existing checkbox — this should never be blocked by the new policy.
+- ⬜ **Advisory hint (web)**: open a deposit-paid booking's cancel tab in the web dashboard. Confirm it shows "Per your 24-hour policy, this would normally be refunded/forfeited" above the manual refund checkbox, and that selecting "Client no-show" as the reason updates the advisory to reflect always-forfeit.
+- ⬜ **Customer-facing policy text**: confirm the deposit refund policy text appears on both the web booking widget (near the deposit breakdown) and the mobile payment screen, and that the pre-cancel confirmation on mobile shows the correct dollar amount and refund/forfeit outcome before the customer confirms.
+
+## Post-checkout review nudge (2026-08-05, not yet verified live)
+
+- ⬜ **Push fires on checkout**: check out a customer (who has never reviewed this salon) via either the web dashboard or the mobile owner app. Confirm they get a "How was your visit?" push immediately (not delayed).
+- ⬜ **Tap opens rating panel pre-filled to 5 stars**: tap the push, confirm it lands on My Bookings with that booking's rating panel already open, 5 stars pre-selected, ready for one-tap Submit.
+- ⬜ **No repeat nudge after reviewing**: check that same customer out again at the same salon. Confirm they do NOT get another review-nudge push.
+- ⬜ **Edit an existing review**: from My Bookings, tap "Edit review" on a booking at a salon you've already reviewed. Confirm it shows your current stars/comment, and that changing them updates the review (check it reflects on every booking at that salon, not just the one you edited from).
+- ⬜ **Owner gets notified**: confirm the owner gets a bell notification both for a brand-new review and for an edited one (previously only negative reviews triggered any notification at all — confirm this now happens for positive ones too).
+- ⬜ **Owner Reviews screen**: More → Reviews shows the average rating and the full list, with "(edited)" showing on reviews that have been changed since first submitted.
+- ⬜ **Doesn't touch the old email flow**: confirm the existing web `/review/[token]` email automation (if enabled for a test salon) still behaves exactly as before — this feature should be fully independent.
+
+## Mandatory phone/email + profile-completeness gate (2026-08-05, not yet verified live)
+
+- ⬜ **New signup (email/password)**: sign up as a new customer, confirm you land on the required-profile screen before reaching the app, can't dismiss it (no back button/swipe), and it goes away for good once phone+email are saved.
+- ⬜ **Magic link**: sign in via magic link with an account that has no phone/email yet — confirm the same gate triggers.
+- ⬜ **Apple Sign-In**: sign in with Apple as a new customer — confirm the gate triggers (Apple never provides a phone number, so this should always require manual entry).
+- ⬜ **Google Sign-In**: same check as Apple.
+- ⬜ **Existing account, incomplete profile**: sign in with an account created before this feature shipped (no phone/email on `customer_profiles`). Confirm the gate catches it too, not just brand-new signups.
+- ⬜ **Complete profile, already have both**: sign in with an account that already has phone+email saved — confirm NO gate/redirect happens, straight to the app.
+- ⬜ **Sign out instead**: on the required-profile screen, confirm "Sign out instead" actually signs out and returns to the auth screen.
+- ⬜ **Booking uses real profile data**: after completing your profile, book an appointment (both the free/no-payment path and the paid/deposit path) and confirm the booking's phone/email on the owner dashboard match what you entered in your profile — not a placeholder.
+- ⬜ **Cross-salon reuse**: book at Salon A, then book at Salon B for the first time with the same account. Confirm you're NOT asked to re-enter phone/email, and Salon B's customer record shows your correct info immediately.
+- ⬜ **Phone changes between visits**: update your phone number in Profile, then book again at a salon you've already visited. Confirm it updates your existing customer record there rather than creating a second one.

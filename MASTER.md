@@ -1046,3 +1046,83 @@ Full plan (both nudges' triggers, the weekly nudge's no-cap cadence, and the "re
 **Calendar attribution**: `lib/calendar/bookingStatus.ts` gained `isRebookNudgeBooking()`/`REBOOK_NUDGE_COLOR` (pink, `#EC4899`) as a deliberately *separate* helper from `bookingStatusColor()` — that function's own comment says it stays status-only ("never colors by service or staff"), so the accent is layered on by each call site instead of baked into the status logic itself. Wired into `TimelineCalendar` (block + rail dot), `MultiDayView`, `MonthView`, and a small dot in `QueueFlowView`'s row (which doesn't have a per-booking status color at all — its buckets are workflow stages, not statuses). `AppointmentSheet.tsx`'s popup gained a "We brought them back" badge, matching the existing `source === 'voice_ai'` "Booked by SANAA AI" badge pattern exactly.
 
 **Verified**: `tsc --noEmit` clean. **Not yet verified live** — this session's live-device testing time was spent on the Checkout Mode pass (section above); the rebook-nudge flow (both push types, the prefilled booking screens, the calendar color, the owner notification) has not yet been exercised end-to-end on the emulator. Flagged plainly rather than assumed working.
+
+### Salon directory — "Discover" tab with search, list, and map view (2026-08-05)
+
+Requested as "let customers see a list of salons and book with others, not just favorites." Full plan (opt-in `publicly_listed` toggle default-on, new directory query, and destination-screen mockups) was discussed and approved before coding, including two visual mockups (hero-stays-with-list-below vs. directory-is-the-whole-screen) — user picked the latter, then asked for a map view added on top.
+
+**Opt-in column**: `agency_clients.publicly_listed boolean default true` (`booking-app/supabase/migrations/20260804130000_salon_public_listing.sql`) — defaults true so no existing salon loses visibility without an explicit owner action. Toggle added to `owner-settings/business.tsx`'s new "Salon Directory" section (plain `Switch`, matching the `bookable_online` switch pattern already used in `owner-settings/services.tsx`).
+
+**Directory query**: `lib/api/salon.ts`'s new `fetchSalonDirectory(query?)` — same "mobile queries Supabase directly via anon key + RLS" convention `fetchSalonBySlug` already uses (no new booking-app API route needed). Filters `publicly_listed = true`, `is_test = false`; optional `query` does an `.or()` ilike match on `business_name`/`city`.
+
+**Map view coordinates**: `agency_clients.latitude`/`longitude` (`booking-app/supabase/migrations/20260805100000_agency_clients_geocoords.sql`), populated via free OpenStreetMap Nominatim geocoding (no API key/billing) — `booking-app/src/lib/geocode.ts`'s `geocodeAddress()`, called from `PATCH /api/owner/business` whenever any address field changes, so coordinates stay current as owners edit their address. Existing 19 salons backfilled via a one-time script (deleted after running); several share identical coordinates because their address text geocoded to the same city-center point (Nominatim's fallback when the exact street can't be resolved) — acceptable for city-level map pins, not meant to be exact-address-precise.
+
+**Discover screen** (`(tabs)/book.tsx`, full rewrite): header with QR-scan and manual-link icon buttons (both preserved from the old screen, now compact instead of the full hero), search bar, list/map toggle. List is a `FlatList` of salon cards (logo or initial fallback, name, city/state, inline heart favorite toggle via `useFavorites()`). Map is `react-native-maps`, one marker per salon with lat/lng, tapping a marker's callout navigates to `/salon/[id]`.
+
+**Tab always visible now**: removed `(tabs)/_layout.tsx`'s `href: hasFavorites ? null : undefined` — that rule hid the tab entirely once a user had ≥1 favorite, which directly conflicted with using it to browse for *additional* salons. Tab renamed "Book"/"Find Salon" → "Discover" (icon: `Compass`).
+
+**Known gap — Android map tiles**: `react-native-maps` needs a Google Maps API key in `app.json`'s `android.config.googleMaps.apiKey` for Android tiles to render in production (iOS uses Apple Maps, no key needed) — not yet configured, user will supply a key later. Flagged in a code comment directly above the `MapView` in `book.tsx`. List view is fully functional on both platforms regardless.
+
+**Verified**: `tsc --noEmit` clean (both repos), `npm run build` clean (booking-app), geocode backfill ran successfully against production (17 of 19 existing salons geocoded; 2 skipped for having no address on file). **Not yet verified live on device/emulator** — testing deferred to the user per standing instruction.
+
+### Owner-settings Stripe Connect screen — post-signup connect/reconnect/disconnect (2026-08-05)
+
+Requested as "the website has a flow to connect a salon's Stripe account, add that for the app too." Research turned up that mobile already had this flow, but only *inside the owner-signup wizard* (`auth/owner-signup.tsx`) — there was no way for an existing owner to view, continue, or disconnect their Stripe connection from settings after signup, mirroring the gap web fills with `PayoutsView.tsx`'s `ConnectSection`.
+
+No backend changes were needed — the existing `GET /api/stripe/connect`, `GET /api/stripe/connect/status`, and `DELETE /api/stripe/connect` routes already special-case `from=mobile` (return_url goes to the web app's static `/signup/mobile-done` confirmation page instead of the dashboard, since there's no cookie session for mobile to resume into) and already accept the same `Authorization: Bearer <supabase access token>` header every other owner-authenticated mobile call uses.
+
+**New**: `lib/api/ownerStripeConnect.ts` (`getStripeConnectStatus`, `getStripeConnectUrl`, `disconnectStripe` — thin `ownerFetch` wrappers) and `owner-settings/payments.tsx`, a new screen reachable from More → Payments. Mirrors web's `ConnectSection` states (not connected / setup incomplete / connected) and the owner-signup wizard's existing pattern exactly: `WebBrowser.openBrowserAsync()` opens the Stripe-hosted onboarding link full-screen, then re-polls `/connect/status` once the in-app browser closes (Account Links have no callback into the app to hook — this poll-on-close is the only way to know onboarding finished). Disconnect uses a native `Alert.alert` confirm (unlinks the stored `stripe_account_id`; does not delete the actual Stripe account/KYC history, so reconnecting resumes where they left off).
+
+**Verified**: `tsc --noEmit` clean. **Not yet verified live** — needs a real Stripe test-mode walkthrough (connect, partial onboarding + resume, disconnect) on device, deferred to the user per standing instruction.
+
+### Deposit-at-booking — percent/fixed deposit, balance collected at checkout (2026-08-05)
+
+Full backend design (schema, charge-time math, checkout-time balance) lives in `booking-app/MASTER.md` section 28 — this is the mobile-specific summary. Plan discussed and scoped before coding: deposit type is owner's choice of percent or fixed (not just one), per-service override on top of a salon default, tip always deferred to checkout, configurable from both web and mobile.
+
+**`booking/payment.tsx`**: now tracks `isDeposit`/`fullPriceCents` from `/api/mobile/payment-intent`'s response (which independently re-derives the deposit from the `services` table — never trusts the client). Summary card shows "Deposit due now: $X" + "Balance of $Y due at your appointment" instead of the flat total, and the pay button reads "Pay deposit $X" instead of "Pay $X" when a deposit applies. The booking-creation call now sends the *real full service price* as `price_cents` (from `fullPriceCents`) rather than the smaller deposit amount that was actually charged — otherwise the booking would have permanently recorded the deposit as its whole price.
+
+**`components/owner/CheckoutSheet.tsx` — real pre-existing bug fixed**: the remaining-balance calculation never subtracted `already_paid_cents` (an online payment made at booking time, whether a full charge or now a deposit) from what Checkout Mode asks the owner to collect. This was already wrong for any salon charging 100% online before this feature existed — deposits just made it impossible to ignore any longer. Fixed: `remaining = total - tenderedTotal - alreadyPaidCents`.
+
+**Owner settings**: `owner-settings/business.tsx` gained a "Payments" *section* (distinct from the "Payments" *screen* added earlier today for Stripe Connect — two different surfaces, worth avoiding confusion between them) with the `require_online_payment` toggle (first time this existed on mobile at all) and, when on, a deposit-type chip row + amount field. `owner-settings/services.tsx` gained a "Deposit" expandable panel per service card (mobile has no full edit-service screen, only Add/Archive — this follows the same expand-in-place pattern the existing Staff-assignment panel already uses) offering Salon default / Full payment / Percentage / Fixed amount.
+
+**Verified**: `tsc --noEmit` clean. **Not yet verified live** — deferred to the user per standing instruction, same as the rest of today's work.
+
+### Deposit forfeiture/refund policy on cancellation + no-show (2026-08-05)
+
+Full backend design lives in `booking-app/MASTER.md` section 29 — this is the mobile-specific summary. Direct follow-up to the deposit feature above, triggered by the user asking what happens to a deposit on cancellation/no-show — investigation found this was completely unbuilt, and separately that mobile bookings could never be refunded at all (missing `stripe_payment_intent_id`, and the existing refund code assumed the wrong charge architecture for mobile). Both were fixed together.
+
+**`booking/payment.tsx`**: now also shows the salon's deposit refund policy right under the deposit/balance breakdown — "Deposit refundable if you cancel at least 24 hours before your appointment" (or, if the salon hasn't opted into the automatic policy, "Deposit refunds, if any, are handled directly by the salon"). Sourced from two new fields on `/api/mobile/payment-intent`'s response.
+
+**`(tabs)/my-booking.tsx`**: `handleCancel()` now shows a real, computed advisory in the confirmation alert before the customer commits ("Your $10 deposit will be refunded" / "will NOT be refunded — cancellations within 24 hours forfeit the deposit") — same cutoff math the server uses, done client-side against data already in the booking list (`deposit_charged_cents` + the salon's policy fields, both newly added to `/api/mobile/my-bookings`'s select). After cancelling, a second alert shows the actual server-confirmed outcome (`deposit_refund_outcome` from the cancel response, now threaded through `lib/api/bookingActions.ts`'s `cancelBooking()`), since the advisory is informational but the server result is authoritative.
+
+**`owner-settings/business.tsx`**: Payments section gained the policy toggle ("Automatically enforce a cancellation cutoff") and cutoff-hours field, nested under the existing deposit-type controls, only shown once a deposit is actually configured.
+
+**Verified**: `tsc --noEmit` clean. **Not yet verified live** — same as the rest of today's deposit work, deferred to the user.
+
+### Post-checkout review nudge — mobile-only, per-customer editable review (2026-08-05)
+
+Full design/backend lives in `booking-app/MASTER.md` section 30 — mobile summary here. Explicitly scoped to push + in-app only; the existing web review page and email automation are untouched. Reviews are now per-customer-per-salon (not per-booking) — a customer can edit their rating/comment any time, e.g. after the salon makes good on a bad first visit.
+
+**`_layout.tsx`**: notification-response listener gained `action === 'leave_review'` → pushes to `/(tabs)/my-booking` with `openRatingBookingId`, mirroring the existing `highlightBookingId` scroll-to pattern already used for other notification taps.
+
+**`(tabs)/my-booking.tsx`**: the inline star-rating panel (already existed, previously write-once) is now edit-capable — "Rate" becomes "Edit review" once a review exists, the panel pre-fills the customer's current stars/text when editing, defaults to 5 stars for a first-time review (one-tap submit), and gained a comment text field it didn't have before. Because a review belongs to the customer-salon relationship rather than one booking, submitting updates the local state for *every* booking at that salon, not just the one the panel was opened from. New effect auto-opens the panel when arriving via the `openRatingBookingId` deep-link param, same lifecycle as the existing highlight-on-arrival effect.
+
+**`lib/api/bookingActions.ts`** unaffected; **`lib/api/customer.ts`'s `submitBookingReview()`** already supported an optional review-text param, now actually used.
+
+**New**: `lib/api/ownerReviews.ts` + `src/app/reviews.tsx` — a new owner-only screen (reached from More → Reviews, not a tab — the 5-tab shell is locked) showing an average-rating summary card and the full list of per-customer reviews, each flagged "(edited)" when it's been changed since first submitted.
+
+**Verified**: `tsc --noEmit` clean. **Not yet verified live** — deferred to the user per standing instruction.
+
+### Mandatory phone/email + profile-completeness gate (2026-08-05)
+
+Full design discussion + backend (`detectOrCreateCustomer`'s new `authUserId` priority match) lives in `booking-app/MASTER.md` section 31 — mobile summary here. The real gap this closes: the booking flow was pulling phone from `user_metadata` with a hardcoded `'0000000000'` fallback when missing — a booking could go through with a fake placeholder phone. Fixed by making `customer_profiles` (already existed, one row per `auth_user_id`, previously just photo/DOB/pronouns/timezone) the canonical source, now including `phone`/`email`.
+
+**`lib/api/customerProfile.ts`**: `CustomerProfile` gained `phone`/`email`; new `isProfileComplete()` helper (`!!phone && !!email`).
+
+**`profile.tsx`**: gained mandatory phone/email inputs (validated: phone ≥10 digits, email regex), and a `required=true` mode — `headerBackVisible`/`gestureEnabled` both `false` so it can't be dismissed, a banner explaining why, and a "Sign out instead" escape hatch (the only way out besides completing the form).
+
+**`_layout.tsx`**'s `AuthRedirectGate` gained a new effect: once per signed-in session (tracked by user id, not re-run on every navigation), if `role === 'customer'` and `customer_profiles` is missing phone or email, redirects to `/profile?required=true` before the customer can reach anything else. Runs on every sign-in method identically (password, magic link, Apple, Google) and also catches existing accounts that predate this requirement — there's no separate "new user" vs "existing user" branch, just "is the record complete right now."
+
+**`booking/review.tsx` and `booking/payment.tsx`**: both booking-creation call sites now fetch `customer_profiles` and use its `phone`/`email` instead of `user_metadata` — the `'0000000000'` fallback is gone entirely; if `customer_profiles` is somehow incomplete despite the gate (e.g. a race), the booking now fails loudly (backend requires `customer_phone`) rather than silently storing garbage.
+
+**Verified**: `tsc --noEmit` clean. **Not yet verified live** — deferred to the user per standing instruction.
