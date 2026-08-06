@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, Linking, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
@@ -112,14 +112,19 @@ interface Booking {
   tax_cents: number | null;
   tip_cents: number | null;
   total_charged_cents: number | null;
+  deposit_charged_cents: number | null;
+  deposit_refund_outcome: 'refunded' | 'forfeited' | null;
   notes: string | null;
   reviewed: boolean;
+  review: { stars: number; review_text: string | null } | null;
   agency_clients: {
     business_name: string;
     owner_phone: string | null;
     booking_cutoff_minutes: number | null;
     cancellation_policy: string | null;
     rescheduling_policy: string | null;
+    deposit_refund_policy_enabled: boolean | null;
+    deposit_refund_cutoff_hours: number | null;
   } | null;
   staff: { id: string; name: string } | null;
   services: { id: string; name: string; duration_minutes: number; buffer_minutes: number | null } | null;
@@ -168,7 +173,7 @@ function sortBookings(items: Booking[]): Booking[] {
 
 export default function MyBookingScreen() {
   const { user, loading: authLoading } = useAuth();
-  const { highlightBookingId } = useLocalSearchParams<{ highlightBookingId?: string }>();
+  const { highlightBookingId, openRatingBookingId } = useLocalSearchParams<{ highlightBookingId?: string; openRatingBookingId?: string }>();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -176,7 +181,9 @@ export default function MyBookingScreen() {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [ratingId, setRatingId] = useState<string | null>(null);
   const [ratingStars, setRatingStars] = useState(0);
+  const [ratingText, setRatingText] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
+  const openedRatingForDeepLink = useRef<string | null>(null);
   const [notifPermissionGranted, setNotifPermissionGranted] = useState(true);
   const listRef = useRef<FlatList<Booking>>(null);
   const cardBounce = useSharedValue(0);
@@ -229,6 +236,18 @@ export default function MyBookingScreen() {
     }
   }, [highlightBookingId, bookings]);
 
+  // Arrived via the review-nudge push -- open that booking's rating panel
+  // directly, same effect a manual "Rate"/"Edit review" tap would trigger.
+  useEffect(() => {
+    if (!openRatingBookingId || bookings.length === 0) return;
+    if (openedRatingForDeepLink.current === openRatingBookingId) return;
+    const item = bookings.find((b) => b.id === openRatingBookingId);
+    if (item) {
+      openedRatingForDeepLink.current = openRatingBookingId;
+      handleOpenRating(item);
+    }
+  }, [openRatingBookingId, bookings]);
+
   async function fetchBookings() {
     try {
       setLoading(true);
@@ -273,12 +292,31 @@ export default function MyBookingScreen() {
     });
   }
 
+  // Advisory only -- the server computes the authoritative outcome at
+  // cancel time; this just tells the customer what to expect before they
+  // confirm, using the same cutoff-hours math.
+  function depositAdvisoryText(item: Booking): string | null {
+    const depositCents = item.deposit_charged_cents ?? 0;
+    if (depositCents <= 0) return null;
+    const dollars = (depositCents / 100).toFixed(2);
+    if (!item.agency_clients?.deposit_refund_policy_enabled) {
+      return `This booking has a $${dollars} deposit. Refunds are handled directly by the salon.`;
+    }
+    const cutoffHours = item.agency_clients.deposit_refund_cutoff_hours ?? 24;
+    const hoursUntilStart = (new Date(item.starts_at).getTime() - Date.now()) / 3_600_000;
+    return hoursUntilStart >= cutoffHours
+      ? `Your $${dollars} deposit will be refunded.`
+      : `Your $${dollars} deposit will NOT be refunded — cancellations within ${cutoffHours} hours of the appointment forfeit the deposit.`;
+  }
+
   function handleCancel(item: Booking) {
     const policy = item.agency_clients?.rescheduling_policy || item.agency_clients?.cancellation_policy;
+    const depositNote = depositAdvisoryText(item);
     Alert.alert(
       'Cancel appointment?',
       (policy ? `${policy}\n\n` : '') +
-        "This can't be undone. Any refund, if applicable, will be handled directly by the salon.",
+        (depositNote ? `${depositNote}\n\n` : '') +
+        "This can't be undone.",
       [
         { text: 'Keep It', style: 'cancel' },
         {
@@ -294,6 +332,11 @@ export default function MyBookingScreen() {
               return;
             }
             notificationSuccess();
+            if (result.deposit_refund_outcome === 'refunded') {
+              Alert.alert('Cancelled', 'Your deposit has been refunded.');
+            } else if (result.deposit_refund_outcome === 'forfeited') {
+              Alert.alert('Cancelled', 'Your deposit was not refunded, per the salon\'s cancellation policy.');
+            }
             fetchBookings();
           },
         },
@@ -319,13 +362,17 @@ export default function MyBookingScreen() {
 
   function handleOpenRating(item: Booking) {
     setRatingId(item.id);
-    setRatingStars(0);
+    // Editing an existing review pre-fills their actual rating; a new one
+    // defaults to 5 stars so tapping Submit with no changes is a valid,
+    // one-tap way to leave a review.
+    setRatingStars(item.review?.stars ?? 5);
+    setRatingText(item.review?.review_text ?? '');
   }
 
   async function handleSubmitRating() {
     if (!ratingId || ratingStars === 0) return;
     setSubmittingRating(true);
-    const result = await submitBookingReview(ratingId, ratingStars);
+    const result = await submitBookingReview(ratingId, ratingStars, ratingText.trim() || undefined);
     setSubmittingRating(false);
     if (!result.ok) {
       notificationError();
@@ -333,8 +380,18 @@ export default function MyBookingScreen() {
       return;
     }
     notificationSuccess();
+    const submittedStars = ratingStars;
+    const submittedText = ratingText.trim() || null;
+    const targetCustomerId = bookings.find((b) => b.id === ratingId)?.customer_id;
     setRatingId(null);
-    setBookings((prev) => prev.map((b) => (b.id === ratingId ? { ...b, reviewed: true } : b)));
+    // The review belongs to the customer (salon relationship), not just this
+    // one booking -- every other booking at the same salon must show the
+    // same updated review immediately, not just the one that was open.
+    setBookings((prev) => prev.map((b) =>
+      b.customer_id && b.customer_id === targetCustomerId
+        ? { ...b, reviewed: true, review: { stars: submittedStars, review_text: submittedText } }
+        : b
+    ));
   }
 
   function handleViewReceipt(item: Booking) {
@@ -586,10 +643,10 @@ export default function MyBookingScreen() {
                       <Ionicons name="repeat-outline" size={14} color="#F4D77A" />
                       <Text style={styles.actionBtnText}>Rebook</Text>
                     </Pressable>
-                    {item.status === 'completed' && !item.reviewed && (
+                    {item.status === 'completed' && (
                       <Pressable style={styles.actionBtn} onPress={() => handleOpenRating(item)}>
-                        <Ionicons name="star-outline" size={14} color="#F4D77A" />
-                        <Text style={styles.actionBtnText}>Rate</Text>
+                        <Ionicons name={item.reviewed ? 'star' : 'star-outline'} size={14} color="#F4D77A" />
+                        <Text style={styles.actionBtnText}>{item.reviewed ? 'Edit review' : 'Rate'}</Text>
                       </Pressable>
                     )}
                     {item.status === 'completed' && (
@@ -603,7 +660,7 @@ export default function MyBookingScreen() {
 
                 {ratingId === item.id && (
                   <View style={styles.ratingPanel}>
-                    <Text style={styles.ratingLabel}>How was your visit?</Text>
+                    <Text style={styles.ratingLabel}>{item.reviewed ? 'Edit your review' : 'How was your visit?'}</Text>
                     <View style={styles.starRow}>
                       {[1, 2, 3, 4, 5].map((n) => (
                         <Pressable key={n} onPress={() => setRatingStars(n)} hitSlop={6}>
@@ -615,8 +672,16 @@ export default function MyBookingScreen() {
                         </Pressable>
                       ))}
                     </View>
+                    <TextInput
+                      style={styles.ratingTextInput}
+                      placeholder="Add a comment (optional)"
+                      placeholderTextColor="rgba(255,255,255,0.35)"
+                      value={ratingText}
+                      onChangeText={setRatingText}
+                      multiline
+                    />
                     <View style={styles.ratingActions}>
-                      <Pressable onPress={() => setRatingId(null)}>
+                      <Pressable onPress={() => { setRatingId(null); setRatingText(''); }}>
                         <Text style={styles.ratingCancelText}>Cancel</Text>
                       </Pressable>
                       <Pressable
@@ -918,6 +983,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   starRow: { flexDirection: 'row', gap: Spacing.sm },
+  ratingTextInput: {
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 8,
+    minHeight: 44,
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: '#FFFFFF',
+    textAlignVertical: 'top',
+  },
   ratingActions: {
     flexDirection: 'row',
     alignItems: 'center',
