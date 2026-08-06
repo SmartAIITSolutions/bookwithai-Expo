@@ -36,6 +36,40 @@ export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> 
   return { ...rest, logo_url: brand_studio_settings?.logo_url ?? null } as SalonInfo;
 }
 
+export interface SalonListing {
+  id: string;
+  business_name: string;
+  slug: string;
+  city: string | null;
+  state: string | null;
+  logo_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+// Directory for the customer app's "Discover" tab. Only salons that opted in
+// via publicly_listed are browsable; test salons are always excluded.
+export async function fetchSalonDirectory(query?: string): Promise<SalonListing[]> {
+  let q = supabase
+    .from('agency_clients')
+    .select('id, business_name, slug, city, state, latitude, longitude, brand_studio_settings ( logo_url )')
+    .eq('publicly_listed', true)
+    .eq('is_test', false)
+    .order('business_name');
+
+  const trimmed = query?.trim();
+  if (trimmed) {
+    q = q.or(`business_name.ilike.%${trimmed}%,city.ilike.%${trimmed}%`);
+  }
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return ((data as any[]) ?? []).map(({ brand_studio_settings, ...rest }) => ({
+    ...rest,
+    logo_url: brand_studio_settings?.logo_url ?? null,
+  }));
+}
+
 export interface StaffMember {
   id: string;
   name: string;

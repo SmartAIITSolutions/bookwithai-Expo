@@ -1,12 +1,11 @@
 import { NotificationBell } from '@/components/NotificationBell';
 import { TabIcon, TAB_ICON_COLORS } from '@/components/TabIcon';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { useFavorites } from '@/lib/favorites/FavoritesContext';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import {
   Bookmark,
-  CalendarDays,
+  Compass,
   Heart,
   UserRound,
 } from 'lucide-react-native';
@@ -26,7 +25,6 @@ const COLORS = {
 
 export default function TabsLayout() {
   const { user } = useAuth();
-  const { hasFavorites } = useFavorites();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
@@ -80,11 +78,10 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="book"
           options={{
-            title: 'Find Salon',
-            href: hasFavorites ? null : undefined,
+            title: 'Discover',
             tabBarIcon: ({ color, size, focused }) => (
               <TabIcon
-                Icon={CalendarDays}
+                Icon={Compass}
                 color={color}
                 size={size}
                 focused={focused}
