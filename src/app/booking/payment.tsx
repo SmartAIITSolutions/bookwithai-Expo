@@ -30,6 +30,7 @@ import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { fetchCustomerProfile } from '@/lib/api/customerProfile';
 
 function CardOverlay() {
   return (
@@ -108,6 +109,14 @@ function PaymentForm() {
   const [chargedCents, setChargedCents] = useState(parseInt(totalCents || '0', 10));
   const [stripeAccountId, setStripeAccountId] = useState('');
   const [paymentIntentId, setPaymentIntentId] = useState('');
+  // Non-null only when this salon/service has a deposit configured -- the
+  // service's real full price, verified server-side from the services
+  // table, kept separate from chargedCents (the smaller deposit amount
+  // actually charged now) so the booking record still shows its true price.
+  const [isDeposit, setIsDeposit] = useState(false);
+  const [fullPriceCents, setFullPriceCents] = useState<number | null>(null);
+  const [depositRefundPolicyEnabled, setDepositRefundPolicyEnabled] = useState(false);
+  const [depositRefundCutoffHours, setDepositRefundCutoffHours] = useState(24);
 
   const serviceIdList = (serviceIds || '').split(',').filter(Boolean);
   const services = (serviceNames || '').split('||').filter(Boolean);
@@ -136,6 +145,10 @@ function PaymentForm() {
       setChargedCents(data.total_cents ?? cents);
       setStripeAccountId(data.stripe_account_id);
       setPaymentIntentId(data.payment_intent_id);
+      setIsDeposit(!!data.is_deposit);
+      setFullPriceCents(data.full_price_cents ?? null);
+      setDepositRefundPolicyEnabled(!!data.deposit_refund_policy_enabled);
+      setDepositRefundCutoffHours(data.deposit_refund_cutoff_hours ?? 24);
 
       const { error: initErr } = await initPaymentSheet({
         paymentIntentClientSecret: data.client_secret,
@@ -177,6 +190,13 @@ function PaymentForm() {
         return;
       }
 
+      // customer_profiles is guaranteed complete by this point -- the
+      // profile-completeness gate in _layout.tsx never lets a signed-in
+      // customer reach the booking flow without a real phone/email on file,
+      // so this replaces the old user_metadata lookup that silently fell
+      // back to a fake '0000000000' placeholder phone.
+      const profile = user ? await fetchCustomerProfile(user.id) : null;
+
       // Payment succeeded — create booking via mobile endpoint (no auth required)
       const bookingRes = await fetch(`${API_BASE}/api/mobile/bookings`, {
         method: 'POST',
@@ -187,13 +207,18 @@ function PaymentForm() {
           staff_id:          staffId || undefined,
           starts_at:         startsAt,
           ends_at:           endsAt || undefined,
-          price_cents:       chargedCents,
+          // The booking's recorded price is always the real full service
+          // price, even when a deposit means chargedCents (what Stripe just
+          // charged) is smaller -- total_charged_cents on the server is
+          // derived from the PaymentIntent itself, not from this value.
+          price_cents:       isDeposit && fullPriceCents != null ? fullPriceCents : chargedCents,
           payment_intent_id: paymentIntentId,
           notes:             notes || undefined,
-          // Customer identity — from auth if signed in, else placeholder (collected at review)
+          // Customer identity — sourced from customer_profiles, the
+          // canonical cross-salon record collected once at signup.
           customer_name:  user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest',
-          customer_email: user?.email || undefined,
-          customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
+          customer_email: profile?.email || user?.email || undefined,
+          customer_phone: profile?.phone || undefined,
           auth_user_id:   user?.id || undefined,
           idempotency_key: idempotencyKey || undefined,
           source:         rebookSource || undefined,
@@ -261,10 +286,26 @@ function PaymentForm() {
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
-              Total <Text style={styles.totalNote}>(incl. Taxes and Fees)</Text>
+              {isDeposit ? 'Deposit due now' : (
+                <>Total <Text style={styles.totalNote}>(incl. Taxes and Fees)</Text></>
+              )}
             </Text>
             <Text style={styles.totalValue}>{formatPrice(chargedCents)}</Text>
           </View>
+          {isDeposit && fullPriceCents != null && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>
+                Balance of {formatPrice(fullPriceCents - chargedCents)} due at your appointment
+              </Text>
+            </View>
+          )}
+          {isDeposit && (
+            <Text style={styles.depositPolicyText}>
+              {depositRefundPolicyEnabled
+                ? `Deposit refundable if you cancel at least ${depositRefundCutoffHours} hours before your appointment. Cancelling later, or a no-show, forfeits it.`
+                : 'Deposit refunds, if any, are handled directly by the salon.'}
+            </Text>
+          )}
         </View>
 
         {/* Error */}
@@ -305,7 +346,7 @@ function PaymentForm() {
                 <Reanimated.View style={[styles.payBtnContent, payTextSpinStyle]}>
                   <Ionicons name="card-outline" size={20} color="#09000F" />
                   <Text style={styles.payBtnText}>
-                    Pay {formatPrice(chargedCents)}
+                    {isDeposit ? 'Pay deposit ' : 'Pay '}{formatPrice(chargedCents)}
                   </Text>
                 </Reanimated.View>
               )}
@@ -383,6 +424,13 @@ const styles = StyleSheet.create({
     fontSize: FontSize.base,
     color: '#FFFFFF',
     flex: 1,
+  },
+  depositPolicyText: {
+    fontFamily: FontFamily.sora,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: Spacing.xs,
+    lineHeight: 16,
   },
   divider: {
     height: 1,

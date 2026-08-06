@@ -9,12 +9,22 @@ export interface CustomerProfile {
   date_of_birth: string | null;
   pronouns: string | null;
   timezone: string | null;
+  // Canonical cross-salon identity -- collected once here, reused to
+  // auto-fill every new salon's customers row instead of asking again.
+  // Mandatory in app logic (enforced via the profile-completeness gate),
+  // nullable at the DB level since existing accounts predate this.
+  phone: string | null;
+  email: string | null;
+}
+
+export function isProfileComplete(profile: CustomerProfile | null): boolean {
+  return !!profile?.phone?.trim() && !!profile?.email?.trim();
 }
 
 export async function fetchCustomerProfile(authUserId: string): Promise<CustomerProfile | null> {
   const { data, error } = await supabase
     .from('customer_profiles')
-    .select('auth_user_id, photo_url, date_of_birth, pronouns, timezone')
+    .select('auth_user_id, photo_url, date_of_birth, pronouns, timezone, phone, email')
     .eq('auth_user_id', authUserId)
     .maybeSingle();
   if (error) throw error;
@@ -23,7 +33,7 @@ export async function fetchCustomerProfile(authUserId: string): Promise<Customer
 
 export async function upsertCustomerProfile(
   authUserId: string,
-  patch: Partial<Pick<CustomerProfile, 'photo_url' | 'date_of_birth' | 'pronouns' | 'timezone'>>
+  patch: Partial<Pick<CustomerProfile, 'photo_url' | 'date_of_birth' | 'pronouns' | 'timezone' | 'phone' | 'email'>>
 ): Promise<void> {
   const { error } = await supabase
     .from('customer_profiles')

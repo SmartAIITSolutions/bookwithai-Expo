@@ -4,7 +4,7 @@ import {
   ScrollView, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { BreathingHeart } from '@/components/BreathingHeart';
@@ -14,6 +14,13 @@ import {
   type CustomerProfile,
 } from '@/lib/api/customerProfile';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+
+function isValidEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
+function isValidPhone(v: string) {
+  return v.replace(/\D/g, '').length >= 10;
+}
 
 const PRONOUN_OPTIONS = ['She/Her', 'He/Him', 'They/Them', 'Prefer not to say'];
 
@@ -32,7 +39,9 @@ function parseDob(input: string): string | null {
 }
 
 export default function ProfileScreen() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const { required } = useLocalSearchParams<{ required?: string }>();
+  const isRequired = required === 'true';
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,6 +50,8 @@ export default function ProfileScreen() {
   const [dobInput, setDobInput] = useState('');
   const [pronouns, setPronouns] = useState<string | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -51,8 +62,12 @@ export default function ProfileScreen() {
           setDobInput(formatDob(p.date_of_birth));
           setPronouns(p.pronouns);
           setTimezone(p.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+          setPhone(p.phone ?? '');
+          setEmail(p.email ?? user.email ?? '');
         } else {
           setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+          setEmail(user.email ?? '');
+          setPhone(typeof user.user_metadata?.phone === 'string' ? user.user_metadata.phone : '');
         }
       })
       .finally(() => setLoading(false));
@@ -87,6 +102,14 @@ export default function ProfileScreen() {
 
   async function handleSave() {
     if (!user) return;
+    if (!isValidPhone(phone)) {
+      Alert.alert('Phone required', 'Enter a valid phone number.');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      Alert.alert('Email required', 'Enter a valid email address.');
+      return;
+    }
     let dob: string | null = null;
     if (dobInput.trim()) {
       dob = parseDob(dobInput.trim());
@@ -97,8 +120,15 @@ export default function ProfileScreen() {
     }
     setSaving(true);
     try {
-      await upsertCustomerProfile(user.id, { date_of_birth: dob, pronouns, timezone });
-      Alert.alert('Saved', 'Your profile has been updated.');
+      await upsertCustomerProfile(user.id, {
+        date_of_birth: dob, pronouns, timezone,
+        phone: phone.trim(), email: email.trim(),
+      });
+      if (isRequired) {
+        router.replace('/(tabs)/book' as never);
+      } else {
+        Alert.alert('Saved', 'Your profile has been updated.');
+      }
     } catch (e: any) {
       Alert.alert('Could not save', e.message || 'Please try again.');
     } finally {
@@ -117,9 +147,24 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ title: 'Profile', headerBackTitle: 'Account' }} />
+      <Stack.Screen
+        options={{
+          title: 'Profile',
+          headerBackTitle: 'Account',
+          headerBackVisible: !isRequired,
+          gestureEnabled: !isRequired,
+        }}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+          {isRequired && (
+            <View style={styles.requiredBanner}>
+              <Text style={styles.requiredBannerText}>
+                Phone and email are required to book appointments. Add them below to continue.
+              </Text>
+            </View>
+          )}
 
           <Pressable style={styles.photoWrap} onPress={handlePickPhoto} disabled={uploadingPhoto}>
             {photoUrl ? (
@@ -139,6 +184,33 @@ export default function ProfileScreen() {
               )}
             </View>
           </Pressable>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Phone</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="(555) 123-4567"
+              placeholderTextColor={Colors.textDisabled}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="you@example.com"
+              placeholderTextColor={Colors.textDisabled}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+          </View>
 
           <View style={styles.section}>
             <Text style={styles.label}>Birthday</Text>
@@ -175,6 +247,12 @@ export default function ProfileScreen() {
           <Pressable style={styles.saveBtn} onPress={handleSave} disabled={saving}>
             {saving ? <BreathingHeart size={18} color={Colors.white} /> : <Text style={styles.saveBtnText}>Save</Text>}
           </Pressable>
+
+          {isRequired && (
+            <Pressable onPress={() => signOut()}>
+              <Text style={styles.signOutLink}>Sign out instead</Text>
+            </Pressable>
+          )}
 
         </ScrollView>
       </KeyboardAvoidingView>
@@ -248,6 +326,27 @@ const styles = StyleSheet.create({
     color: Colors.textDisabled,
   },
 
+  requiredBanner: {
+    width: '100%',
+    backgroundColor: Colors.backgroundLavender,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    padding: Spacing.md,
+  },
+  requiredBannerText: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  signOutLink: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    textDecorationLine: 'underline',
+  },
   saveBtn: {
     width: '100%',
     backgroundColor: Colors.primary,

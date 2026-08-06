@@ -16,6 +16,7 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
+import { fetchCustomerProfile } from '@/lib/api/customerProfile';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { API_BASE } from '@/lib/config';
 
@@ -138,6 +139,12 @@ export default function ReviewScreen() {
 
     setBookingLoading(true);
     try {
+      // customer_profiles is guaranteed complete by this point -- the
+      // profile-completeness gate in _layout.tsx never lets a signed-in
+      // customer reach the booking flow without a real phone/email on file,
+      // so this replaces the old user_metadata lookup that silently fell
+      // back to a fake '0000000000' placeholder phone.
+      const profile = user ? await fetchCustomerProfile(user.id) : null;
       const res = await fetch(`${API_BASE}/api/mobile/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,8 +157,8 @@ export default function ReviewScreen() {
           price_cents:    cents,
           notes:          notes || undefined,
           customer_name:  user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest',
-          customer_email: user?.email || undefined,
-          customer_phone: user?.user_metadata?.phone || user?.phone || '0000000000',
+          customer_email: profile?.email || user?.email || undefined,
+          customer_phone: profile?.phone || undefined,
           auth_user_id:   user?.id || undefined,
           idempotency_key: idempotencyKey,
           source:         rebookSource || undefined,

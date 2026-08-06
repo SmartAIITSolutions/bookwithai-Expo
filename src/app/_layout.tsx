@@ -38,6 +38,7 @@ import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
+import { fetchCustomerProfile, isProfileComplete } from '@/lib/api/customerProfile';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
 import { checkInBooking } from '@/lib/api/bookingActions';
 import { Alert } from 'react-native';
@@ -163,6 +164,14 @@ export default function RootLayout() {
           },
         } as never);
       }
+      // Review nudge -- lands on My Bookings with that booking's rating
+      // panel already open, pre-set to 5 stars for a one-tap submit.
+      if (data?.action === 'leave_review' && data.bookingId) {
+        router.push({
+          pathname: '/(tabs)/my-booking',
+          params: { openRatingBookingId: data.bookingId },
+        } as never);
+      }
     });
     return () => sub.remove();
   }, []);
@@ -276,6 +285,8 @@ export default function RootLayout() {
         <Stack.Screen name="owner-settings/products" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/membership-plans" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/service-packages" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/payments" options={{ headerShown: true }} />
+        <Stack.Screen name="reviews" options={{ headerShown: true }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="appointment/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="customer/merge-duplicates" options={{ headerShown: true }} />
@@ -348,6 +359,34 @@ function AuthRedirectGate() {
     pushRegistered.current = true;
     requestAndRegisterPushToken();
   }, [user, role, loading]);
+
+  // Profile-completeness gate -- phone and email are mandatory for
+  // customers (the canonical identity every new salon relationship gets
+  // auto-filled from). Covers every sign-in method (password, magic link,
+  // Apple, Google) and existing accounts that predate this requirement,
+  // since it re-checks customer_profiles on every sign-in, not just at
+  // signup time. Checked once per user id, not on every render/navigation.
+  const profileCheckedForUser = useRef<string | null>(null);
+  useEffect(() => {
+    if (loading || !user || role !== 'customer') return;
+    const onAuthStack = segments[0] === 'auth';
+    const onProfileScreen = segments[0] === 'profile';
+    if (onAuthStack || onProfileScreen) return;
+    if (profileCheckedForUser.current === user.id) return;
+    profileCheckedForUser.current = user.id;
+
+    fetchCustomerProfile(user.id)
+      .then((profile) => {
+        if (!isProfileComplete(profile)) {
+          router.replace({ pathname: '/profile', params: { required: 'true' } } as never);
+        }
+      })
+      .catch(() => {
+        // Never block app usage on a transient fetch failure -- re-checked
+        // next time this effect's dependencies change (e.g. next sign-in).
+        profileCheckedForUser.current = null;
+      });
+  }, [user, role, loading, segments]);
 
   return null;
 }
