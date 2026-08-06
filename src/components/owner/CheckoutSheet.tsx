@@ -165,7 +165,12 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const taxCents = preview?.tax.inclusive ? 0 : Math.round(taxableBase * ((preview?.tax.rate_percent ?? 0) / 100));
     const total = subtotal - discountCents + taxCents + tipCents;
     const tenderedTotal = tenders.reduce((s, t) => s + t.amount_cents, 0);
-    const remaining = total - tenderedTotal;
+    // already_paid_cents is non-zero when the customer paid something online
+    // at booking time (full payment, or a deposit) -- net it out here or the
+    // owner would be prompted to collect it a second time at checkout. Was
+    // previously missing entirely, a real gap independent of deposits.
+    const alreadyPaidCents = preview?.already_paid_cents ?? 0;
+    const remaining = Math.max(0, total - tenderedTotal - alreadyPaidCents);
 
     // Amount auto-fills with whatever's still due -- only changes when the
     // due amount itself changes (a tender gets added/removed, or the total

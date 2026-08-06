@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
@@ -76,6 +76,13 @@ export default function BusinessSetupScreen() {
       max_daily_bookings: business.max_daily_bookings,
       staff_login_mode: business.staff_login_mode,
       checkin_flow_mode: business.checkin_flow_mode,
+      publicly_listed: business.publicly_listed,
+      require_online_payment: business.require_online_payment,
+      deposit_type: business.deposit_type,
+      deposit_percent: business.deposit_percent,
+      deposit_amount_cents: business.deposit_amount_cents,
+      deposit_refund_policy_enabled: business.deposit_refund_policy_enabled,
+      deposit_refund_cutoff_hours: business.deposit_refund_cutoff_hours,
     });
     setSaving(false);
     if (!result.ok) Alert.alert('Could not save', result.error);
@@ -238,6 +245,99 @@ export default function BusinessSetupScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.emptyHint}>The Queue view (in Calendar) is always available too, for busy walk-in-heavy salons.</Text>
+        </Section>
+
+        <Section title="Payments">
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, paddingRight: Spacing.md }}>
+              <Text style={styles.fieldLabel}>Require online payment</Text>
+              <Text style={styles.emptyHint}>Customers must pay when booking.</Text>
+            </View>
+            <Switch
+              value={business.require_online_payment}
+              onValueChange={(v) => set('require_online_payment', v)}
+              trackColor={{ true: '#F4D77A' }}
+            />
+          </View>
+
+          {business.require_online_payment && (
+            <View style={{ marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' }}>
+              <Text style={styles.fieldLabel}>Deposit at booking</Text>
+              <Text style={styles.emptyHint}>Charge only part of the total online, collect the rest at checkout. Individual services can override this.</Text>
+              <View style={styles.depositTypeRow}>
+                {(['none', 'percent', 'fixed'] as const).map(t => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.depositTypeChip, business.deposit_type === t && styles.depositTypeChipActive]}
+                    onPress={() => set('deposit_type', t)}>
+                    <Text style={[styles.depositTypeChipText, business.deposit_type === t && styles.depositTypeChipTextActive]}>
+                      {t === 'none' ? 'Full payment' : t === 'percent' ? 'Percentage' : 'Fixed amount'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {business.deposit_type === 'percent' && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Deposit %"
+                  placeholderTextColor="rgba(255,255,255,0.35)"
+                  value={business.deposit_percent != null ? String(business.deposit_percent) : ''}
+                  onChangeText={(v) => set('deposit_percent', v.trim() ? parseFloat(v) : null)}
+                  keyboardType="decimal-pad"
+                />
+              )}
+              {business.deposit_type === 'fixed' && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Deposit $"
+                  placeholderTextColor="rgba(255,255,255,0.35)"
+                  value={business.deposit_amount_cents != null ? (business.deposit_amount_cents / 100).toFixed(2) : ''}
+                  onChangeText={(v) => set('deposit_amount_cents', v.trim() ? Math.round(parseFloat(v) * 100) : null)}
+                  keyboardType="decimal-pad"
+                />
+              )}
+
+              {business.deposit_type !== 'none' && (
+                <View style={{ marginTop: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' }}>
+                  <View style={styles.switchRow}>
+                    <View style={{ flex: 1, paddingRight: Spacing.md }}>
+                      <Text style={styles.fieldLabel}>Automatically enforce a cancellation cutoff</Text>
+                      <Text style={styles.emptyHint}>On: cancelling far enough ahead auto-refunds the deposit, cancelling late (or a no-show) auto-forfeits it. Off: nothing happens automatically; you decide manually when cancelling.</Text>
+                    </View>
+                    <Switch
+                      value={business.deposit_refund_policy_enabled}
+                      onValueChange={(v) => set('deposit_refund_policy_enabled', v)}
+                      trackColor={{ true: '#F4D77A' }}
+                    />
+                  </View>
+                  {business.deposit_refund_policy_enabled && (
+                    <TextInput
+                      style={[styles.input, { marginTop: Spacing.sm }]}
+                      placeholder="Refundable if cancelled this many hours ahead"
+                      placeholderTextColor="rgba(255,255,255,0.35)"
+                      value={String(business.deposit_refund_cutoff_hours)}
+                      onChangeText={(v) => set('deposit_refund_cutoff_hours', parseInt(v, 10) || 0)}
+                      keyboardType="number-pad"
+                    />
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+        </Section>
+
+        <Section title="Salon Directory">
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1, paddingRight: Spacing.md }}>
+              <Text style={styles.fieldLabel}>Show my salon in the customer app's Discover list</Text>
+              <Text style={styles.emptyHint}>Off hides you from browsing customers — clients who already have your link or QR code can still book.</Text>
+            </View>
+            <Switch
+              value={business.publicly_listed}
+              onValueChange={(v) => set('publicly_listed', v)}
+              trackColor={{ true: '#F4D77A' }}
+            />
+          </View>
         </Section>
 
         <Section title="Holiday Hours">
@@ -410,6 +510,15 @@ const styles = StyleSheet.create({
   holidayName: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#FFFFFF' },
   holidayMessage: { fontFamily: FontFamily.sora, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
   emptyHint: { fontFamily: FontFamily.sora, fontSize: 13, color: 'rgba(255,255,255,0.5)' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  depositTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Spacing.sm, marginBottom: Spacing.xs },
+  depositTypeChip: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: BorderRadius.sm,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  depositTypeChipActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.15)' },
+  depositTypeChipText: { fontFamily: FontFamily.sora, fontSize: 12, color: 'rgba(255,255,255,0.6)' },
+  depositTypeChipTextActive: { fontFamily: FontFamily.soraSemiBold, color: '#F4D77A' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
   addRowText: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#F4D77A' },
   inlineForm: { gap: Spacing.sm, paddingTop: Spacing.xs },

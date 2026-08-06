@@ -6,7 +6,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
-import { listServices, createService, archiveService, getServiceStaff, setServiceStaff, Service } from '@/lib/api/ownerServices';
+import { listServices, createService, archiveService, getServiceStaff, setServiceStaff, updateService, Service } from '@/lib/api/ownerServices';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
@@ -35,6 +35,11 @@ export default function ServicesScreen() {
   const [commissionRates, setCommissionRates] = useState<Record<string, number | null>>({});
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffSaving, setStaffSaving] = useState(false);
+
+  const [depositExpandedId, setDepositExpandedId] = useState<string | null>(null);
+  const [depositPercentInput, setDepositPercentInput] = useState('');
+  const [depositAmountInput, setDepositAmountInput] = useState('');
+  const [depositSaving, setDepositSaving] = useState(false);
 
   const load = useCallback(async () => {
     const [servicesResult, staffResult] = await Promise.all([listServices(), listStaff()]);
@@ -111,6 +116,38 @@ export default function ServicesScreen() {
     }
   }
 
+  function toggleDepositPanel(s: Service) {
+    if (depositExpandedId === s.id) { setDepositExpandedId(null); return; }
+    setDepositExpandedId(s.id);
+    setDepositPercentInput(s.deposit_percent != null ? String(s.deposit_percent) : '');
+    setDepositAmountInput(s.deposit_amount_cents != null ? (s.deposit_amount_cents / 100).toFixed(2) : '');
+  }
+
+  async function handleSetDepositType(s: Service, type: Service['deposit_type']) {
+    setDepositSaving(true);
+    const result = await updateService(s.id, { deposit_type: type });
+    setDepositSaving(false);
+    if (result.ok) {
+      setServices(list => list.map(x => x.id === s.id ? { ...x, deposit_type: type } : x));
+    } else {
+      Alert.alert('Could not save', result.error);
+    }
+  }
+
+  async function handleSaveDepositAmount(s: Service) {
+    setDepositSaving(true);
+    const patch = s.deposit_type === 'percent'
+      ? { deposit_percent: parseFloat(depositPercentInput) || 0 }
+      : { deposit_amount_cents: Math.round((parseFloat(depositAmountInput) || 0) * 100) };
+    const result = await updateService(s.id, patch);
+    setDepositSaving(false);
+    if (result.ok) {
+      setServices(list => list.map(x => x.id === s.id ? { ...x, ...patch } : x));
+    } else {
+      Alert.alert('Could not save', result.error);
+    }
+  }
+
   async function handleArchive(id: string) {
     const result = await archiveService(id);
     if (result.ok) setServices(s => s.filter(x => x.id !== id));
@@ -144,6 +181,11 @@ export default function ServicesScreen() {
                     {s.duration_minutes} min · ${(s.price_cents / 100).toFixed(2)}{s.price_is_from ? ' & up' : ''}
                   </Text>
                 </View>
+                <TouchableOpacity onPress={() => toggleDepositPanel(s)} hitSlop={8} style={styles.staffBtn}>
+                  <Ionicons name="cash-outline" size={16} color="#F4D77A" />
+                  <Text style={styles.staffBtnText}>Deposit</Text>
+                  <Ionicons name={depositExpandedId === s.id ? 'chevron-up' : 'chevron-down'} size={14} color="#F4D77A" />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleToggleStaffPanel(s.id)} hitSlop={8} style={styles.staffBtn}>
                   <Ionicons name="people-outline" size={16} color="#F4D77A" />
                   <Text style={styles.staffBtnText}>Staff</Text>
@@ -153,6 +195,47 @@ export default function ServicesScreen() {
                   <Ionicons name="trash-outline" size={18} color="#F09595" />
                 </TouchableOpacity>
               </View>
+
+              {depositExpandedId === s.id && (
+                <View style={styles.staffPanel}>
+                  <Text style={styles.staffPanelHint}>Leave as &quot;Use salon default&quot; unless this service needs a different deposit rule.</Text>
+                  <View style={styles.depositTypeRow}>
+                    {([null, 'none', 'percent', 'fixed'] as const).map(t => (
+                      <TouchableOpacity
+                        key={t ?? 'inherit'}
+                        style={[styles.depositTypeChip, s.deposit_type === t && styles.depositTypeChipActive]}
+                        disabled={depositSaving}
+                        onPress={() => handleSetDepositType(s, t)}>
+                        <Text style={[styles.depositTypeChipText, s.deposit_type === t && styles.depositTypeChipTextActive]}>
+                          {t === null ? 'Salon default' : t === 'none' ? 'Full payment' : t === 'percent' ? 'Percentage' : 'Fixed amount'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {s.deposit_type === 'percent' && (
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Deposit %"
+                      placeholderTextColor="rgba(255,255,255,0.4)"
+                      value={depositPercentInput}
+                      onChangeText={setDepositPercentInput}
+                      onEndEditing={() => handleSaveDepositAmount(s)}
+                      keyboardType="decimal-pad"
+                    />
+                  )}
+                  {s.deposit_type === 'fixed' && (
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Deposit $"
+                      placeholderTextColor="rgba(255,255,255,0.4)"
+                      value={depositAmountInput}
+                      onChangeText={setDepositAmountInput}
+                      onEndEditing={() => handleSaveDepositAmount(s)}
+                      keyboardType="decimal-pad"
+                    />
+                  )}
+                </View>
+              )}
 
               {expandedServiceId === s.id && (
                 <View style={styles.staffPanel}>
@@ -256,6 +339,14 @@ const styles = StyleSheet.create({
     width: 64, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', borderRadius: BorderRadius.sm,
     paddingHorizontal: 8, paddingVertical: 6, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF', textAlign: 'right',
   },
+  depositTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.xs },
+  depositTypeChip: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: BorderRadius.sm,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  depositTypeChipActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.15)' },
+  depositTypeChipText: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)' },
+  depositTypeChipTextActive: { fontFamily: FontFamily.soraSemiBold, color: '#F4D77A' },
   addCard: {
     borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md, gap: Spacing.sm,

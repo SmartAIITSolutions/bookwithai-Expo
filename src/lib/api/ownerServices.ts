@@ -12,6 +12,9 @@ export interface Service {
   bookable_online: boolean | null;
   gender_restriction: string | null;
   price_is_from: boolean | null;
+  deposit_type: 'none' | 'percent' | 'fixed' | null;
+  deposit_percent: number | null;
+  deposit_amount_cents: number | null;
   active: boolean;
 }
 

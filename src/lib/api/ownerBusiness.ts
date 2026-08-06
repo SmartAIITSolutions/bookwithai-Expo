@@ -20,6 +20,13 @@ export interface Business {
   max_daily_bookings: number | null;
   staff_login_mode: 'shared_device' | 'individual_accounts';
   checkin_flow_mode: 'full' | 'quick';
+  publicly_listed: boolean;
+  require_online_payment: boolean;
+  deposit_type: 'none' | 'percent' | 'fixed';
+  deposit_percent: number | null;
+  deposit_amount_cents: number | null;
+  deposit_refund_policy_enabled: boolean;
+  deposit_refund_cutoff_hours: number;
 }
 
 export interface Holiday {
