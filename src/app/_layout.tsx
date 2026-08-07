@@ -38,7 +38,7 @@ import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
-import { fetchCustomerProfile, isProfileComplete } from '@/lib/api/customerProfile';
+import { fetchCustomerProfile, isProfileComplete, linkCustomerIdentity } from '@/lib/api/customerProfile';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
 import { checkInBooking } from '@/lib/api/bookingActions';
 import { Alert } from 'react-native';
@@ -379,6 +379,11 @@ function AuthRedirectGate() {
       .then((profile) => {
         if (!isProfileComplete(profile)) {
           router.replace({ pathname: '/profile', params: { required: 'true' } } as never);
+        } else if (profile) {
+          // Re-run every sign-in, not just at signup -- a salon can create a
+          // matching walk-in or manual booking at any point after this
+          // account already exists, so this can't be a one-time check.
+          linkCustomerIdentity(profile.phone!, profile.email);
         }
       })
       .catch(() => {

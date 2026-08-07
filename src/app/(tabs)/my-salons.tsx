@@ -1,6 +1,6 @@
 import {
   View, Text, StyleSheet, Pressable, Image,
-  FlatList,
+  ScrollView, RefreshControl,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurMask, Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
 import { TabIcon, TAB_ICON_COLORS } from '@/components/TabIcon';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useFavorites } from '@/lib/favorites/FavoritesContext';
 import { type FavoriteSalon } from '@/lib/api/favoriteSalons';
@@ -139,17 +138,15 @@ export default function MySalonsScreen() {
             </Pressable>
           </View>
         ) : (
-          <View style={{ flex: 1 }}>
-          <RefreshHeartOverlay refreshing={loading} />
-          <FlatList
+          <ScrollView
             style={{ flex: 1 }}
-            data={salons}
-            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
-            refreshControl={<InvisibleRefreshControl refreshing={loading} onRefresh={refresh} />}
-            renderItem={({ item }) => (
-              <Pressable onPress={() => handleOpenSalon(item)}>
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={refresh} tintColor="#F4D77A" colors={['#F4D77A']} />
+            }>
+            {salons.map((item) => (
+              <Pressable key={item.id} onPress={() => handleOpenSalon(item)}>
                 {({ pressed }) => (
                   <View style={[styles.card, pressed && { opacity: 0.85 }]}>
                     <CardOverlay />
@@ -167,9 +164,8 @@ export default function MySalonsScreen() {
                   </View>
                 )}
               </Pressable>
-            )}
-          />
-          </View>
+            ))}
+          </ScrollView>
         )}
       </SafeAreaView>
     </View>

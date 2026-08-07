@@ -28,6 +28,11 @@ interface WalkInSheetProps {
   // to log a walk-in on a day marked closed), but shown with a reminder
   // since there's no guarantee anyone is actually scheduled then.
   outsideBusinessHours?: boolean;
+  // Set when arriving with a specific customer already in mind (e.g. the
+  // "Book" action on a customer's profile) -- pre-selects them instead of
+  // starting from an empty search, so the owner doesn't have to look the
+  // same customer up again right after finding them.
+  initialCustomer?: CustomerLite | null;
 }
 
 function CardOverlay() {
@@ -43,13 +48,26 @@ function CardOverlay() {
 // earliest open chair is found automatically — "Walk-In → Find earliest
 // chair → Book." Target ~15 seconds for a returning customer.
 export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
-  function WalkInSheet({ staff, todaysBookings, onBooked, initialTime, initialStaffId, outsideBusinessHours }, ref) {
+  function WalkInSheet({ staff, todaysBookings, onBooked, initialTime, initialStaffId, outsideBusinessHours, initialCustomer }, ref) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<CustomerLite[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
+
+    useEffect(() => {
+      if (initialCustomer) { setSelectedCustomer(initialCustomer); setQuery(initialCustomer.name); }
+    }, [initialCustomer]);
     const [services, setServices] = useState<Service[]>([]);
     const [selectedService, setSelectedService] = useState<Service | null>(null);
     const [booking, setBooking] = useState(false);
+
+    // New-customer form -- shown when a search comes back empty, since name,
+    // phone, and email are all mandatory for every customer record (matches
+    // the required-field gate on the mobile profile screen), not just name.
+    const [addingNew, setAddingNew] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [newPhone, setNewPhone] = useState('');
+    const [newEmail, setNewEmail] = useState('');
+    const [creatingCustomer, setCreatingCustomer] = useState(false);
 
     useEffect(() => {
       listServices().then(r => { if (r.ok) setServices(r.data.data.filter(s => s.active)); });
@@ -58,10 +76,33 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
     const runSearch = useCallback(async (q: string) => {
       setQuery(q);
       setSelectedCustomer(null);
+      setAddingNew(false);
       if (q.trim().length < 2) { setResults([]); return; }
       const r = await searchCustomers(q.trim());
       if (r.ok) setResults(r.data.data);
     }, []);
+
+    function startAddingNew() {
+      setNewName(query.trim());
+      setNewPhone('');
+      setNewEmail('');
+      setAddingNew(true);
+    }
+
+    async function handleAddCustomer() {
+      if (!newName.trim() || !newPhone.trim() || !newEmail.trim()) {
+        Alert.alert('All fields required', 'Name, phone, and email are all needed to add a new customer.');
+        return;
+      }
+      setCreatingCustomer(true);
+      const created = await quickCreateCustomer(newName.trim(), newPhone.trim(), newEmail.trim());
+      setCreatingCustomer(false);
+      if (!created.ok) { Alert.alert('Could not add customer', created.error); return; }
+      setSelectedCustomer(created.data.data);
+      setQuery(created.data.data.name);
+      setResults([]);
+      setAddingNew(false);
+    }
 
     function findEarliestSlot(durationMin: number): { staffId: string | null; startsAt: Date } | null {
       const baseStart = initialTime
@@ -91,13 +132,10 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
         Alert.alert('Pick a service', 'Choose what the walk-in is here for.');
         return;
       }
-      let customer = selectedCustomer;
+      const customer = selectedCustomer;
       if (!customer) {
-        if (!query.trim()) { Alert.alert('Pick or add a customer', 'Search or add a new customer first.'); return; }
-        setBooking(true);
-        const created = await quickCreateCustomer(query.trim());
-        if (!created.ok) { setBooking(false); Alert.alert('Could not add customer', created.error); return; }
-        customer = created.data.data;
+        Alert.alert('Pick or add a customer', 'Search for an existing customer or add a new one first.');
+        return;
       }
 
       const slot = findEarliestSlot(selectedService.duration_minutes);
@@ -121,6 +159,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
 
       if (result.ok) {
         setQuery(''); setSelectedCustomer(null); setSelectedService(null); setResults([]);
+        setAddingNew(false); setNewName(''); setNewPhone(''); setNewEmail('');
         onBooked();
       } else if (result.error?.toLowerCase().includes('already booked')) {
         Alert.alert('Just got booked', 'That chair filled up — tap Book again to find the next one.');
@@ -168,10 +207,11 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
           <Text style={styles.label}>Customer</Text>
           <TextInput
             style={styles.input}
-            placeholder="Search or type a new name"
+            placeholder="Search by name, phone, or email"
             placeholderTextColor="rgba(255,255,255,0.4)"
             value={query}
             onChangeText={runSearch}
+            editable={!addingNew}
           />
           {results.length > 0 && (
             <BlurView intensity={90} tint="dark" style={styles.resultsCard}>
@@ -187,8 +227,52 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               ))}
             </BlurView>
           )}
-          {!selectedCustomer && query.trim().length >= 2 && results.length === 0 && (
-            <Text style={styles.newHint}>No match — "{query.trim()}" will be added as a new customer.</Text>
+          {!selectedCustomer && !addingNew && query.trim().length >= 2 && results.length === 0 && (
+            <TouchableOpacity style={styles.addNewRow} onPress={startAddingNew}>
+              <Ionicons name="person-add-outline" size={16} color="#F4D77A" />
+              <Text style={styles.newHint}>
+                No match for "{query.trim()}" — <Text style={styles.newHintLink}>add new customer</Text>
+              </Text>
+            </TouchableOpacity>
+          )}
+          {addingNew && (
+            <BlurView intensity={90} tint="dark" style={styles.newCustomerCard}>
+              <CardOverlay />
+              <TextInput
+                style={styles.input}
+                placeholder="Full name"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={newName}
+                onChangeText={setNewName}
+              />
+              <TextInput
+                style={[styles.input, { marginTop: Spacing.xs }]}
+                placeholder="Phone number"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={newPhone}
+                onChangeText={setNewPhone}
+                keyboardType="phone-pad"
+              />
+              <TextInput
+                style={[styles.input, { marginTop: Spacing.xs }]}
+                placeholder="Email address"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                value={newEmail}
+                onChangeText={setNewEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <View style={styles.newCustomerActions}>
+                <TouchableOpacity style={styles.newCustomerCancel} onPress={() => setAddingNew(false)}>
+                  <Text style={styles.newCustomerCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.newCustomerSave} onPress={handleAddCustomer} disabled={creatingCustomer}>
+                  {creatingCustomer
+                    ? <ActivityIndicator color="#09000F" />
+                    : <Text style={styles.newCustomerSaveText}>Add customer</Text>}
+                </TouchableOpacity>
+              </View>
+            </BlurView>
           )}
 
           <Text style={styles.label}>Service</Text>
@@ -245,7 +329,22 @@ const styles = StyleSheet.create({
   resultRow: { paddingVertical: 10, paddingHorizontal: Spacing.sm },
   resultRowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' },
   resultText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
-  newHint: { fontFamily: FontFamily.sora, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 4 },
+  addNewRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  newHint: { flex: 1, fontFamily: FontFamily.sora, fontSize: 12.5, color: 'rgba(255,255,255,0.55)' },
+  newHintLink: { fontFamily: FontFamily.soraSemiBold, color: '#6EA8FF', textDecorationLine: 'underline' },
+  newCustomerCard: {
+    borderRadius: BorderRadius.sm, overflow: 'hidden', borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.35)', backgroundColor: 'rgba(0,0,0,0.2)',
+    marginTop: 6, padding: Spacing.sm, gap: 0,
+  },
+  newCustomerActions: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.sm },
+  newCustomerCancel: {
+    flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: BorderRadius.sm,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+  },
+  newCustomerCancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)' },
+  newCustomerSave: { flex: 2, alignItems: 'center', paddingVertical: 10, borderRadius: BorderRadius.sm, backgroundColor: '#F4D77A' },
+  newCustomerSaveText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#09000F' },
   serviceRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, padding: Spacing.sm, marginTop: 6,

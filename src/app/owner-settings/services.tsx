@@ -213,26 +213,32 @@ export default function ServicesScreen() {
                     ))}
                   </View>
                   {s.deposit_type === 'percent' && (
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Deposit %"
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      value={depositPercentInput}
-                      onChangeText={setDepositPercentInput}
-                      onEndEditing={() => handleSaveDepositAmount(s)}
-                      keyboardType="decimal-pad"
-                    />
+                    <View style={styles.depositInputRow}>
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="Deposit %"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        value={depositPercentInput}
+                        onChangeText={setDepositPercentInput}
+                        onEndEditing={() => handleSaveDepositAmount(s)}
+                        keyboardType="decimal-pad"
+                      />
+                      <Text style={styles.depositInputSuffix}>%</Text>
+                    </View>
                   )}
                   {s.deposit_type === 'fixed' && (
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Deposit $"
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      value={depositAmountInput}
-                      onChangeText={setDepositAmountInput}
-                      onEndEditing={() => handleSaveDepositAmount(s)}
-                      keyboardType="decimal-pad"
-                    />
+                    <View style={styles.depositInputRow}>
+                      <Text style={styles.depositInputSuffix}>$</Text>
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="0.00"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        value={depositAmountInput}
+                        onChangeText={setDepositAmountInput}
+                        onEndEditing={() => handleSaveDepositAmount(s)}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
                   )}
                 </View>
               )}
@@ -347,6 +353,8 @@ const styles = StyleSheet.create({
   depositTypeChipActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.15)' },
   depositTypeChipText: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)' },
   depositTypeChipTextActive: { fontFamily: FontFamily.soraSemiBold, color: '#F4D77A' },
+  depositInputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  depositInputSuffix: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: 'rgba(255,255,255,0.6)' },
   addCard: {
     borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md, gap: Spacing.sm,

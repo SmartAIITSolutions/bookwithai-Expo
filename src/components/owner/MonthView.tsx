@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { getMonthSummary } from '@/lib/api/ownerCalendarSummary';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
@@ -16,6 +16,7 @@ interface MonthViewProps {
 }
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const DOUBLE_TAP_MS = 300;
 
 // One of Phase 0.3's six calendar modes — "for planning only, never the
 // default, never used for daily operations." Tapping a day selects it and
@@ -26,6 +27,18 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [dayBookings, setDayBookings] = useState<OwnerBooking[]>([]);
   const [loadingDay, setLoadingDay] = useState(true);
+  const lastTapRef = useRef<{ key: string; time: number } | null>(null);
+
+  function handleCellPress(d: Date, key: string) {
+    const now = Date.now();
+    if (lastTapRef.current?.key === key && now - lastTapRef.current.time < DOUBLE_TAP_MS) {
+      lastTapRef.current = null;
+      onViewFullDay(d);
+      return;
+    }
+    lastTapRef.current = { key, time: now };
+    setSelectedDate(d);
+  }
 
   const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
 
@@ -70,7 +83,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
           const isToday = key === todayKey;
           const isSelected = key === selectedKey;
           return (
-            <Pressable key={i} style={styles.cell} onPress={() => setSelectedDate(d)}>
+            <Pressable key={i} style={styles.cell} onPress={() => handleCellPress(d, key)}>
               <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
                 <Text style={[styles.dayNumber, isToday && !isSelected && styles.dayNumberToday, isSelected && styles.dayNumberSelected]}>
                   {d.getDate()}

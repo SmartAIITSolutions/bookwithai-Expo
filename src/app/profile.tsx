@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { useAuth } from '@/lib/auth/AuthContext';
 import {
-  fetchCustomerProfile, upsertCustomerProfile, uploadProfilePhoto,
+  fetchCustomerProfile, upsertCustomerProfile, uploadProfilePhoto, linkCustomerIdentity,
   type CustomerProfile,
 } from '@/lib/api/customerProfile';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
@@ -124,6 +124,10 @@ export default function ProfileScreen() {
         date_of_birth: dob, pronouns, timezone,
         phone: phone.trim(), email: email.trim(),
       });
+      // Covers a customer adding/changing phone or email later, not just
+      // completing the mandatory gate at signup -- a salon's pre-existing
+      // record might only match after this edit.
+      linkCustomerIdentity(phone.trim(), email.trim());
       if (isRequired) {
         router.replace('/(tabs)/book' as never);
       } else {

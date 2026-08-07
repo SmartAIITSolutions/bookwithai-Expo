@@ -42,11 +42,24 @@ export default function BusinessSetupScreen() {
   const [closureEnd, setClosureEnd] = useState('');
   const [closureReason, setClosureReason] = useState('');
 
+  // Raw text mirrors of the deposit number fields -- kept separate from
+  // `business` itself so the TextInput's displayed value is exactly what
+  // was typed, never reformatted (e.g. via toFixed) mid-edit. Reformatting
+  // the bound value on every keystroke was fighting the cursor position:
+  // typing "5" into a field showing "0.00" with the cursor at the start
+  // inserted before the 0 instead of replacing it, producing "50.00".
+  const [depositPercentInput, setDepositPercentInput] = useState('');
+  const [depositAmountInput, setDepositAmountInput] = useState('');
+  const [cutoffHoursInput, setCutoffHoursInput] = useState('');
+
   const load = useCallback(async () => {
     const [result, closureResult] = await Promise.all([getBusiness(), listClosures()]);
     if (result.ok) {
       setBusiness(result.data.business);
       setHolidays(result.data.holidays);
+      setDepositPercentInput(result.data.business.deposit_percent != null ? String(result.data.business.deposit_percent) : '');
+      setDepositAmountInput(result.data.business.deposit_amount_cents != null ? (result.data.business.deposit_amount_cents / 100).toFixed(2) : '');
+      setCutoffHoursInput(String(result.data.business.deposit_refund_cutoff_hours ?? 24));
     }
     if (closureResult.ok) setClosures(closureResult.data.data);
     setLoading(false);
@@ -277,24 +290,36 @@ export default function BusinessSetupScreen() {
                 ))}
               </View>
               {business.deposit_type === 'percent' && (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Deposit %"
-                  placeholderTextColor="rgba(255,255,255,0.35)"
-                  value={business.deposit_percent != null ? String(business.deposit_percent) : ''}
-                  onChangeText={(v) => set('deposit_percent', v.trim() ? parseFloat(v) : null)}
-                  keyboardType="decimal-pad"
-                />
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="Deposit %"
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    value={depositPercentInput}
+                    onChangeText={(v) => {
+                      setDepositPercentInput(v);
+                      set('deposit_percent', v.trim() ? parseFloat(v) : null);
+                    }}
+                    keyboardType="decimal-pad"
+                  />
+                  <Text style={styles.inputSuffix}>%</Text>
+                </View>
               )}
               {business.deposit_type === 'fixed' && (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Deposit $"
-                  placeholderTextColor="rgba(255,255,255,0.35)"
-                  value={business.deposit_amount_cents != null ? (business.deposit_amount_cents / 100).toFixed(2) : ''}
-                  onChangeText={(v) => set('deposit_amount_cents', v.trim() ? Math.round(parseFloat(v) * 100) : null)}
-                  keyboardType="decimal-pad"
-                />
+                <View style={styles.inputRow}>
+                  <Text style={styles.inputPrefix}>$</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="0.00"
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    value={depositAmountInput}
+                    onChangeText={(v) => {
+                      setDepositAmountInput(v);
+                      set('deposit_amount_cents', v.trim() ? Math.round(parseFloat(v) * 100) : null);
+                    }}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
               )}
 
               {business.deposit_type !== 'none' && (
@@ -311,14 +336,20 @@ export default function BusinessSetupScreen() {
                     />
                   </View>
                   {business.deposit_refund_policy_enabled && (
-                    <TextInput
-                      style={[styles.input, { marginTop: Spacing.sm }]}
-                      placeholder="Refundable if cancelled this many hours ahead"
-                      placeholderTextColor="rgba(255,255,255,0.35)"
-                      value={String(business.deposit_refund_cutoff_hours)}
-                      onChangeText={(v) => set('deposit_refund_cutoff_hours', parseInt(v, 10) || 0)}
-                      keyboardType="number-pad"
-                    />
+                    <View style={[styles.inputRow, { marginTop: Spacing.sm }]}>
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="Hours before appointment"
+                        placeholderTextColor="rgba(255,255,255,0.35)"
+                        value={cutoffHoursInput}
+                        onChangeText={(v) => {
+                          setCutoffHoursInput(v);
+                          set('deposit_refund_cutoff_hours', v.trim() ? parseInt(v, 10) || 0 : 0);
+                        }}
+                        keyboardType="number-pad"
+                      />
+                      <Text style={styles.inputSuffix}>hours</Text>
+                    </View>
                   )}
                 </View>
               )}
@@ -519,6 +550,9 @@ const styles = StyleSheet.create({
   depositTypeChipActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.15)' },
   depositTypeChipText: { fontFamily: FontFamily.sora, fontSize: 12, color: 'rgba(255,255,255,0.6)' },
   depositTypeChipTextActive: { fontFamily: FontFamily.soraSemiBold, color: '#F4D77A' },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  inputSuffix: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: 'rgba(255,255,255,0.6)' },
+  inputPrefix: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: 'rgba(255,255,255,0.6)' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
   addRowText: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#F4D77A' },
   inlineForm: { gap: Spacing.sm, paddingTop: Spacing.xs },

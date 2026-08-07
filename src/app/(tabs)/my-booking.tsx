@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, Linking, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, Alert, Linking, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
@@ -185,7 +184,8 @@ export default function MyBookingScreen() {
   const [submittingRating, setSubmittingRating] = useState(false);
   const openedRatingForDeepLink = useRef<string | null>(null);
   const [notifPermissionGranted, setNotifPermissionGranted] = useState(true);
-  const listRef = useRef<FlatList<Booking>>(null);
+  const listRef = useRef<ScrollView>(null);
+  const rowYPositions = useRef<Record<string, number>>({});
   const cardBounce = useSharedValue(0);
 
   useEffect(() => {
@@ -228,10 +228,10 @@ export default function MyBookingScreen() {
   // Scroll to and highlight the booking a notification tap was pointing at.
   useEffect(() => {
     if (!highlightBookingId || bookings.length === 0) return;
-    const index = bookings.findIndex((b) => b.id === highlightBookingId);
-    if (index >= 0) {
+    const y = rowYPositions.current[highlightBookingId];
+    if (y !== undefined) {
       requestAnimationFrame(() => {
-        listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+        listRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
       });
     }
   }, [highlightBookingId, bookings]);
@@ -556,18 +556,15 @@ export default function MyBookingScreen() {
           )}
         </View>
       ) : (
-        <View style={{ flex: 1 }}>
-        <RefreshHeartOverlay refreshing={refreshing} />
-        <FlatList
+        <ScrollView
           style={{ flex: 1 }}
           ref={listRef}
-          data={bookings}
-          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-          onScrollToIndexFailed={() => {}}
-          renderItem={({ item }) => {
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#F4D77A" colors={['#F4D77A']} />
+          }>
+          {bookings.map((item) => {
             const isUpcoming = item.status === 'confirmed' && minutesUntil(item.starts_at) > 0;
             const cutoffMinutes = item.agency_clients?.booking_cutoff_minutes ?? 1440;
             const withinCutoff = minutesUntil(item.starts_at) >= cutoffMinutes;
@@ -575,7 +572,10 @@ export default function MyBookingScreen() {
             const isHighlighted = item.id === highlightBookingId;
 
             return (
-              <View style={[styles.card, isHighlighted && styles.cardHighlighted]}>
+              <View
+                key={item.id}
+                style={[styles.card, isHighlighted && styles.cardHighlighted]}
+                onLayout={(e) => { rowYPositions.current[item.id] = e.nativeEvent.layout.y; }}>
                 <CardOverlay />
                 <View style={styles.cardTop}>
                   <Text style={styles.salonName}>
@@ -699,9 +699,8 @@ export default function MyBookingScreen() {
                 )}
               </View>
             );
-          }}
-        />
-        </View>
+          })}
+        </ScrollView>
       )}
       </SafeAreaView>
     </View>

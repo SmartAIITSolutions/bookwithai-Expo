@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
@@ -19,8 +19,14 @@ interface MultiDayViewProps {
   // landed in the closed-hours fringe (or a fully closed day) -- still
   // bookable, just flagged so the caller can warn no staff may be scheduled.
   onFillSlot: (date: Date, outsideHours?: boolean) => void;
+  // Double-tapping a day's header column jumps into Day view for that date
+  // -- lets an owner pick a time or see the schedule clearly without the
+  // 3-Day/Week columns' cramped, non-interactive block layout.
+  onViewFullDay?: (d: Date) => void;
   intervalMinutes?: 15 | 30 | 60;
 }
+
+const DOUBLE_TAP_MS = 300;
 
 const TIME_GUTTER = 40;
 const HOUR_HEIGHT = 56;
@@ -73,9 +79,20 @@ function assignLanes(bookings: OwnerBooking[]): Lane[] {
 // screen at once (Option 3 in the reference mockup), so overlapping
 // appointments (only possible with "All" staff selected, since one staff
 // member can't double-book) collapse to initials-only capsules to fit.
-export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId, onOpen, onFillSlot, intervalMinutes = 60 }: MultiDayViewProps) {
+export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId, onOpen, onFillSlot, onViewFullDay, intervalMinutes = 60 }: MultiDayViewProps) {
   const [byDay, setByDay] = useState<Record<string, OwnerBooking[]>>({});
   const { width: screenWidth } = useWindowDimensions();
+  const lastHeaderTapRef = useRef<{ key: string; time: number } | null>(null);
+
+  function handleHeaderPress(d: Date, key: string) {
+    const now = Date.now();
+    if (lastHeaderTapRef.current?.key === key && now - lastHeaderTapRef.current.time < DOUBLE_TAP_MS) {
+      lastHeaderTapRef.current = null;
+      onViewFullDay?.(d);
+      return;
+    }
+    lastHeaderTapRef.current = { key, time: now };
+  }
 
   const dates = Array.from({ length: numDays }, (_, i) => {
     const d = new Date(startDate);
@@ -133,14 +150,14 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
         const closedBottomHeight = isClosed ? 0 : Math.max(0, gridEnd - schedules[di].end * 60) * pxPerMinute;
         return (
           <View key={key} style={[styles.column, { width: columnWidth }]}>
-            <View style={styles.columnHeader}>
+            <Pressable style={styles.columnHeader} onPress={() => handleHeaderPress(d, key)}>
               <Text style={[styles.columnHeaderDow, isToday && styles.columnHeaderTextToday]}>
                 {d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
               </Text>
               <View style={[styles.dateBadge, isToday && styles.dateBadgeToday]}>
                 <Text style={[styles.columnHeaderDate, isToday && styles.columnHeaderTextToday]}>{d.getDate()}</Text>
               </View>
-            </View>
+            </Pressable>
             <View style={{ height: totalHeight }}>
               <View style={styles.gridBackground}>
                 {labels.map(l => (

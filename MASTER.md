@@ -1,6 +1,6 @@
 # 📱 Book With AI — Expo App MASTER.md
 ### Single source of truth for the customer mobile app
-**Last updated:** 2026-08-04 (🎉 iOS app LIVE on the App Store; Android production access application pending; deep link verification fixed)
+**Last updated:** 2026-08-06 (iOS live on the App Store; Android's first production application rejected — 14-day closed-testing window reset, clears ~2026-08-20; salon-side live-testing pass — walk-in customer capture, calendar nav fixes, customer profile crash + theme fix, Book-from-profile flow)
 
 > Always pull this at the start of every session.
 > For platform-wide decisions (SANAA, booking backend, web app), see `C:\Dev\booking-app\MASTER.md`
@@ -1124,5 +1124,36 @@ Full design discussion + backend (`detectOrCreateCustomer`'s new `authUserId` pr
 **`_layout.tsx`**'s `AuthRedirectGate` gained a new effect: once per signed-in session (tracked by user id, not re-run on every navigation), if `role === 'customer'` and `customer_profiles` is missing phone or email, redirects to `/profile?required=true` before the customer can reach anything else. Runs on every sign-in method identically (password, magic link, Apple, Google) and also catches existing accounts that predate this requirement — there's no separate "new user" vs "existing user" branch, just "is the record complete right now."
 
 **`booking/review.tsx` and `booking/payment.tsx`**: both booking-creation call sites now fetch `customer_profiles` and use its `phone`/`email` instead of `user_metadata` — the `'0000000000'` fallback is gone entirely; if `customer_profiles` is somehow incomplete despite the gate (e.g. a race), the booking now fails loudly (backend requires `customer_phone`) rather than silently storing garbage.
+
+### Live-testing session — walk-in customer capture, calendar nav polish, real crash fixes, Book-from-profile flow (2026-08-06)
+
+Full salon-side live-testing pass against the real Android emulator (demo salon "Emma's Hair Studio"), user driving all taps, me reading screenshots and editing code. All items below verified via `tsc --noEmit` clean plus live confirmation on-device, except where flagged.
+
+**Walk-in "add new customer" flow rebuilt.** Previously `WalkInSheet`'s search silently auto-created a bare-name customer (no phone/email) if nothing matched. Now: search hint clarifies it matches name/phone/email; a blue underlined "add new customer" link opens an explicit inline form requiring name + phone + email (matches the mandatory-field rule established elsewhere in the app); `POST /api/owner/customers` (`booking-app`) now requires and stores all three instead of just name+phone. **Note:** this backend change is in the local `booking-app` repo, not yet deployed — the walk-in flow is still hitting the old deployed route until that ships, confirmed by the test customer "snaa" landing with `email: null` in the live DB despite typing one in.
+
+**Calendar navigation, three real bugs found and fixed:**
+- Week/Month "Yesterday/Tomorrow" nav only ever shifted by 1 day regardless of mode (harmless in Day view, took 7 taps to page a week, ~30 to page a month) — `calendar.tsx` gained a mode-aware `shiftView()`.
+- Double-tapping a day cell in Month view, or a day's header column in Week/3-Day view, now jumps straight into Day view (`MonthView`/`MultiDayView` gained an `onViewFullDay` callback with simple timestamp-based double-tap detection) — previously Month required tapping into a summary card first, and Week/3-Day had no such shortcut at all.
+- **Real crash**: `customer/[id].tsx` did `customer.tags.map(...)` unguarded — any customer row with `tags: null` (confirmed via direct DB query on the "snaa"/"simo" test customers, despite the `tags` column having a `NOT NULL DEFAULT '{}'` constraint — legacy rows or a different insert path can still land null) crashed the whole screen on open. Fixed with `(customer.tags ?? [])` at all 5 call sites.
+
+**Customer detail screen (`customer/[id].tsx`) re-themed.** Same bug class as the earlier Staff screen: still on the old light theme (`@/constants/Colors`/`Shadows`), rendering as white cards on the dark app background. Converted every token to the established dark-glass palette (gold borders, white/60%-white text, gold accent) and removed the now-unused `Colors`/`Shadows` imports. Also fixed a latent second bug this exposed: the `noteInput` style had no explicit background or text color, so typed note text would have been invisible against the dark background once the screen was themed correctly.
+
+**"Book" from a customer profile now actually carries the customer through.** Previously tapping Book on `customer/[id].tsx` just navigated to a blank Calendar with no memory of which customer — tapping a slot afterward booked nobody. Now it passes `bookCustomerId`/`Name`/`Phone`/`Email` as router params; `calendar.tsx` picks them up into a new `bookingForCustomer` state that persists across mode switches and date navigation (shown as a dismissible "Booking for X — tap any slot" banner), and passes it into `WalkInSheet` as a new `initialCustomer` prop that pre-selects them instead of starting from an empty search. Clears automatically once a booking completes. **Confirmed working live** — banner persisted through a Today→Week mode switch, and the user confirmed the end-to-end booking succeeded.
+
+**Real Realtime bug found and fixed defensively**: `useOwnerBookings.ts` subscribed to a Supabase Realtime channel named deterministically as `owner-bookings:{clientId}:{date}` — a remount before the previous instance's async `removeChannel()` finished (Fast Refresh during dev, but plausibly also a user rapidly switching away and back to Calendar in production) could call `.subscribe()` on a new channel while the old one with the same name was still tearing down, throwing "cannot add postgres_changes callbacks... after subscribe()". Fixed by appending `Date.now()` to the channel topic so every mount gets a unique name — sidesteps the race entirely rather than trying to sequence the async cleanup. Reproduced as a hot-reload-only artifact on manual retest (clean app relaunch → Calendar loaded fine), but the fix is real and cheap regardless.
+
+**Appointment Detail testing (back button, add-service, reschedule, staff reassignment, no-show) — not completed this session**, blocked on unreliable tap-coordinate estimation from screenshots (a recurring friction point all session); handed back to the user to tap through directly. Still pending for the next session.
+
+### Android production access — first application rejected, 14-day closed-testing clock reset (2026-08-06)
+
+Checked live in Play Console (not assumed from MASTER.md's prior "applied 2026-08-04, expect reply in ~7 days" note) after the user reported Google was asking for "another 14 days closed testing." Confirmed via the app Dashboard's Production section:
+
+> **"Your app requires more testing to access Google Play production."** Reviewed 2026-08-06, 13:49. Checklist: ✅ Publish a closed testing release, ✅ Have at least 12 testers opted in, ⭕ **Run your closed test with at least 12 testers for 14 more days, starting from the review date.**
+
+No new closed-testing setup is required — the existing release and tester list both still count (already checked off). Only the 14-continuous-day window itself needs to run again, clock restarting **2026-08-06**, clearing **~2026-08-20**, after which "Apply for production" unlocks again for a second attempt.
+
+**Likely root cause** (per Google's own help doc, "App testing requirements for new personal developer accounts"): rejections at this stage are typically either tester count or *tester engagement* — since the count was already confirmed sufficient before the first application, this points to testers being opted in but not actually opening/using the app enough during the window for Google's system to count it as a real test. No engagement-metric detail is exposed in Play Console beyond the generic message, so this is the most likely explanation, not a confirmed one.
+
+**Revised estimate**: Android's total timeline is now **~30–38 days** from the original Closed Testing submission (2026-07-19), not the ~16–24 days estimated in the Step 20 table above — add the second 14-day window plus a second post-window review (1–7 days). Step 20's table row not yet updated with this reset; flagging here so it isn't lost, full table update deferred to next session's start-of-session review.
 
 **Verified**: `tsc --noEmit` clean. **Not yet verified live** — deferred to the user per standing instruction.

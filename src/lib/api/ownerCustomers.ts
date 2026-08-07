@@ -112,8 +112,8 @@ export async function searchCustomers(q: string) {
   return ownerFetch<{ data: CustomerLite[] }>(`/api/owner/customers?q=${encodeURIComponent(q)}`);
 }
 
-export async function quickCreateCustomer(name: string, phone?: string) {
-  return ownerFetch<{ data: CustomerLite }>('/api/owner/customers', { method: 'POST', body: { name, phone } });
+export async function quickCreateCustomer(name: string, phone: string, email: string) {
+  return ownerFetch<{ data: CustomerLite }>('/api/owner/customers', { method: 'POST', body: { name, phone, email } });
 }
 
 export async function getCustomer(id: string) {

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { API_BASE } from '@/lib/config';
 
 // customer_profiles is person-level and shared across every salon the
 // customer books with (distinct from customers, which is per-salon). RLS
@@ -39,6 +40,27 @@ export async function upsertCustomerProfile(
     .from('customer_profiles')
     .upsert({ auth_user_id: authUserId, ...patch }, { onConflict: 'auth_user_id' });
   if (error) throw error;
+}
+
+// Retroactively links any pre-existing `customers` row (any salon, any
+// creation path -- walk-in, manual web booking, etc.) matching this phone
+// or email to this account, and auto-favorites each matched salon. Safe to
+// call repeatedly (e.g. every sign-in) -- already-linked rows are a no-op
+// server-side. Never throws into the caller's UI flow on failure; this is a
+// background reconciliation step, not something that should block sign-in
+// or profile saving if the network hiccups.
+export async function linkCustomerIdentity(phone: string, email?: string | null): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  try {
+    await fetch(`${API_BASE}/api/mobile/link-customer-identity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ phone, email: email ?? undefined }),
+    });
+  } catch {
+    // best-effort -- retried next sign-in via AuthRedirectGate
+  }
 }
 
 export async function uploadProfilePhoto(authUserId: string, uri: string): Promise<string> {

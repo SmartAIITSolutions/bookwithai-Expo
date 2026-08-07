@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { FontFamily } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +13,15 @@ import {
 } from '@/lib/api/ownerStaff';
 import { setStaffOverride } from '@/lib/api/ownerDailyOps';
 import { getBusiness } from '@/lib/api/ownerBusiness';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
+
+function CardOverlay() {
+  return (
+    <LinearGradient
+      colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PERMISSION_ROLES: PermissionRole[] = ['manager', 'receptionist', 'stylist', 'assistant'];
@@ -179,20 +187,21 @@ export default function StaffScreen() {
       <DualBreathingBackground />
       <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Staff', headerBackTitle: 'More' }} />
       {loading ? (
-        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
+        <View style={styles.centered}><BreathingHeart size={40} color={'#F4D77A'} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {staff.length === 0 && !adding && (
             <Text style={styles.emptyHint}>Your team starts here.</Text>
           )}
           {staff.map(s => (
-            <View key={s.id} style={styles.card}>
+            <BlurView key={s.id} intensity={90} tint="dark" style={styles.card}>
+              <CardOverlay />
               <TouchableOpacity style={styles.cardHeader} onPress={() => openHours(s)}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.staffName}>{s.name}</Text>
                   {!!s.role && <Text style={styles.staffMeta}>{s.role}</Text>}
                 </View>
-                <Ionicons name={expandedId === s.id ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textSecondary} />
+                <Ionicons name={expandedId === s.id ? 'chevron-up' : 'chevron-down'} size={18} color={'rgba(255,255,255,0.6)'} />
               </TouchableOpacity>
 
               {expandedId === s.id && (
@@ -203,7 +212,7 @@ export default function StaffScreen() {
                       <Switch
                         value={day.is_working}
                         onValueChange={(v) => setEditingWeek(w => w.map((d, idx) => idx === i ? { ...d, is_working: v } : d))}
-                        trackColor={{ true: Colors.primary }}
+                        trackColor={{ true: '#F4D77A' }}
                       />
                       {day.is_working && (
                         <>
@@ -212,7 +221,7 @@ export default function StaffScreen() {
                             value={day.start_time}
                             onChangeText={(v) => setEditingWeek(w => w.map((d, idx) => idx === i ? { ...d, start_time: v } : d))}
                             placeholder="09:00"
-                            placeholderTextColor={Colors.textDisabled}
+                            placeholderTextColor={'rgba(255,255,255,0.35)'}
                           />
                           <Text style={styles.toText}>to</Text>
                           <TextInput
@@ -220,7 +229,7 @@ export default function StaffScreen() {
                             value={day.end_time}
                             onChangeText={(v) => setEditingWeek(w => w.map((d, idx) => idx === i ? { ...d, end_time: v } : d))}
                             placeholder="17:00"
-                            placeholderTextColor={Colors.textDisabled}
+                            placeholderTextColor={'rgba(255,255,255,0.35)'}
                           />
                         </>
                       )}
@@ -251,7 +260,7 @@ export default function StaffScreen() {
                     <TextInput
                       style={styles.input}
                       placeholder="e.g. 40"
-                      placeholderTextColor={Colors.textDisabled}
+                      placeholderTextColor={'rgba(255,255,255,0.35)'}
                       defaultValue={s.default_commission_rate_pct != null ? String(s.default_commission_rate_pct) : ''}
                       onEndEditing={(e) => handleSaveCommissionRate(s.id, e.nativeEvent.text)}
                       keyboardType="decimal-pad"
@@ -263,7 +272,7 @@ export default function StaffScreen() {
                           <TextInput
                             style={[styles.input, { flex: 1 }]}
                             placeholder="4-digit PIN"
-                            placeholderTextColor={Colors.textDisabled}
+                            placeholderTextColor={'rgba(255,255,255,0.35)'}
                             value={pinDraft}
                             onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, 4))}
                             keyboardType="number-pad"
@@ -279,7 +288,7 @@ export default function StaffScreen() {
                         </View>
                       ) : (
                         <TouchableOpacity style={styles.addRow} onPress={() => setPinDraftFor(s.id)}>
-                          <Ionicons name="keypad-outline" size={16} color={Colors.primary} />
+                          <Ionicons name="keypad-outline" size={16} color={'#F4D77A'} />
                           <Text style={styles.addRowText}>{s.has_pin ? 'Change PIN' : 'Set a clock-in PIN'}</Text>
                         </TouchableOpacity>
                       )
@@ -290,7 +299,7 @@ export default function StaffScreen() {
                         <TextInput
                           style={[styles.input, { flex: 1 }]}
                           placeholder="Email address"
-                          placeholderTextColor={Colors.textDisabled}
+                          placeholderTextColor={'rgba(255,255,255,0.35)'}
                           value={inviteEmail}
                           onChangeText={setInviteEmail}
                           autoCapitalize="none"
@@ -305,7 +314,7 @@ export default function StaffScreen() {
                       </View>
                     ) : (
                       <TouchableOpacity style={styles.addRow} onPress={() => setInviteDraftFor(s.id)}>
-                        <Ionicons name="mail-outline" size={16} color={Colors.primary} />
+                        <Ionicons name="mail-outline" size={16} color={'#F4D77A'} />
                         <Text style={styles.addRowText}>
                           {s.invite_status === 'invited' ? `Invite pending (${s.invite_email})` : 'Invite to create an account'}
                         </Text>
@@ -316,8 +325,8 @@ export default function StaffScreen() {
                   {exceptionForId === s.id ? (
                     <View style={styles.exceptionForm}>
                       <Text style={styles.exceptionLabel}>Mark a specific date off (sick day, etc.)</Text>
-                      <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={exceptionDate} onChangeText={setExceptionDate} />
-                      <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={Colors.textDisabled} value={exceptionReason} onChangeText={setExceptionReason} />
+                      <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={'rgba(255,255,255,0.35)'} value={exceptionDate} onChangeText={setExceptionDate} />
+                      <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={'rgba(255,255,255,0.35)'} value={exceptionReason} onChangeText={setExceptionReason} />
                       <View style={styles.inlineFormActions}>
                         <TouchableOpacity onPress={() => setExceptionForId(null)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                         <TouchableOpacity onPress={() => handleSaveException(s.id)}><Text style={styles.addRowText}>Save</Text></TouchableOpacity>
@@ -325,36 +334,37 @@ export default function StaffScreen() {
                     </View>
                   ) : (
                     <TouchableOpacity style={styles.addRow} onPress={() => setExceptionForId(s.id)}>
-                      <Ionicons name="calendar-outline" size={16} color={Colors.primary} />
+                      <Ionicons name="calendar-outline" size={16} color={'#F4D77A'} />
                       <Text style={styles.addRowText}>Add a day-off exception</Text>
                     </TouchableOpacity>
                   )}
 
                   <TouchableOpacity style={styles.removeRow} onPress={() => handleRemoveStaff(s)}>
-                    <Ionicons name="person-remove-outline" size={16} color={Colors.error} />
+                    <Ionicons name="person-remove-outline" size={16} color={'#F09595'} />
                     <Text style={styles.removeRowText}>Remove staff member</Text>
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
+            </BlurView>
           ))}
 
           {adding ? (
-            <View style={styles.addCard}>
-              <TextInput style={styles.input} placeholder="Name" placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
-              <TextInput style={styles.input} placeholder="Role (e.g. Stylist)" placeholderTextColor={Colors.textDisabled} value={role} onChangeText={setRole} />
+            <BlurView intensity={90} tint="dark" style={styles.addCard}>
+              <CardOverlay />
+              <TextInput style={styles.input} placeholder="Name" placeholderTextColor={'rgba(255,255,255,0.35)'} value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder="Role (e.g. Stylist)" placeholderTextColor={'rgba(255,255,255,0.35)'} value={role} onChangeText={setRole} />
               <View style={styles.inlineFormActions}>
                 <TouchableOpacity onPress={() => setAdding(false)}>
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={'#F4D77A'} /> : <Text style={styles.addRowText}>Save</Text>}
                 </TouchableOpacity>
               </View>
-            </View>
+            </BlurView>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
-              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Ionicons name="add" size={18} color={'#F4D77A'} />
               <Text style={styles.addRowText}>Add staff member</Text>
             </TouchableOpacity>
           )}
@@ -368,43 +378,49 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing['2xl'] },
-  emptyHint: { fontSize: 14, color: Colors.textSecondary, marginBottom: Spacing.sm },
-  card: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, ...Shadows.subtle, overflow: 'hidden' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md },
-  staffName: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  staffMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  hoursEditor: { borderTopWidth: 1, borderTopColor: Colors.border, padding: Spacing.md, gap: Spacing.xs },
-  dayRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  dayLabel: { width: 36, fontSize: 13, color: Colors.textPrimary },
-  timeInput: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
-    paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, color: Colors.textPrimary, width: 64,
+  emptyHint: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginBottom: Spacing.sm },
+  card: {
+    borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
-  toText: { fontSize: 12, color: Colors.textSecondary },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md },
+  staffName: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.base, color: '#FFFFFF' },
+  staffMeta: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  hoursEditor: { borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)', padding: Spacing.md, gap: Spacing.xs },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  dayLabel: { width: 36, fontSize: 13, color: '#FFFFFF' },
+  timeInput: {
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.15)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, color: '#FFFFFF', width: 64,
+  },
+  toText: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
   saveHoursButton: { alignSelf: 'flex-end', paddingTop: Spacing.xs },
-  exceptionForm: { gap: Spacing.xs, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
-  roleSection: { gap: Spacing.xs, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+  exceptionForm: { gap: Spacing.xs, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)', paddingTop: Spacing.sm },
+  roleSection: { gap: Spacing.xs, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)', paddingTop: Spacing.sm },
   roleChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   roleChip: {
     paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full,
-    backgroundColor: Colors.backgroundMain, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.15)',
   },
-  roleChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  roleChipText: { fontSize: 12.5, color: Colors.textPrimary, fontWeight: '600' },
-  roleChipTextActive: { color: Colors.textOnPrimary },
-  exceptionLabel: { fontSize: 12.5, color: Colors.textSecondary },
-  addCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.sm, ...Shadows.subtle },
+  roleChipActive: { backgroundColor: '#F4D77A', borderColor: '#F4D77A' },
+  roleChipText: { fontSize: 12.5, color: '#FFFFFF', fontWeight: '600' },
+  roleChipTextActive: { color: '#09000F' },
+  exceptionLabel: { fontSize: 12.5, color: 'rgba(255,255,255,0.6)' },
+  addCard: {
+    borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md, gap: Spacing.sm,
+  },
   input: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 10, fontSize: 15, color: Colors.textPrimary,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 10, fontSize: 15, color: '#FFFFFF',
   },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
-  addRowText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  addRowText: { fontSize: 14, color: '#F4D77A', fontWeight: '600' },
   removeRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.sm,
-    marginTop: Spacing.xs, borderTopWidth: 1, borderTopColor: Colors.border,
+    marginTop: Spacing.xs, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)',
   },
-  removeRowText: { fontSize: 14, color: Colors.error, fontWeight: '600' },
+  removeRowText: { fontSize: 14, color: '#F09595', fontWeight: '600' },
   inlineFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg, paddingTop: 2 },
-  cancelText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
+  cancelText: { fontSize: 14, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
 });

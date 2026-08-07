@@ -31,9 +31,7 @@ import {
   ServicePackage, CustomerServicePackage,
 } from '@/lib/api/ownerPackages';
 import { supabase } from '@/lib/supabase';
-import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
-import { Shadows } from '@/constants/Shadows';
 
 function money(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
 function timeAgo(iso: string | null) {
@@ -100,7 +98,7 @@ export default function CustomerDetailScreen() {
 
   async function handleAddTag(tag: string) {
     if (!id || !data || !tag.trim()) return;
-    const next = Array.from(new Set([...data.customer.tags, tag.trim()]));
+    const next = Array.from(new Set([...(data.customer.tags ?? []), tag.trim()]));
     const result = await updateCustomer(id, { tags: next });
     if (result.ok) { setNewTagText(''); setAddingTag(false); load(); }
     else Alert.alert('Could not add tag', result.error);
@@ -108,7 +106,7 @@ export default function CustomerDetailScreen() {
 
   async function handleRemoveTag(tag: string) {
     if (!id || !data) return;
-    const next = data.customer.tags.filter(t => t !== tag);
+    const next = (data.customer.tags ?? []).filter(t => t !== tag);
     const result = await updateCustomer(id, { tags: next });
     if (result.ok) load();
     else Alert.alert('Could not remove tag', result.error);
@@ -298,7 +296,7 @@ export default function CustomerDetailScreen() {
     return (
       <View style={styles.centered}>
         <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Customer' }} />
-        <BreathingHeart size={40} color={Colors.primary} />
+        <BreathingHeart size={40} color={'#F4D77A'} />
       </View>
     );
   }
@@ -308,7 +306,7 @@ export default function CustomerDetailScreen() {
     .filter(b => b.status === 'completed')
     .map(b => b.total_charged_cents ?? b.price_cents ?? 0);
 
-  const healthColor = health.score >= 75 ? Colors.success : health.score >= 45 ? Colors.warning : Colors.error;
+  const healthColor = health.score >= 75 ? '#8FE3A6' : health.score >= 45 ? '#F5B95C' : '#F09595';
 
   return (
     <View style={styles.container}>
@@ -321,24 +319,24 @@ export default function CustomerDetailScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{customer.name}</Text>
             <View style={styles.badgeRow}>
-              {(customer.total_bookings ?? 0) >= 5 && <Badge label="VIP" color={Colors.gold} />}
-              {customer.blocked && <Badge label="Blocked" color={Colors.error} />}
+              {(customer.total_bookings ?? 0) >= 5 && <Badge label="VIP" color={'#F4D77A'} />}
+              {customer.blocked && <Badge label="Blocked" color={'#F09595'} />}
               <TouchableOpacity onPress={handleTogglePriority}>
-                <Badge label={customer.priority ? '★ Priority' : '+ Priority'} color={customer.priority ? Colors.gold : Colors.textDisabled} />
+                <Badge label={customer.priority ? '★ Priority' : '+ Priority'} color={customer.priority ? '#F4D77A' : 'rgba(255,255,255,0.35)'} />
               </TouchableOpacity>
             </View>
             <View style={styles.tagRow}>
-              {customer.tags.map(tag => (
+              {(customer.tags ?? []).map(tag => (
                 <TouchableOpacity key={tag} style={styles.tagChip} onPress={() => handleRemoveTag(tag)}>
                   <Text style={styles.tagChipText}>{tag}</Text>
-                  <Ionicons name="close" size={12} color={Colors.primary} />
+                  <Ionicons name="close" size={12} color={'#F4D77A'} />
                 </TouchableOpacity>
               ))}
               {addingTag ? (
                 <TextInput
                   style={styles.tagInput}
                   placeholder="New tag"
-                  placeholderTextColor={Colors.textDisabled}
+                  placeholderTextColor={'rgba(255,255,255,0.35)'}
                   value={newTagText}
                   onChangeText={setNewTagText}
                   onSubmitEditing={() => handleAddTag(newTagText)}
@@ -346,13 +344,13 @@ export default function CustomerDetailScreen() {
                 />
               ) : (
                 <TouchableOpacity style={styles.tagAddChip} onPress={() => setAddingTag(true)}>
-                  <Ionicons name="add" size={13} color={Colors.textSecondary} />
+                  <Ionicons name="add" size={13} color={'rgba(255,255,255,0.6)'} />
                 </TouchableOpacity>
               )}
             </View>
-            {addingTag && tagsCatalog.filter(t => !customer.tags.includes(t)).length > 0 && (
+            {addingTag && tagsCatalog.filter(t => !(customer.tags ?? []).includes(t)).length > 0 && (
               <View style={styles.tagSuggestRow}>
-                {tagsCatalog.filter(t => !customer.tags.includes(t)).slice(0, 6).map(t => (
+                {tagsCatalog.filter(t => !(customer.tags ?? []).includes(t)).slice(0, 6).map(t => (
                   <TouchableOpacity key={t} style={styles.tagSuggestChip} onPress={() => handleAddTag(t)}>
                     <Text style={styles.tagSuggestText}>{t}</Text>
                   </TouchableOpacity>
@@ -373,7 +371,19 @@ export default function CustomerDetailScreen() {
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
-          <QuickAction icon="calendar-outline" label="Book" onPress={() => router.push('/(owner)/calendar' as never)} />
+          <QuickAction
+            icon="calendar-outline"
+            label="Book"
+            onPress={() => router.push({
+              pathname: '/(owner)/calendar',
+              params: {
+                bookCustomerId: customer.id,
+                bookCustomerName: customer.name,
+                bookCustomerPhone: customer.phone ?? '',
+                bookCustomerEmail: customer.email ?? '',
+              },
+            } as never)}
+          />
           <QuickAction icon="call-outline" label="Call" onPress={() => customer.phone && Linking.openURL(`tel:${customer.phone}`)} disabled={!customer.phone} />
           <QuickAction icon="chatbubble-outline" label="Message" onPress={() => customer.phone && Linking.openURL(`sms:${customer.phone}`)} disabled={!customer.phone} />
           <QuickAction icon="create-outline" label="Notes" onPress={focusNotes} />
@@ -403,7 +413,7 @@ export default function CustomerDetailScreen() {
             <Text style={styles.preferredStaffLabel}>Preferred Staff</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.preferredStaffValue}>{customer.preferred_staff?.name ?? 'Not set'}</Text>
-              <Ionicons name="chevron-forward" size={14} color={Colors.textDisabled} />
+              <Ionicons name="chevron-forward" size={14} color={'rgba(255,255,255,0.35)'} />
             </View>
           </TouchableOpacity>
           {pickingStaff && (
@@ -482,7 +492,7 @@ export default function CustomerDetailScreen() {
             <View style={styles.chipRow}>
               {membershipPlans.map(p => (
                 <TouchableOpacity key={p.id} style={styles.addChip} onPress={() => handlePurchaseMembership(p.id)}>
-                  <Ionicons name="add" size={14} color={Colors.primary} />
+                  <Ionicons name="add" size={14} color={'#F4D77A'} />
                   <Text style={styles.addChipText}>{p.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -509,7 +519,7 @@ export default function CustomerDetailScreen() {
             <View style={styles.chipRow}>
               {availablePackages.map(p => (
                 <TouchableOpacity key={p.id} style={styles.addChip} onPress={() => handlePurchasePackage(p.id)}>
-                  <Ionicons name="add" size={14} color={Colors.primary} />
+                  <Ionicons name="add" size={14} color={'#F4D77A'} />
                   <Text style={styles.addChipText}>{p.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -536,10 +546,10 @@ export default function CustomerDetailScreen() {
                 <Text style={styles.noteDate}>{new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
                 <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                   <TouchableOpacity onPress={() => handlePin(n.id, n.pinned)}>
-                    <Ionicons name={n.pinned ? 'pin' : 'pin-outline'} size={15} color={n.pinned ? Colors.primary : Colors.textSecondary} />
+                    <Ionicons name={n.pinned ? 'pin' : 'pin-outline'} size={15} color={n.pinned ? '#F4D77A' : 'rgba(255,255,255,0.6)'} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => handleDeleteNote(n.id)}>
-                    <Ionicons name="trash-outline" size={15} color={Colors.error} />
+                    <Ionicons name="trash-outline" size={15} color={'#F09595'} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -551,7 +561,7 @@ export default function CustomerDetailScreen() {
               ref={noteInputRef}
               style={styles.noteInput}
               placeholder="Add a note..."
-              placeholderTextColor={Colors.textDisabled}
+              placeholderTextColor={'rgba(255,255,255,0.35)'}
               value={newNote}
               onChangeText={setNewNote}
               multiline
@@ -570,7 +580,7 @@ export default function CustomerDetailScreen() {
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={styles.addPhotoButton} onPress={() => pickAndUpload('photo')}>
-              <Ionicons name="camera-outline" size={22} color={Colors.primary} />
+              <Ionicons name="camera-outline" size={22} color={'#F4D77A'} />
             </TouchableOpacity>
           </ScrollView>
         </Section>
@@ -581,12 +591,12 @@ export default function CustomerDetailScreen() {
             <View key={m.id} style={styles.docRow}>
               <Text style={styles.docName}>{m.label ?? m.storage_path.split('/').pop()}</Text>
               <TouchableOpacity onPress={() => handleRemoveMedia(m.id)}>
-                <Ionicons name="trash-outline" size={16} color={Colors.error} />
+                <Ionicons name="trash-outline" size={16} color={'#F09595'} />
               </TouchableOpacity>
             </View>
           ))}
           <TouchableOpacity style={styles.addRow} onPress={() => pickAndUpload('document')}>
-            <Ionicons name="add" size={18} color={Colors.primary} />
+            <Ionicons name="add" size={18} color={'#F4D77A'} />
             <Text style={styles.addRowText}>Add document</Text>
           </TouchableOpacity>
         </Section>
@@ -597,7 +607,7 @@ export default function CustomerDetailScreen() {
             <View key={c.id} style={styles.commRow}>
               <Ionicons
                 name={c.channel === 'call' ? 'call-outline' : c.channel === 'push' ? 'notifications-outline' : c.channel === 'sms' ? 'chatbubble-outline' : 'mail-outline'}
-                size={15} color={Colors.textSecondary}
+                size={15} color={'rgba(255,255,255,0.6)'}
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.commSummary}>{c.summary}</Text>
@@ -617,7 +627,7 @@ export default function CustomerDetailScreen() {
               <TextInput
                 style={styles.tagInput}
                 placeholder="Search customers..."
-                placeholderTextColor={Colors.textDisabled}
+                placeholderTextColor={'rgba(255,255,255,0.35)'}
                 value={referrerQuery}
                 onChangeText={handleSearchReferrer}
                 autoFocus
@@ -630,7 +640,7 @@ export default function CustomerDetailScreen() {
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setPickingReferrer(true)}>
-              <Ionicons name="add" size={16} color={Colors.primary} />
+              <Ionicons name="add" size={16} color={'#F4D77A'} />
               <Text style={styles.addRowText}>Set referrer</Text>
             </TouchableOpacity>
           )}
@@ -706,8 +716,8 @@ function Badge({ label, color }: { label: string; color: string }) {
 function QuickAction({ icon, label, onPress, disabled }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; disabled?: boolean }) {
   return (
     <TouchableOpacity style={styles.quickAction} onPress={onPress} disabled={disabled}>
-      <Ionicons name={icon} size={20} color={disabled ? Colors.textDisabled : Colors.primary} />
-      <Text style={[styles.quickActionLabel, disabled && { color: Colors.textDisabled }]}>{label}</Text>
+      <Ionicons name={icon} size={20} color={disabled ? 'rgba(255,255,255,0.35)' : '#F4D77A'} />
+      <Text style={[styles.quickActionLabel, disabled && { color: 'rgba(255,255,255,0.35)' }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -726,86 +736,86 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#040108' },
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing['2xl'] },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  name: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary },
+  name: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
   badgeRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: BorderRadius.full },
   badgeText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
   healthPill: { alignItems: 'center', borderWidth: 2, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
   healthScore: { fontSize: 20, fontWeight: '800' },
-  healthLabel: { fontSize: 10, color: Colors.textSecondary, fontWeight: '600' },
-  healthReasons: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 4, ...Shadows.subtle },
-  healthReasonText: { fontSize: 13, color: Colors.textSecondary },
-  quickActions: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.sm, ...Shadows.subtle },
+  healthLabel: { fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
+  healthReasons: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 4, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  healthReasonText: { fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  quickActions: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.lg, padding: Spacing.sm, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
   quickAction: { alignItems: 'center', gap: 4, flex: 1 },
-  quickActionLabel: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
-  insightsCard: { backgroundColor: Colors.backgroundLavender, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 6 },
-  insightText: { fontSize: 13, color: Colors.textPrimary },
+  quickActionLabel: { fontSize: 11, color: '#F4D77A', fontWeight: '600' },
+  insightsCard: { backgroundColor: 'rgba(244,215,122,0.1)', borderRadius: BorderRadius.lg, padding: Spacing.md, gap: 6 },
+  insightText: { fontSize: 13, color: '#FFFFFF' },
   section: { gap: Spacing.xs },
-  sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', color: Colors.textSecondary },
+  sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' },
   snapshotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  snapshotStat: { width: '47%', backgroundColor: Colors.card, borderRadius: BorderRadius.sm, padding: Spacing.sm, ...Shadows.subtle },
-  snapshotValue: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary },
-  snapshotLabel: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 2 },
+  snapshotStat: { width: '47%', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, padding: Spacing.sm, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  snapshotValue: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+  snapshotLabel: { fontSize: 11.5, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   preferredStaffRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: Colors.card, borderRadius: BorderRadius.sm, padding: Spacing.sm, ...Shadows.subtle,
+    backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, padding: Spacing.sm, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',
   },
-  preferredStaffLabel: { fontSize: 13, color: Colors.textSecondary },
-  preferredStaffValue: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
-  staffPicker: { backgroundColor: Colors.card, borderRadius: BorderRadius.sm, ...Shadows.subtle },
-  staffPickerRow: { padding: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  staffPickerText: { fontSize: 14, color: Colors.textPrimary },
-  card: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, ...Shadows.subtle },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
-  cardMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  emptyHint: { fontSize: 13.5, color: Colors.textSecondary },
+  preferredStaffLabel: { fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  preferredStaffValue: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
+  staffPicker: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  staffPickerRow: { padding: Spacing.sm, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.25)' },
+  staffPickerText: { fontSize: 14, color: '#FFFFFF' },
+  card: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  cardMeta: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  emptyHint: { fontSize: 13.5, color: 'rgba(255,255,255,0.6)' },
   timeline: { paddingLeft: 4 },
   timelineRow: { flexDirection: 'row', gap: Spacing.sm, paddingBottom: Spacing.sm },
-  timelineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary, marginTop: 5 },
-  timelineService: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
-  timelineDate: { fontSize: 12, color: Colors.textSecondary },
-  chartCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', ...Shadows.subtle },
-  rewardRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: Colors.card, borderRadius: BorderRadius.sm, padding: Spacing.sm, marginBottom: 6, ...Shadows.subtle },
-  rewardCode: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
-  rewardMeta: { fontSize: 13, color: Colors.textSecondary },
-  membershipCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.xs, ...Shadows.subtle },
-  membershipName: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
-  membershipMeta: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 2 },
+  timelineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#F4D77A', marginTop: 5 },
+  timelineService: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
+  timelineDate: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
+  chartCard: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  rewardRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, padding: Spacing.sm, marginBottom: 6, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  rewardCode: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  rewardMeta: { fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  membershipCard: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.xs, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  membershipName: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  membershipMeta: { fontSize: 12.5, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   membershipActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-  smallActionBtn: { backgroundColor: Colors.backgroundLavender, borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
-  smallActionBtnText: { fontSize: 12.5, fontWeight: '600', color: Colors.primary },
-  smallActionBtnDanger: { backgroundColor: '#FEF2F2', borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
-  smallActionBtnDangerText: { fontSize: 12.5, fontWeight: '600', color: Colors.error },
+  smallActionBtn: { backgroundColor: 'rgba(244,215,122,0.1)', borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
+  smallActionBtnText: { fontSize: 12.5, fontWeight: '600', color: '#F4D77A' },
+  smallActionBtnDanger: { backgroundColor: 'rgba(240,149,149,0.12)', borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
+  smallActionBtnDangerText: { fontSize: 12.5, fontWeight: '600', color: '#F09595' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
-  addChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.primary, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
-  addChipText: { fontSize: 12.5, fontWeight: '600', color: Colors.primary },
-  noteCard: { backgroundColor: Colors.card, borderRadius: BorderRadius.sm, padding: Spacing.sm, marginBottom: 6, ...Shadows.subtle },
+  addChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#F4D77A', borderRadius: BorderRadius.full, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
+  addChipText: { fontSize: 12.5, fontWeight: '600', color: '#F4D77A' },
+  noteCard: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, padding: Spacing.sm, marginBottom: 6, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
   noteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  noteDate: { fontSize: 11, color: Colors.textSecondary },
-  noteBody: { fontSize: 13.5, color: Colors.textPrimary },
+  noteDate: { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
+  noteBody: { fontSize: 13.5, color: '#FFFFFF' },
   addNoteRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
-  noteInput: { flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm, padding: Spacing.sm, fontSize: 14, minHeight: 40 },
+  noteInput: { flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: BorderRadius.sm, padding: Spacing.sm, fontSize: 14, color: '#FFFFFF', minHeight: 40 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: Spacing.xs },
-  addRowText: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
-  fieldLabel: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 4 },
+  addRowText: { fontSize: 14, color: '#F4D77A', fontWeight: '600' },
+  fieldLabel: { fontSize: 12.5, color: 'rgba(255,255,255,0.6)', marginBottom: 4 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' },
-  tagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.backgroundLavender, borderRadius: BorderRadius.full, paddingHorizontal: 10, paddingVertical: 4 },
-  tagChipText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
-  tagAddChip: { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  tagChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(244,215,122,0.1)', borderRadius: BorderRadius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  tagChipText: { fontSize: 12, fontWeight: '600', color: '#F4D77A' },
+  tagAddChip: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
   tagInput: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm, paddingVertical: 6, fontSize: 13, color: Colors.textPrimary, minWidth: 100,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm, paddingVertical: 6, fontSize: 13, color: '#FFFFFF', minWidth: 100,
   },
   tagSuggestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  tagSuggestChip: { backgroundColor: Colors.card, borderRadius: BorderRadius.full, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: Colors.border },
-  tagSuggestText: { fontSize: 12, color: Colors.textSecondary },
-  referrerResultRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  photoThumb: { width: 64, height: 64, borderRadius: BorderRadius.sm, backgroundColor: Colors.backgroundSection, overflow: 'hidden' },
+  tagSuggestChip: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.full, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)' },
+  tagSuggestText: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
+  referrerResultRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.25)' },
+  photoThumb: { width: 64, height: 64, borderRadius: BorderRadius.sm, backgroundColor: 'rgba(255,255,255,0.05)', overflow: 'hidden' },
   photoImage: { width: '100%', height: '100%' },
-  addPhotoButton: { width: 64, height: 64, borderRadius: BorderRadius.sm, backgroundColor: Colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
-  docRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  docName: { fontSize: 13.5, color: Colors.textPrimary },
+  addPhotoButton: { width: 64, height: 64, borderRadius: BorderRadius.sm, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', borderStyle: 'dashed' },
+  docRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.25)' },
+  docName: { fontSize: 13.5, color: '#FFFFFF' },
   commRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 6, alignItems: 'flex-start' },
-  commSummary: { fontSize: 13.5, color: Colors.textPrimary },
-  commDate: { fontSize: 11.5, color: Colors.textSecondary },
+  commSummary: { fontSize: 13.5, color: '#FFFFFF' },
+  commDate: { fontSize: 11.5, color: 'rgba(255,255,255,0.6)' },
 });

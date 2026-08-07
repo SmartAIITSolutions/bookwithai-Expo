@@ -23,8 +23,14 @@ export function useOwnerBookings(date: string) {
   useEffect(() => {
     if (!clientId) return;
 
+    // Topic includes a per-mount nonce, not just clientId+date -- a
+    // deterministic name risks calling .subscribe() on a new channel while
+    // a just-unmounted instance's async removeChannel() for that same name
+    // hasn't finished yet (e.g. Fast Refresh remounts, or a user rapidly
+    // switching away and back), which throws "cannot add postgres_changes
+    // callbacks ... after subscribe()".
     const channel = supabase
-      .channel(`owner-bookings:${clientId}:${date}`)
+      .channel(`owner-bookings:${clientId}:${date}:${Date.now()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings', filter: `client_id=eq.${clientId}` },

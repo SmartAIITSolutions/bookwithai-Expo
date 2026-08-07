@@ -19,6 +19,7 @@ import { useOwnerBookings } from '@/lib/calendar/useOwnerBookings';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { getBusiness, Business } from '@/lib/api/ownerBusiness';
 import { OwnerBooking, getBooking } from '@/lib/api/ownerBookings';
+import { CustomerLite } from '@/lib/api/ownerCustomers';
 import { dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { ErrorState } from '@/components/ErrorState';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
@@ -61,6 +62,11 @@ export default function OwnerCalendarScreen() {
   // books for that exact time/staff instead of "earliest available now".
   // Cleared before any generic Walk-In entry point (header/nav button).
   const [walkInPrefill, setWalkInPrefill] = useState<{ startsAt: Date; staffId: string | null; outsideHours?: boolean } | null>(null);
+  // Set when arriving from a customer profile's "Book" action -- stays
+  // pending (shown as a dismissible banner) across mode switches and date
+  // navigation until the owner actually taps a slot to book, or a booking
+  // completes, so drilling into Week/Month to find a day doesn't lose it.
+  const [bookingForCustomer, setBookingForCustomer] = useState<CustomerLite | null>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
   const walkInRef = useRef<BottomSheetModal>(null);
   const checkoutRef = useRef<CheckoutSheetHandle>(null);
@@ -90,6 +96,25 @@ export default function OwnerCalendarScreen() {
       }
     });
   }, [openBookingId, openDateParam]);
+
+  // Deep link from a customer profile's "Book" action -- carries that
+  // customer's identity over so it's pre-selected the moment a slot is
+  // tapped, instead of landing on an empty Calendar with no memory of which
+  // customer the owner meant to book.
+  const { bookCustomerId, bookCustomerName, bookCustomerPhone, bookCustomerEmail } = useLocalSearchParams<{
+    bookCustomerId?: string; bookCustomerName?: string; bookCustomerPhone?: string; bookCustomerEmail?: string;
+  }>();
+  const handledBookCustomerId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!bookCustomerId || handledBookCustomerId.current === bookCustomerId) return;
+    handledBookCustomerId.current = bookCustomerId;
+    setBookingForCustomer({
+      id: bookCustomerId,
+      name: bookCustomerName ?? 'Customer',
+      phone: bookCustomerPhone || null,
+      email: bookCustomerEmail || null,
+    });
+  }, [bookCustomerId, bookCustomerName, bookCustomerPhone, bookCustomerEmail]);
 
   // Keep the open Appointment Sheet's booking in sync with fresh data --
   // without this, actions like Check-In/No-Show correctly update the
@@ -145,6 +170,28 @@ export default function OwnerCalendarScreen() {
     next.setDate(next.getDate() + delta);
     setDate(next);
   }
+
+  // Previously always shifted by exactly 1 day regardless of which grid was
+  // showing -- harmless in Today/3-Day, but in Week mode it took 7 taps to
+  // page one week, and in Month mode up to ~30 taps to page one month. Now
+  // matches the step size to what's actually on screen.
+  function shiftView(delta: number) {
+    if (mode === 'week') {
+      shiftDay(delta * 7);
+    } else if (mode === 'month') {
+      const next = new Date(date);
+      next.setDate(1); // avoid month-end rollover (e.g. Jan 31 + 1 month skipping to March)
+      next.setMonth(next.getMonth() + delta);
+      setDate(next);
+    } else {
+      shiftDay(delta);
+    }
+  }
+
+  const navLabels =
+    mode === 'week' ? { prev: '← Last week', next: 'Next week →' } :
+    mode === 'month' ? { prev: '← Last month', next: 'Next month →' } :
+    { prev: '← Yesterday', next: 'Tomorrow →' };
 
   function openBooking(b: OwnerBooking) {
     setSelectedBooking(b);
@@ -207,6 +254,7 @@ export default function OwnerCalendarScreen() {
   const handleWalkInBooked = useCallback(() => {
     walkInRef.current?.dismiss();
     setWalkInPrefill(null);
+    setBookingForCustomer(null);
     reload();
   }, [reload]);
 
@@ -266,10 +314,27 @@ export default function OwnerCalendarScreen() {
         onNotificationsPress={() => router.push('/owner-notifications' as never)}
       />
 
+      {bookingForCustomer && (
+        <View style={styles.bookingForBanner}>
+          <Text style={styles.bookingForText} numberOfLines={1}>
+            Booking for <Text style={styles.bookingForName}>{bookingForCustomer.name}</Text> — tap any slot
+          </Text>
+          <Pressable onPress={() => setBookingForCustomer(null)} hitSlop={8}>
+            <Text style={styles.bookingForClear}>✕</Text>
+          </Pressable>
+        </View>
+      )}
+
       <View style={styles.dateRow}>
-        <Pressable onPress={() => shiftDay(-1)}><Text style={styles.dateNav}>← Yesterday</Text></Pressable>
-        <Text style={styles.dateLabel}>{isToday ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-        <Pressable onPress={() => shiftDay(1)}><Text style={styles.dateNav}>Tomorrow →</Text></Pressable>
+        <Pressable onPress={() => shiftView(-1)}><Text style={styles.dateNav}>{navLabels.prev}</Text></Pressable>
+        <Text style={styles.dateLabel}>
+          {mode === 'month'
+            ? date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+            : mode === 'week'
+            ? `Week of ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+            : isToday ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+        </Text>
+        <Pressable onPress={() => shiftView(1)}><Text style={styles.dateNav}>{navLabels.next}</Text></Pressable>
       </View>
 
       {/* Mode switcher, interval picker, and staff filter all share one
@@ -325,10 +390,10 @@ export default function OwnerCalendarScreen() {
         // Option B: same opaque grid panel as Today, but the chrome row
         // above got the glass treatment instead (see the merged chip row).
         <View style={styles.opaqueGridPanel}>
-          <MultiDayView startDate={date} numDays={3} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} intervalMinutes={gridInterval} />
+          <MultiDayView startDate={date} numDays={3} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} onViewFullDay={handleViewFullDay} intervalMinutes={gridInterval} />
         </View>
       ) : (
-        <MultiDayView startDate={date} numDays={7} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} intervalMinutes={gridInterval} />
+        <MultiDayView startDate={date} numDays={7} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} onViewFullDay={handleViewFullDay} intervalMinutes={gridInterval} />
       )}
 
       <AppointmentSheet
@@ -348,6 +413,7 @@ export default function OwnerCalendarScreen() {
         initialTime={walkInPrefill?.startsAt ?? null}
         initialStaffId={walkInPrefill?.staffId}
         outsideBusinessHours={walkInPrefill?.outsideHours}
+        initialCustomer={bookingForCustomer}
       />
     </View>
   );
@@ -375,6 +441,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.5)',
   },
   opaqueGridPanel: { flex: 1, backgroundColor: P.background },
+  bookingForBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, paddingHorizontal: Spacing.sm, paddingVertical: 8,
+    borderRadius: BorderRadius.md, backgroundColor: 'rgba(244,215,122,0.12)', borderWidth: 1, borderColor: 'rgba(244,215,122,0.35)',
+  },
+  bookingForText: { flex: 1, fontSize: 12.5, color: '#F4D77A' },
+  bookingForName: { fontWeight: '800' },
+  bookingForClear: { fontSize: 14, color: '#F4D77A', fontWeight: '700', paddingHorizontal: 6 },
   modeRow: { flexGrow: 0, height: 34, marginBottom: Spacing.sm },
   modeChip: {
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.full,
