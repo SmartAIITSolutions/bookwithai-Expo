@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import {
   fetchNotifications, markNotificationRead, deleteNotification,
   type NotificationItem,
@@ -93,16 +92,15 @@ export default function NotificationsScreen() {
           <Text style={styles.emptyText}>No notifications yet</Text>
         </View>
       ) : (
-        <View style={{ flex: 1 }}>
-        <RefreshHeartOverlay refreshing={refreshing} />
-        <FlatList
+        <ScrollView
           style={{ flex: 1 }}
-          data={items}
-          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-          renderItem={({ item }) => (
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#F4D77A" colors={['#F4D77A']} />
+          }>
+          {items.map((item) => (
             <Pressable
+              key={item.id}
               onPress={() => handlePress(item)}
               onLongPress={() => handleDelete(item)}>
               {({ pressed }) => (
@@ -128,9 +126,8 @@ export default function NotificationsScreen() {
                 </BlurView>
               )}
             </Pressable>
-          )}
-        />
-        </View>
+          ))}
+        </ScrollView>
       )}
       </SafeAreaView>
     </View>

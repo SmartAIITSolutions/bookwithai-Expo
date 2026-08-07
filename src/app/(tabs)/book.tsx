@@ -3,7 +3,7 @@ import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { QrCode, Link2, List, Map as MapIcon, Heart, MapPin } from 'lucide-react-native';
+import { QrCode, List, Map as MapIcon, Heart, MapPin } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,8 +39,6 @@ type ViewMode = 'list' | 'map';
 
 export default function BookScreen() {
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [linkModalOpen, setLinkModalOpen] = useState(false);
-  const [slug, setSlug] = useState('');
   const [query, setQuery] = useState('');
   const [salons, setSalons] = useState<SalonListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,21 +74,6 @@ export default function BookScreen() {
     else addFavorite(s.id);
   }
 
-  function handleGoToSalon() {
-    const trimmed = slug.trim();
-    if (!trimmed) return;
-
-    const normalized = trimmed
-      .replace(/^https?:\/\/(www\.)?bookwithai\.app\/book\//i, '')
-      .replace(/^\/+|\/+$/g, '');
-
-    if (!normalized) return;
-
-    setLinkModalOpen(false);
-    setSlug('');
-    router.push({ pathname: '/salon/[id]', params: { id: normalized } });
-  }
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.backgroundBottom} />
@@ -107,13 +90,6 @@ export default function BookScreen() {
               onPress={() => setScannerOpen(true)}
               style={styles.headerIconButton}>
               <QrCode size={17} color={COLORS.goldLight} strokeWidth={1.6} />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enter a salon link"
-              onPress={() => setLinkModalOpen(true)}
-              style={styles.headerIconButton}>
-              <Link2 size={17} color={COLORS.goldLight} strokeWidth={1.6} />
             </Pressable>
           </View>
         </View>
@@ -226,52 +202,6 @@ export default function BookScreen() {
         <QRScanner onClose={() => setScannerOpen(false)} />
       </Modal>
 
-      <Modal
-        visible={linkModalOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setLinkModalOpen(false)}>
-        <Pressable style={styles.linkModalBackdrop} onPress={() => setLinkModalOpen(false)}>
-          <Pressable style={styles.linkModalCard} onPress={(e) => e.stopPropagation()}>
-            <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-            <Text style={styles.inputLabel}>Salon booking link</Text>
-            <Text style={styles.inputHelper}>Enter the salon name from its Book With AI URL.</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                value={slug}
-                onChangeText={setSlug}
-                onSubmitEditing={handleGoToSalon}
-                placeholder="brows-by-tina"
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="go"
-                autoFocus
-                selectionColor={COLORS.goldLight}
-                style={styles.input}
-              />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Open salon booking page"
-                onPress={handleGoToSalon}
-                disabled={!slug.trim()}
-                style={({ pressed }) => [
-                  styles.goWrapper,
-                  pressed && styles.pressed,
-                  !slug.trim() && styles.disabled,
-                ]}>
-                <LinearGradient
-                  colors={['#9B5CFF', '#5B2EFF']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.goButton}>
-                  <Text style={styles.goText}>Go</Text>
-                </LinearGradient>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -329,7 +259,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingLeft: 20,
+    // Wider than the left side to clear the notification bell, which floats
+    // independently (position: absolute, right: 16, 52px wide) on top of
+    // every customer tab rather than living in this row.
+    paddingRight: 80,
     paddingTop: 6,
     paddingBottom: 4,
   },
@@ -453,64 +387,4 @@ const styles = StyleSheet.create({
 
   calloutLink: { fontFamily: INTER_SEMI, fontSize: 12, color: '#5B2EFF', marginTop: 6 },
 
-  linkModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-
-  linkModalCard: {
-    width: '100%',
-    padding: 18,
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.5)',
-    backgroundColor: 'rgba(10,4,16,0.6)',
-  },
-
-  inputLabel: { color: COLORS.white, fontFamily: INTER_BOLD, fontSize: 13 },
-
-  inputHelper: {
-    marginTop: 5,
-    marginBottom: 13,
-    color: COLORS.muted,
-    fontFamily: INTER,
-    fontSize: 11.5,
-    lineHeight: 17,
-  },
-
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-
-  input: {
-    flex: 1,
-    height: 54,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.2)',
-    backgroundColor: 'rgba(5,1,10,0.5)',
-    paddingHorizontal: 16,
-    color: COLORS.white,
-    fontFamily: INTER,
-    fontSize: 14,
-  },
-
-  goWrapper: { width: 72, height: 54, borderRadius: 15, overflow: 'hidden' },
-
-  goButton: {
-    flex: 1,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(244,215,122,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  goText: { color: COLORS.white, fontFamily: INTER_BOLD, fontSize: 15 },
-
-  pressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
-
-  disabled: { opacity: 0.42 },
 });
