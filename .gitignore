@@ -48,3 +48,4 @@ GoogleService-Info.plist
 *serviceAccount*.json
 *service-account*.json
 firebase-adminsdk*.json
+google-play-service-account.json

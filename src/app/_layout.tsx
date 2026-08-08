@@ -34,6 +34,7 @@ import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { UpdateNagModal } from '@/components/UpdateNagModal';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import { supabase } from '@/lib/supabase';
@@ -267,6 +268,7 @@ export default function RootLayout() {
     <FavoritesProvider>
       <StatusBar style="dark" />
       <OfflineBanner />
+      <UpdateNagModal />
       <AuthRedirectGate />
       <Stack
         screenOptions={{

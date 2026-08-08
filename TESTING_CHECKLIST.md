@@ -132,6 +132,7 @@ The emulator has no real biometric hardware, so these can only be confirmed on a
 ## Phase 1 — Fresh Install & Onboarding
 
 - ✅ Onboarding flow confirmed working end-to-end on real device, 2026-07-19 (real production build, not dev mode)
+- ⬜ **Update nag modal (built 2026-08-07, not yet live-verified — needs a fresh native build)**: on launch, if `app_version_config`'s `latest_version` (per platform) is newer than the installed native version, a dismissible "A new version is available" modal appears; "Later" suppresses it for that version only (re-check by force-closing and relaunching — should NOT reappear); "Update Now" opens the correct App Store/Play Store listing; confirm it does NOT appear when already on the latest version; confirm no crash/hang if the API call fails (airplane mode test)
 
 ## Phase 2 — Customer Auth
 
@@ -171,7 +172,7 @@ The emulator has no real biometric hardware, so these can only be confirmed on a
 
 - ⬜ My Booking: not-signed-in / loading / error+retry / empty / populated states all correct
 - ⬜ Pull-to-refresh works without a full-screen loader flash
-- ⬜ Upcoming outside cutoff: Reschedule + Cancel (with policy text in the confirm dialog) both work
+- ✅ **Reschedule + Cancel backend logic live-verified (2026-08-07, via direct API calls against production with a real test account, not the UI)**: cancel outside cutoff succeeds, cancel inside cutoff correctly blocked (`CUTOFF_PASSED`), reschedule to a free slot succeeds, owner notification pipeline fires for both. **Real bug found and fixed**: reschedule had no staff-conflict check — could double-book the same staff member into an occupied slot (`HTTP 200` when it should have been `409`). Fixed in `booking-app/src/app/api/mobile/bookings/[id]/reschedule/route.ts`, re-verified live post-deploy. **Still not verified in the actual app UI** — the API/policy-text/confirm-dialog behavior on-screen needs a real device pass.
 - ⬜ Upcoming inside cutoff: only "Contact Salon" shows, Call/Text intents both work
 - ⬜ Past bookings: Rebook always available; **Rate only for completed+unreviewed, inline star picker (not Alert.prompt), submit/cancel both work, reviewed state hides Rate immediately without a refetch**; Receipt only for completed
 - ⬜ Notifications: read/unread visual states, tap-to-mark-read, **long-press deletes with zero confirmation — verify this is intentional**, realtime-independent pull-to-refresh, per-focus refetch
