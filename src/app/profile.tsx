@@ -8,12 +8,13 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { BreathingHeart } from '@/components/BreathingHeart';
+import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { useAuth } from '@/lib/auth/AuthContext';
 import {
   fetchCustomerProfile, upsertCustomerProfile, uploadProfilePhoto, linkCustomerIdentity,
   type CustomerProfile,
 } from '@/lib/api/customerProfile';
-import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -140,228 +141,240 @@ export default function ProfileScreen() {
     }
   }
 
+  const headerOptions = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: 'Profile',
+    headerBackTitle: 'Account',
+    headerBackVisible: !isRequired,
+    gestureEnabled: !isRequired,
+  };
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: 'Profile', headerBackTitle: 'Account' }} />
-        <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
-      </SafeAreaView>
+      <View style={styles.screen}>
+        <DualBreathingBackground />
+        <SafeAreaView style={styles.container}>
+          <Stack.Screen options={headerOptions} />
+          <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: 'Profile',
-          headerBackTitle: 'Account',
-          headerBackVisible: !isRequired,
-          gestureEnabled: !isRequired,
-        }}
-      />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <View style={styles.screen}>
+      <DualBreathingBackground />
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={headerOptions} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-          {isRequired && (
-            <View style={styles.requiredBanner}>
-              <Text style={styles.requiredBannerText}>
-                Phone and email are required to book appointments. Add them below to continue.
-              </Text>
-            </View>
-          )}
-
-          <Pressable style={styles.photoWrap} onPress={handlePickPhoto} disabled={uploadingPhoto}>
-            {photoUrl ? (
-              <Image source={{ uri: photoUrl }} style={styles.photo} />
-            ) : (
-              <View style={styles.photoPlaceholder}>
-                <Text style={styles.photoInitial}>
-                  {(user?.user_metadata?.full_name || user?.email || 'G')[0].toUpperCase()}
+            {isRequired && (
+              <View style={styles.requiredBanner}>
+                <Text style={styles.requiredBannerText}>
+                  Phone and email are required to book appointments. Add them below to continue.
                 </Text>
               </View>
             )}
-            <View style={styles.photoEditBadge}>
-              {uploadingPhoto ? (
-                <BreathingHeart size={16} color={Colors.white} />
+
+            <Pressable style={styles.photoWrap} onPress={handlePickPhoto} disabled={uploadingPhoto}>
+              {photoUrl ? (
+                <Image source={{ uri: photoUrl }} style={styles.photo} />
               ) : (
-                <Ionicons name="camera" size={14} color={Colors.white} />
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoInitial}>
+                    {(user?.user_metadata?.full_name || user?.email || 'G')[0].toUpperCase()}
+                  </Text>
+                </View>
               )}
-            </View>
-          </Pressable>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Phone</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="(555) 123-4567"
-              placeholderTextColor={Colors.textDisabled}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="you@example.com"
-              placeholderTextColor={Colors.textDisabled}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Birthday</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="MM/DD/YYYY"
-              placeholderTextColor={Colors.textDisabled}
-              value={dobInput}
-              onChangeText={setDobInput}
-              keyboardType="number-pad"
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Pronouns</Text>
-            <View style={styles.chipRow}>
-              {PRONOUN_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt}
-                  style={[styles.chip, pronouns === opt && styles.chipSelected]}
-                  onPress={() => setPronouns(pronouns === opt ? null : opt)}>
-                  <Text style={[styles.chipText, pronouns === opt && styles.chipTextSelected]}>{opt}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Timezone</Text>
-            <Text style={styles.timezoneValue}>{timezone}</Text>
-            <Text style={styles.timezoneHint}>Detected automatically from your device.</Text>
-          </View>
-
-          <Pressable style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-            {saving ? <BreathingHeart size={18} color={Colors.white} /> : <Text style={styles.saveBtnText}>Save</Text>}
-          </Pressable>
-
-          {isRequired && (
-            <Pressable onPress={() => signOut()}>
-              <Text style={styles.signOutLink}>Sign out instead</Text>
+              <View style={styles.photoEditBadge}>
+                {uploadingPhoto ? (
+                  <BreathingHeart size={16} color="#09000F" />
+                ) : (
+                  <Ionicons name="camera" size={14} color="#09000F" />
+                )}
+              </View>
             </Pressable>
-          )}
 
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            <View style={styles.section}>
+              <Text style={styles.label}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="(555) 123-4567"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="you@example.com"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.label}>Birthday</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="MM/DD/YYYY"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                value={dobInput}
+                onChangeText={setDobInput}
+                keyboardType="number-pad"
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.label}>Pronouns</Text>
+              <View style={styles.chipRow}>
+                {PRONOUN_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt}
+                    style={[styles.chip, pronouns === opt && styles.chipSelected]}
+                    onPress={() => setPronouns(pronouns === opt ? null : opt)}>
+                    <Text style={[styles.chipText, pronouns === opt && styles.chipTextSelected]}>{opt}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.label}>Timezone</Text>
+              <Text style={styles.timezoneValue}>{timezone}</Text>
+              <Text style={styles.timezoneHint}>Detected automatically from your device.</Text>
+            </View>
+
+            <Pressable style={styles.saveBtn} onPress={handleSave} disabled={saving}>
+              {saving ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.saveBtnText}>Save</Text>}
+            </Pressable>
+
+            {isRequired && (
+              <Pressable onPress={() => signOut()}>
+                <Text style={styles.signOutLink}>Sign out instead</Text>
+              </Pressable>
+            )}
+
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.backgroundMain },
+  screen: { flex: 1, backgroundColor: '#040108' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: Spacing.xl, gap: Spacing.xl, alignItems: 'center' },
 
   photoWrap: { position: 'relative' },
-  photo: { width: 96, height: 96, borderRadius: 48 },
+  photo: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, borderColor: 'rgba(212,175,55,0.5)' },
   photoPlaceholder: {
     width: 96, height: 96, borderRadius: 48,
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: 2, borderColor: 'rgba(212,175,55,0.5)',
     alignItems: 'center', justifyContent: 'center',
   },
   photoInitial: {
     fontFamily: FontFamily.frauncesBold,
     fontSize: FontSize['2xl'],
-    color: Colors.white,
+    color: '#F4D77A',
   },
   photoEditBadge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: Colors.backgroundMain,
+    borderWidth: 2, borderColor: '#040108',
   },
 
   section: { width: '100%', gap: Spacing.sm },
   label: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   input: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.35)',
     borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 10,
     fontSize: FontSize.base,
     fontFamily: FontFamily.sora,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chip: {
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: 'rgba(212,175,55,0.35)',
     borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  chipSelected: { borderColor: Colors.primary, backgroundColor: Colors.backgroundLavender },
-  chipText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: Colors.textSecondary },
-  chipTextSelected: { fontFamily: FontFamily.soraSemiBold, color: Colors.primary },
+  chipSelected: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.15)' },
+  chipText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)' },
+  chipTextSelected: { fontFamily: FontFamily.soraSemiBold, color: '#F4D77A' },
 
   timezoneValue: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
   timezoneHint: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.xs,
-    color: Colors.textDisabled,
+    color: 'rgba(255,255,255,0.45)',
   },
 
   requiredBanner: {
     width: '100%',
-    backgroundColor: Colors.backgroundLavender,
+    backgroundColor: 'rgba(212,175,55,0.1)',
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: 'rgba(212,175,55,0.5)',
     padding: Spacing.md,
   },
   requiredBannerText: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     lineHeight: 19,
     textAlign: 'center',
   },
   signOutLink: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.6)',
     textDecorationLine: 'underline',
   },
   saveBtn: {
     width: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: '#F4D77A',
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
     alignItems: 'center',
-    ...Shadows.button,
   },
   saveBtnText: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
-    color: Colors.white,
+    color: '#09000F',
   },
 });

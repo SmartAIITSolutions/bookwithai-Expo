@@ -1237,3 +1237,11 @@ User reported seeing this live: select card at Checkout, the QR/payment-link scr
 **Fix** (`CheckoutSheet.tsx`): both the reset effect and `load`'s `useCallback` now key on `booking?.id` instead of the whole `booking` object, so they only actually reset checkout progress when the sheet opens for a genuinely different booking — not every time the calendar hands it a fresher-but-same reference mid-checkout.
 
 **Verified**: `tsc --noEmit` clean. **Not re-verified live in the app UI** (needs a fresh build), but the root-cause chain was traced concretely end-to-end via source (the write, the subscription, the reference-inequality sync, the reset effect) rather than inferred — this isn't a maybe.
+
+### Customer Profile screen theme mismatch (2026-08-08)
+
+`profile.tsx` was still importing colors from `src/constants/Colors.ts` (`backgroundMain: '#EAE2FF'` light lavender, black text, purple `#5B2EFF` primary) — that file is explicitly documented in its own header comment as "App-wide standard as of 2026-07," but every other customer screen touched since (My Booking, Notifications, Receipt, Discover, etc.) has moved to the dark/gold theme (`#040108` background, `#F4D77A` gold, Fraunces headers with a glow, `DualBreathingBackground`). Profile was the one screen left behind, visually clashing hard against the tab bar and every other screen around it.
+
+**Fix**: rewrote the screen against the established dark/gold conventions — `DualBreathingBackground` behind the content, native header restyled dark/gold via `Stack.Screen`'s `headerStyle`/`headerTintColor`/`headerTitleStyle` (same pattern already used by `owner-settings/products.tsx`), inputs/chips/photo-picker/save-button all switched from the light-lavender/purple palette to the dark-card/gold-border/gold-button look. No functional changes — same fields, same validation, same save/link-identity behavior, purely a visual re-theme.
+
+**Verified**: `tsc --noEmit` clean. **Not visually verified on-device** — the connected emulator is still on an old native build (versionCode 9) that predates this change and every other JS-only fix from today; needs a fresh build to actually see it render.
