@@ -1223,3 +1223,17 @@ User reported: signing in as a salon owner (`browsandnailsbytina@gmail.com`) som
 **Fix**: both call sites now retry once (400ms delay) before trusting an empty/failed read. `AuthContext.loadProfile()` additionally never clobbers an already-loaded role on a persistent error (leaves state as-is rather than guessing) — only defaults to `'customer'` when the retry *also* confirms zero rows with no error (the genuine brand-new-signup case, before the profiles trigger commits).
 
 **Verified**: `tsc --noEmit` clean. **Not live-reproduced** — this is a timing-dependent race against Supabase's internal token-refresh/RLS behavior, not something that can be deterministically triggered in a quick test. The mechanism is confirmed correct by code inspection (RLS-empty-on-race is documented Supabase behavior, and the exact symptom — intermittent, sign-in/relaunch-only, no real data corruption — matches exactly). Worth keeping an eye on whether it recurs after this fix ships.
+
+### Real bug: checkout's card-payment QR code screen disappears almost instantly (2026-08-08)
+
+User reported seeing this live: select card at Checkout, the QR/payment-link screen appears, then vanishes before there's any chance to scan it. Asked to replicate before assuming it was real — traced the full mechanism via code inspection rather than guessing, and it's a deterministic, always-fires bug, not a rare race:
+
+1. Owner selects card → `submitCheckout` calls `POST /api/owner/bookings/[id]/checkout`.
+2. That route writes `pending_checkout_payload` onto the booking row (creating the Stripe session) — confirmed at `booking-app/src/app/api/owner/bookings/[id]/checkout/route.ts` line 142.
+3. `useOwnerBookings` (the calendar's data hook) holds a live Supabase Realtime subscription on the bookings table — that write fires a `postgres_changes` event, refreshing the `bookings` array with new object references.
+4. `calendar.tsx` has its own effect (originally built to fix a *different*, real bug — the Appointment Sheet showing stale data after Check-In/No-Show) that re-syncs `selectedBooking` to match `bookings` by reference inequality: `if (fresh && fresh !== selectedBooking) setSelectedBooking(fresh)`. A same-booking-different-reference update from the realtime echo passes this check.
+5. `CheckoutSheet`'s `booking` prop changes identity → its own reset effect (and its `load` callback, both previously keyed on the *whole* `booking` object) fired → wiped `result` back to `null` → the QR/payment-link screen the owner just saw disappears, yanked back to the method-picker.
+
+**Fix** (`CheckoutSheet.tsx`): both the reset effect and `load`'s `useCallback` now key on `booking?.id` instead of the whole `booking` object, so they only actually reset checkout progress when the sheet opens for a genuinely different booking — not every time the calendar hands it a fresher-but-same reference mid-checkout.
+
+**Verified**: `tsc --noEmit` clean. **Not re-verified live in the app UI** (needs a fresh build), but the root-cause chain was traced concretely end-to-end via source (the write, the subscription, the reference-inequality sync, the reset effect) rather than inferred — this isn't a maybe.

@@ -138,8 +138,22 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         const credit = await getStoreCredit(booking.customer_id);
         if (credit.ok) setStoreCreditBalance(credit.data.balance_cents);
       }
-    }, [booking]);
+      // Keyed on booking?.id, not the whole `booking` object -- see the
+      // reset effect below for why.
+    }, [booking?.id]);
 
+    // Real bug fixed here: this used to depend on the whole `booking` object
+    // (and `load`, which itself depended on the whole object too). The
+    // calendar screen has its own effect that re-syncs its `selectedBooking`
+    // state to a fresh object reference from `bookings` any time that array
+    // changes (e.g. a realtime update) -- including while this exact
+    // checkout is in progress, since submitting a card tender writes to the
+    // booking row to create the Stripe session. That write alone was enough
+    // to hand this component a new (but same-id) `booking` object moments
+    // after the QR/payment-link screen appeared, wiping `result` back to
+    // null and yanking the owner back to the method-picker before anyone
+    // could scan it. Keying on `booking?.id` instead means this reset only
+    // ever fires when the sheet is genuinely opened for a different booking.
     useEffect(() => {
       if (booking) {
         setResult(null); setCardResultInfo(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setAddedServices([]);
@@ -147,7 +161,8 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         setBookNext(false); setPerformedByStaffId(booking.staff_id);
         load();
       }
-    }, [booking, load]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: see comment above.
+    }, [booking?.id, load]);
 
     // Derived totals -- computed with safe fallbacks so this can run every
     // render (including before `preview` has loaded), since the effect
