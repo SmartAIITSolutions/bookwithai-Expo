@@ -127,6 +127,16 @@ interface Booking {
   } | null;
   staff: { id: string; name: string } | null;
   services: { id: string; name: string; duration_minutes: number; buffer_minutes: number | null } | null;
+  // Real, complete service list for multi-service bookings (service_id/
+  // `services` alone only ever reflect a single service and silently drop
+  // the rest). Falls back to [services.name] server-side when there's just
+  // one, so this is always the source of truth for display.
+  service_names: string[];
+}
+
+function serviceDisplayName(item: Pick<Booking, 'service_names' | 'services'>): string {
+  if (item.service_names && item.service_names.length > 0) return item.service_names.join(' + ');
+  return item.services?.name ?? '';
 }
 
 function formatDateTime(isoStr: string) {
@@ -282,7 +292,7 @@ export default function MyBookingScreen() {
         salonName: item.agency_clients?.business_name ?? '',
         requireOnlinePayment: 'false',
         serviceIds: item.service_id ?? '',
-        serviceNames: item.services?.name ?? '',
+        serviceNames: serviceDisplayName(item),
         totalCents: String(item.price_cents ?? 0),
         totalMins: String((item.services?.duration_minutes ?? 60) + (item.services?.buffer_minutes ?? 0)),
         staffId: item.staff_id ?? '',
@@ -353,7 +363,7 @@ export default function MyBookingScreen() {
         salonName: item.agency_clients?.business_name ?? '',
         requireOnlinePayment: 'true',
         serviceIds: item.service_id ?? '',
-        serviceNames: item.services?.name ?? '',
+        serviceNames: serviceDisplayName(item),
         totalCents: String(item.price_cents ?? 0),
         totalMins: String((item.services?.duration_minutes ?? 60) + (item.services?.buffer_minutes ?? 0)),
       },
@@ -400,7 +410,7 @@ export default function MyBookingScreen() {
       params: {
         salonName: item.agency_clients?.business_name ?? '',
         startsAt: item.starts_at,
-        serviceName: item.services?.name ?? '',
+        serviceName: serviceDisplayName(item),
         staffName: item.staff?.name ?? '',
         priceCents: String(item.price_cents ?? 0),
         taxCents: String(item.tax_cents ?? 0),
@@ -593,10 +603,10 @@ export default function MyBookingScreen() {
                   <Text style={styles.cardDetail}>{formatDateTime(item.starts_at)}</Text>
                 </View>
 
-                {item.services?.name && (
+                {serviceDisplayName(item) !== '' && (
                   <View style={styles.cardRow}>
                     <Ionicons name="cut-outline" size={14} color="#F4D77A" />
-                    <Text style={styles.cardDetail}>{item.services.name}</Text>
+                    <Text style={styles.cardDetail}>{serviceDisplayName(item)}</Text>
                   </View>
                 )}
 
