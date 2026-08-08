@@ -138,6 +138,7 @@ export default function BusinessSetupScreen() {
   async function handleRemoveClosure(id: string) {
     const result = await removeClosure(id);
     if (result.ok) setClosures(c => c.filter(x => x.id !== id));
+    else Alert.alert('Could not remove', result.error);
   }
 
   if (loading || !business) {

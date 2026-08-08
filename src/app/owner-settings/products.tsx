@@ -42,6 +42,7 @@ export default function ProductsScreen() {
   async function handleArchive(id: string) {
     const result = await archiveProduct(id);
     if (result.ok) setProducts(p => p.filter(x => x.id !== id));
+    else Alert.alert('Could not remove', result.error);
   }
 
   return (
