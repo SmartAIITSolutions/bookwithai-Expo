@@ -38,22 +38,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadProfile(userId: string) {
     latestProfileRequest.current = userId;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('role, client_id')
-      .eq('id', userId)
-      .maybeSingle();
+
+    const fetchProfile = () =>
+      supabase.from('profiles').select('role, client_id').eq('id', userId).maybeSingle();
+
+    let { data, error } = await fetchProfile();
+
+    // A failed query or zero rows for an already-authenticated user is
+    // almost always a transient RLS/token-refresh race, not a real "no
+    // profile" case -- every auth.users row gets a profiles row via a DB
+    // trigger at signup, and RLS silently returns zero rows (not an error)
+    // when a query races a token refresh. This was the real cause of an
+    // owner intermittently landing on customer tabs: the blind `?? 'customer'`
+    // fallback below treated that empty read as if the account really had
+    // no profile, silently downgrading a real owner to 'customer'. Retry
+    // once after a short delay before trusting an empty/failed read.
+    if (error || !data) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      ({ data, error } = await fetchProfile());
+    }
 
     if (latestProfileRequest.current !== userId) {
       return; // superseded by a newer request
     }
 
     if (error) {
-      console.error('AuthContext: failed to load profile role', error);
+      console.error('AuthContext: failed to load profile role after retry', error);
+      // Don't clobber a previously-known-good role/clientId with a guessed
+      // default on a transient failure -- leave state as-is. The next auth
+      // event (or a manual refreshProfile()) will correct it once the
+      // underlying glitch clears.
+      return;
     }
-    const resolvedRole = (data?.role as UserRole) ?? 'customer';
-    setRole(resolvedRole);
-    setClientId(data?.client_id ?? null);
+
+    if (!data) {
+      // Query genuinely succeeded with zero rows even after the retry --
+      // this can legitimately happen in the split second before a brand-new
+      // signup's profiles-creation trigger commits. 'customer' is the
+      // correct default only in this confirmed case.
+      setRole('customer');
+      setClientId(null);
+      return;
+    }
+
+    setRole(data.role as UserRole);
+    setClientId(data.client_id ?? null);
   }
 
   useEffect(() => {

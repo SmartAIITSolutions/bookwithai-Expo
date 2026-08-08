@@ -445,11 +445,25 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     }
 
     // 4. Signed in, no biometrics lock — route by role
-    const { data: profile } = await supabase
+    // A zero-row read here is almost always a transient RLS/token-refresh
+    // race on cold launch, not a real "no profile" case (every account gets
+    // a profiles row via a DB trigger at signup) -- retry once before
+    // trusting an empty read, same fix as AuthContext.loadProfile. Without
+    // this, an owner reopening the app could intermittently land on
+    // customer tabs whenever this read raced a token refresh.
+    let { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', session.user.id)
       .maybeSingle();
+    if (!profile) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      ({ data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle());
+    }
     router.replace(roleHome(profile?.role ?? null) as never);
   } catch (error) {
     console.error('handleSplashDone: falling back to /auth after an error', error);
