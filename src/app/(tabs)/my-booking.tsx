@@ -107,6 +107,7 @@ interface Booking {
   starts_at: string;
   ends_at: string;
   status: string;
+  source: string | null;
   price_cents: number | null;
   tax_cents: number | null;
   tip_cents: number | null;
@@ -298,6 +299,19 @@ export default function MyBookingScreen() {
         staffId: item.staff_id ?? '',
         staffName: item.staff?.name ?? '',
         rescheduleBookingId: item.id,
+      },
+    });
+  }
+
+  function handlePayNow(item: Booking) {
+    router.push({
+      pathname: '/booking/pay-existing',
+      params: {
+        bookingId: item.id,
+        priceCents: String(item.price_cents ?? 0),
+        salonName: item.agency_clients?.business_name ?? '',
+        serviceName: serviceDisplayName(item),
+        startsAt: item.starts_at,
       },
     });
   }
@@ -623,6 +637,23 @@ export default function MyBookingScreen() {
                   </Text>
                 )}
 
+                {item.status === 'pending' && item.price_cents && item.price_cents > 0 && (
+                  <>
+                    <View style={styles.paymentDuePill}>
+                      <Ionicons name="card-outline" size={12} color="#09000F" />
+                      <Text style={styles.paymentDuePillText}>
+                        Payment Due — ${(item.price_cents / 100).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.actionsRow}>
+                      <Pressable style={styles.payNowBtn} onPress={() => handlePayNow(item)}>
+                        <Ionicons name="card-outline" size={14} color="#09000F" />
+                        <Text style={styles.payNowBtnText}>Pay Now</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                )}
+
                 {isUpcoming && (
                   <View style={styles.actionsRow}>
                     {isActioning ? (
@@ -647,7 +678,7 @@ export default function MyBookingScreen() {
                   </View>
                 )}
 
-                {!isUpcoming && (
+                {!isUpcoming && item.status !== 'pending' && (
                   <View style={styles.actionsRow}>
                     <Pressable style={styles.actionBtn} onPress={() => handleRebook(item)}>
                       <Ionicons name="repeat-outline" size={14} color="#F4D77A" />
@@ -933,6 +964,38 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
 
+  paymentDuePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: '#F4D77A',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    marginTop: Spacing.xs,
+  },
+  paymentDuePillText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.xs,
+    color: '#09000F',
+  },
+  payNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#F4D77A',
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    flex: 1,
+  },
+  payNowBtnText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.xs,
+    color: '#09000F',
+  },
   actionsRow: {
     flexDirection: 'row',
     gap: Spacing.sm,

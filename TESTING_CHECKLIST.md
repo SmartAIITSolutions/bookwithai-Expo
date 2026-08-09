@@ -523,3 +523,15 @@ New `customer_favorite_salons` table (RLS `auth.uid() = auth_user_id`), so a sal
 - ⬜ **Booking uses real profile data**: after completing your profile, book an appointment (both the free/no-payment path and the paid/deposit path) and confirm the booking's phone/email on the owner dashboard match what you entered in your profile — not a placeholder.
 - ⬜ **Cross-salon reuse**: book at Salon A, then book at Salon B for the first time with the same account. Confirm you're NOT asked to re-enter phone/email, and Salon B's customer record shows your correct info immediately.
 - ⬜ **Phone changes between visits**: update your phone number in Profile, then book again at a salon you've already visited. Confirm it updates your existing customer record there rather than creating a second one.
+
+## Pay Now for unpaid manual/walk-in bookings + 48h payment reminder (2026-08-09, not yet verified live)
+
+- ⬜ **Payment Due shows up**: have a salon manually create a priced walk-in/phone booking for your test customer account (dashboard → new booking → source manual/walk-in, with a price). Confirm the booking lands `status: pending`, and that My Bookings shows a gold "Payment Due — $X.XX" pill plus a "Pay Now" button on that card — and that it no longer shows the "Rebook" action a pending booking used to get.
+- ⬜ **Pay Now flow, no tip**: tap Pay Now, choose "None" for tip, confirm the total matches the booking price exactly, pay with a Stripe test card, confirm success alert and that the booking flips to "Confirmed" back in My Bookings.
+- ⬜ **Pay Now flow, with tip**: repeat with a 15/18/20% chip and again with Custom tip — confirm the total updates live and the charged amount on the owner dashboard's booking record includes the tip (`tip_cents`, `total_charged_cents`).
+- ⬜ **Idempotent replay**: after a successful payment, try hitting confirm-payment again with the same payment_intent_id (e.g. by re-tapping Pay Now if the app didn't navigate away) — confirm it doesn't double-charge or error, just reports already-confirmed.
+- ⬜ **Ownership enforcement**: confirm a different signed-in customer can't pay for someone else's pending booking (should 403).
+- ⬜ **Existing email link untouched**: confirm the auto-email sent at manual-booking creation time still works exactly as before — this feature is additive, not a replacement.
+- ⬜ **48h reminder push**: with a pending, priced booking ~48 hours out, confirm the `/api/cron/payment-reminders` job (hit every 15 min by the external scheduler) sends a push ~48h before the appointment, and that tapping it deep-links straight into the Pay Now screen for that booking (not the "Open payment page" external-link behavior `pay_balance` uses).
+- ⬜ **No duplicate reminder**: confirm the same booking doesn't get a second 48h reminder push (check `reminder_payment_48h_sent_at` gets set after the first send).
+- ⬜ **Owner gets notified on payment**: confirm the salon owner gets a "Payment received" notification when the customer pays via this flow.

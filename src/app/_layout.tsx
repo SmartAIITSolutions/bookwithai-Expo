@@ -146,6 +146,15 @@ export default function RootLayout() {
       if (data?.action === 'pay_balance' && data.url) {
         Linking.openURL(data.url);
       }
+      // 48h-before payment reminder for a manually-created, still-unpaid
+      // booking -- deep-links straight into the in-app Pay Now flow (native
+      // PaymentSheet), distinct from pay_balance's external hosted-link open.
+      if (data?.action === 'pay_unpaid_booking' && data.bookingId) {
+        router.push({
+          pathname: '/booking/pay-existing',
+          params: { bookingId: data.bookingId },
+        } as never);
+      }
       // Rebook nudge (immediate post-checkout, or the weekly "it's time to
       // book" cron) -- lands on the same booking flow a normal "Book Now"
       // tap would, just pre-seeded with the suggested service/staff/time.
