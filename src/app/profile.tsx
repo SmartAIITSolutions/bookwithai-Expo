@@ -31,6 +31,21 @@ function formatDob(iso: string | null) {
   return `${m}/${d}/${y}`;
 }
 
+// Auto-inserts the "/" separators as the user types digits -- the field
+// uses keyboardType="number-pad" (so the numeric keypad shows for a date),
+// but that keypad has no "/" key at all, so a user could never satisfy the
+// strict MM/DD/YYYY format parseDob requires below without this. Confirmed
+// live: every birthday entry attempt failed with "Invalid date" and the
+// only way to get through the profile-completeness gate was to leave it
+// blank.
+function formatDobInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  let out = digits.slice(0, 2);
+  if (digits.length > 2) out += '/' + digits.slice(2, 4);
+  if (digits.length > 4) out += '/' + digits.slice(4, 8);
+  return out;
+}
+
 // Accepts MM/DD/YYYY, stores as YYYY-MM-DD (date column format).
 function parseDob(input: string): string | null {
   const match = input.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -245,8 +260,9 @@ export default function ProfileScreen() {
                 placeholder="MM/DD/YYYY"
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 value={dobInput}
-                onChangeText={setDobInput}
+                onChangeText={(t) => setDobInput(formatDobInput(t))}
                 keyboardType="number-pad"
+                maxLength={10}
               />
             </View>
 

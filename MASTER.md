@@ -1275,3 +1275,13 @@ Reported secondhand (one tester, so investigated before assuming it was real): a
 **This repo**: `linkCustomerIdentity()` (`src/lib/api/customerProfile.ts`) now returns `{ linked_count, existing_account_detected }` instead of `void`. `profile.tsx`'s save handler surfaces an alert when the flag comes back true: *"You may already have an account... try signing out and signing back in the same way you did the first time (for example, Sign in with Apple)."* Deliberately only wired into the explicit profile-save path (where the user is actively engaged and expects feedback) — left the silent every-sign-in call in `_layout.tsx` untouched, so this doesn't turn into a nag on every app launch.
 
 **Verified**: `tsc --noEmit` clean (both repos), `npm run build` clean (booking-app), her specific account's data live-verified as correctly repaired via direct query. **The code fix itself (the new alert) has not shipped yet** — it landed after today's 1.0.3 EAS build was already submitted, so it'll go out in the next build.
+
+### Real bug: birthday field impossible to fill in on the profile-completeness gate (2026-08-09)
+
+Reported via a live Play Console testing-feedback review (Amir Madadali): *"it's not saving the profile, says date of birth format invalid. it's saving without the dob but when i add dob then it's not moving further."* Confirmed via code, not just the report — this is 100% reproducible for every user, not intermittent.
+
+**Root cause**: the Birthday `TextInput` in `profile.tsx` used `keyboardType="number-pad"` (a digits-only keypad, on both iOS and Android) while `parseDob()` required the exact literal format `MM/DD/YYYY` with slashes. The number-pad keyboard has **no `/` key** — there is no way to type a slash on it. So any birthday entry always failed to match the parser's regex, always triggered the "Invalid date" alert, and blocked the user from proceeding. Leaving it blank was the only way through the gate, since the check only runs `if (dobInput.trim())`.
+
+**Fix**: added `formatDobInput()`, which strips non-digits and auto-inserts the `/` separators as the user types (so typing `08091990` becomes `08/09/1990` automatically) — keeps the numeric keypad (still the right choice for a date) and the existing storage/parsing format untouched, just fixes the actual input experience. Also added `maxLength={10}` to match the formatted length.
+
+**Verified**: `tsc --noEmit` clean. **Not yet visually verified on-device** — needs a fresh build to type through the field and confirm the slashes appear as expected while typing.
