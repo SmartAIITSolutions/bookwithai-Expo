@@ -40,7 +40,9 @@
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "ios": {
@@ -128,6 +130,12 @@
         "projectId": "09a191e6-4d32-4ef9-9fba-8a9e1eac2213"
       }
     },
-    "owner": "bookwithai"
+    "owner": "bookwithai",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/09a191e6-4d32-4ef9-9fba-8a9e1eac2213"
+    }
   }
 }
