@@ -1325,3 +1325,15 @@ Traced from "still no push notification" after the owner-bookings fix above. Con
 **Fix**: removed the `role !== 'owner'` condition — the same auto-registration effect now fires once per signed-in session for any role. Confirmed this correctly self-heals for accounts that already have OS-level notification permission granted (both test accounts did, from earlier testing) — `requestAndRegisterPushToken()` skips straight to registering a fresh token when permission's already granted, no re-prompt needed.
 
 **Verified**: `tsc --noEmit` clean. **Not yet live-verified** — needs a fresh build (or the EAS Update pipeline just configured above) to confirm a real device actually gets a `push_tokens` row on next sign-in.
+
+### Notifications screen redesign — category-colored cards (2026-08-10)
+
+Redesigned `notifications.tsx` (the customer in-app notification inbox) against a reference mockup: date-grouped list (Today/Earlier), each card gets a distinct gradient + icon-badge treatment based on a new category system rather than the previous flat gold-bordered card used for every type.
+
+**New**: `Category` type (`confirmation` | `payment` | `action` | `updates` | `reminder` | `rewards`), each with its own two-stop gradient, icon badge tint, and accent color for the timestamp — purple for confirmations, green for payment success, pink for anything needing action (`balance_due`, `cancelled`, `rebook_nudge`), blue for updates (`rescheduled`, `app_update`), amber for time-based reminders (`reminder_24h`/`2h`, `checkin_ready`), purple/magenta for `review_nudge`. `TYPE_CATEGORY` maps every existing `PushNotificationType` to one of the six.
+
+Also fixed tapping a `balance_due` notification to go straight to the new Pay Now screen (`/booking/pay-existing`) instead of just highlighting the booking in My Bookings — it wasn't routing anywhere useful before.
+
+Kept real, dynamic title/body copy from the database as-is (not replaced with the reference mockup's static marketing copy like "You're All Set! 🎉") — the redesign is the visual/structural treatment, not a rewrite of server-side push copy across every call site, which would be a much larger, separate change.
+
+**Verified**: `tsc --noEmit` clean. **Not yet built into an app binary** — landed after the 1.0.4 build's project archive was already uploaded to EAS, so it'll ship via `eas update` once that build is out, rather than waiting for the next full native build.

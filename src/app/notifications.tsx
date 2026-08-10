@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import {
@@ -24,16 +23,103 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  booking_confirmed: 'checkmark-circle-outline',
-  reminder_24h:       'time-outline',
-  reminder_2h:        'alarm-outline',
-  checkin_ready:      'location-outline',
-  receipt:            'receipt-outline',
-  balance_due:        'card-outline',
-  rescheduled:        'calendar-outline',
-  cancelled:          'close-circle-outline',
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
+// One visual category per notification type -- each carries its own
+// gradient, icon badge tint, and accent color, matching the reference
+// design. Multiple types share a category where the tone matches (e.g.
+// every "you need to act on this" notification reads as pink/Action
+// Required, not just balance_due).
+type Category = 'confirmation' | 'payment' | 'action' | 'updates' | 'reminder' | 'rewards';
+
+const CATEGORY_STYLES: Record<Category, {
+  gradient: [string, string];
+  iconBg: string;
+  iconColor: string;
+  accent: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}> = {
+  confirmation: {
+    gradient: ['#4B2E9E', '#211045'],
+    iconBg: 'rgba(255,255,255,0.18)',
+    iconColor: '#E4DBFF',
+    accent: '#C9B8FF',
+    icon: 'checkmark-done-circle-outline',
+  },
+  payment: {
+    gradient: ['#1E7A56', '#0B2F22'],
+    iconBg: 'rgba(255,255,255,0.16)',
+    iconColor: '#C9F5DE',
+    accent: '#7FE8B8',
+    icon: 'card-outline',
+  },
+  action: {
+    gradient: ['#83235A', '#390F26'],
+    iconBg: 'rgba(255,255,255,0.16)',
+    iconColor: '#FFD6E7',
+    accent: '#FF8FC0',
+    icon: 'heart-outline',
+  },
+  updates: {
+    gradient: ['#25409E', '#0F1A42'],
+    iconBg: 'rgba(255,255,255,0.16)',
+    iconColor: '#D6E4FF',
+    accent: '#93C5FD',
+    icon: 'sync-outline',
+  },
+  reminder: {
+    gradient: ['#8A5A12', '#3A2406'],
+    iconBg: 'rgba(255,255,255,0.16)',
+    iconColor: '#FFE6BF',
+    accent: '#FBBF6C',
+    icon: 'time-outline',
+  },
+  rewards: {
+    gradient: ['#6B2E99', '#2A1049'],
+    iconBg: 'rgba(255,255,255,0.16)',
+    iconColor: '#EBD6FF',
+    accent: '#D8B4FE',
+    icon: 'gift-outline',
+  },
 };
+
+const TYPE_CATEGORY: Record<string, Category> = {
+  booking_confirmed: 'confirmation',
+  receipt:            'payment',
+  balance_due:         'action',
+  cancelled:            'action',
+  rebook_nudge:         'action',
+  rescheduled:          'updates',
+  app_update:            'updates',
+  reminder_24h:          'reminder',
+  reminder_2h:           'reminder',
+  checkin_ready:         'reminder',
+  review_nudge:          'rewards',
+};
+
+// Per-type icon override -- falls back to the category default above when
+// a type doesn't need its own glyph.
+const TYPE_ICON: Partial<Record<string, keyof typeof Ionicons.glyphMap>> = {
+  booking_confirmed: 'calendar-outline',
+  receipt:            'checkmark-circle-outline',
+  balance_due:         'card-outline',
+  cancelled:            'close-circle-outline',
+  rebook_nudge:         'heart-outline',
+  rescheduled:          'sync-outline',
+  app_update:            'sparkles-outline',
+  reminder_24h:          'time-outline',
+  reminder_2h:           'alarm-outline',
+  checkin_ready:         'location-outline',
+  review_nudge:          'star-outline',
+};
+
+function categoryFor(type: string): Category {
+  return TYPE_CATEGORY[type] ?? 'updates';
+}
 
 export default function NotificationsScreen() {
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -59,6 +145,10 @@ export default function NotificationsScreen() {
       setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
       await markNotificationRead(item.id);
     }
+    if (item.type === 'balance_due' && item.booking_id) {
+      router.push({ pathname: '/booking/pay-existing', params: { bookingId: item.booking_id } } as never);
+      return;
+    }
     if (item.booking_id) {
       router.push({ pathname: '/(tabs)/my-booking', params: { highlightBookingId: item.booking_id } });
     }
@@ -67,6 +157,41 @@ export default function NotificationsScreen() {
   async function handleDelete(item: NotificationItem) {
     setItems((prev) => prev.filter((n) => n.id !== item.id));
     await deleteNotification(item.id);
+  }
+
+  const todayItems = items.filter((n) => isToday(n.created_at));
+  const earlierItems = items.filter((n) => !isToday(n.created_at));
+
+  function renderCard(item: NotificationItem) {
+    const category = categoryFor(item.type);
+    const style = CATEGORY_STYLES[category];
+    const icon = TYPE_ICON[item.type] ?? style.icon;
+
+    return (
+      <Pressable
+        key={item.id}
+        onPress={() => handlePress(item)}
+        onLongPress={() => handleDelete(item)}>
+        {({ pressed }) => (
+          <LinearGradient
+            colors={style.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.card, pressed && { opacity: 0.9 }]}>
+            <View style={[styles.iconBadge, { backgroundColor: style.iconBg }]}>
+              <Ionicons name={icon} size={24} color={style.iconColor} />
+            </View>
+            <View style={styles.cardText}>
+              <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+              <Text style={styles.cardBody}>{item.body}</Text>
+              <Text style={[styles.cardTime, { color: style.accent }]}>{timeAgo(item.created_at)}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
+            {!item.read && <View style={[styles.unreadDot, { backgroundColor: style.accent }]} />}
+          </LinearGradient>
+        )}
+      </Pressable>
+    );
   }
 
   return (
@@ -98,35 +223,18 @@ export default function NotificationsScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#F4D77A" colors={['#F4D77A']} />
           }>
-          {items.map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() => handlePress(item)}
-              onLongPress={() => handleDelete(item)}>
-              {({ pressed }) => (
-                <BlurView
-                  intensity={90}
-                  tint="dark"
-                  style={[styles.card, !item.read && styles.cardUnread, pressed && { opacity: 0.85 }]}>
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <Ionicons
-                    name={ICONS[item.type] ?? 'notifications-outline'}
-                    size={22}
-                    color="#F4D77A"
-                  />
-                  <View style={styles.cardText}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    <Text style={styles.cardBody}>{item.body}</Text>
-                    <Text style={styles.cardTime}>{timeAgo(item.created_at)}</Text>
-                  </View>
-                  {!item.read && <View style={styles.unreadDot} />}
-                </BlurView>
-              )}
-            </Pressable>
-          ))}
+          {todayItems.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>Today</Text>
+              {todayItems.map(renderCard)}
+            </>
+          )}
+          {earlierItems.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>Earlier</Text>
+              {earlierItems.map(renderCard)}
+            </>
+          )}
         </ScrollView>
       )}
       </SafeAreaView>
@@ -161,22 +269,32 @@ const styles = StyleSheet.create({
   },
 
   list: { padding: Spacing.md, gap: Spacing.sm },
+  sectionLabel: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.sm,
-    padding: 18,
-    borderRadius: 24,
+    padding: 16,
+    borderRadius: 22,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(212,175,55,0.5)',
-    backgroundColor: 'rgba(0,0,0,0.2)',
     marginBottom: Spacing.sm,
   },
-  cardUnread: {
-    borderColor: '#F4D77A',
+  iconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardText: { flex: 1, gap: 2 },
+  cardText: { flex: 1, gap: 3 },
   cardTitle: {
     fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.base,
@@ -185,18 +303,20 @@ const styles = StyleSheet.create({
   cardBody: {
     fontFamily: FontFamily.sora,
     fontSize: FontSize.sm,
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.85)',
     lineHeight: FontSize.sm * 1.4,
   },
   cardTime: {
-    fontFamily: FontFamily.sora,
+    fontFamily: FontFamily.soraSemiBold,
     fontSize: FontSize.xs,
-    color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
   },
   unreadDot: {
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: '#F4D77A',
-    marginTop: 6,
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });
