@@ -371,10 +371,19 @@ function AuthRedirectGate() {
     }
   }, [user, role, loading, segments]);
 
-  // Owner push registration -- Sprint 5's real Notification Center needs a
-  // device token on file. Fires once per signed-in owner session.
+  // Push registration -- fires once per signed-in session, any role. Was
+  // owner-only (Sprint 5's Notification Center), but a customer whose
+  // bookings are always created by the salon (never their own, through
+  // booking/confirmation.tsx) had no path to ever be prompted -- the only
+  // other triggers are completing your own booking, or manually tapping
+  // "Enable Notifications" on My Bookings/Account. Confirmed live: two real
+  // customer accounts with OS-level notification permission already
+  // granted still had zero rows in push_tokens, because nothing had ever
+  // called requestAndRegisterPushToken() for them. If permission is
+  // already granted, this call skips straight to registering a fresh
+  // token -- no prompt, no user action needed.
   useEffect(() => {
-    if (loading || !user || role !== 'owner' || pushRegistered.current) return;
+    if (loading || !user || pushRegistered.current) return;
     pushRegistered.current = true;
     requestAndRegisterPushToken();
   }, [user, role, loading]);

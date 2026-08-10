@@ -1315,3 +1315,13 @@ Free-tier EAS Build quota is 15 Android + 15 iOS builds/month (7 used so far thi
 **Side effect worth noting**: running `expo install` triggered a full config-plugin sync that had apparently never run before, which surfaced (and initially duplicated) `expo-location`'s Android permissions (`ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION`) that were missing from `app.json` despite the package already being a dependency (used by the salon-directory/Discover feature). Cleaned up the duplicate `intentFilters` entry, duplicate calendar/biometric permissions, and duplicate `associatedDomains` entry the sync introduced — kept the new location permissions since they're a real, previously-missing gap, not noise.
 
 **Verified**: `node -e "JSON.parse(...)"` confirms `app.json` is still valid, `npx expo config --json` resolves cleanly. **Not yet exercised end-to-end** — needs tomorrow's build to actually confirm a device picks up an OTA update after that.
+
+### Real bug: customers whose bookings are always owner-created never got prompted for push permission (2026-08-10)
+
+Traced from "still no push notification" after the owner-bookings fix above. Confirmed server-side the push was firing correctly both times (`push_notification_log` had the right `balance_due` row with the right text) — the actual gap was `push_tokens` being completely empty for both real test accounts, on both an emulator and a real device.
+
+**Root cause**: `_layout.tsx`'s automatic push-registration effect was gated `role !== 'owner'` — customers were only ever prompted for notification permission in three places, all of which require the customer to have booked *themselves* through the app at least once, or to manually dig into My Bookings/Account and tap "Enable Notifications": completing their own booking (`booking/confirmation.tsx`), the My Bookings banner, or the Account toggle. A customer whose every booking is owner-created (arguably the exact population Pay Now most needs to reach) had no path to ever be asked.
+
+**Fix**: removed the `role !== 'owner'` condition — the same auto-registration effect now fires once per signed-in session for any role. Confirmed this correctly self-heals for accounts that already have OS-level notification permission granted (both test accounts did, from earlier testing) — `requestAndRegisterPushToken()` skips straight to registering a fresh token when permission's already granted, no re-prompt needed.
+
+**Verified**: `tsc --noEmit` clean. **Not yet live-verified** — needs a fresh build (or the EAS Update pipeline just configured above) to confirm a real device actually gets a `push_tokens` row on next sign-in.
