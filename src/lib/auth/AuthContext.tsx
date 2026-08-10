@@ -1,6 +1,26 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+
+const ROLE_CACHE_PREFIX = 'bwa_role_cache_';
+
+async function cacheRole(userId: string, role: UserRole, clientId: string | null) {
+  try {
+    await AsyncStorage.setItem(`${ROLE_CACHE_PREFIX}${userId}`, JSON.stringify({ role, clientId }));
+  } catch {
+    // best-effort -- worst case the fallback below just isn't available next time
+  }
+}
+
+export async function getCachedRole(userId: string): Promise<{ role: UserRole; clientId: string | null } | null> {
+  try {
+    const raw = await AsyncStorage.getItem(`${ROLE_CACHE_PREFIX}${userId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 export type UserRole = 'customer' | 'owner' | 'staff';
 
@@ -65,24 +85,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       console.error('AuthContext: failed to load profile role after retry', error);
       // Don't clobber a previously-known-good role/clientId with a guessed
-      // default on a transient failure -- leave state as-is. The next auth
-      // event (or a manual refreshProfile()) will correct it once the
-      // underlying glitch clears.
+      // default on a transient failure -- fall back to whatever this user's
+      // last confirmed role was (persisted below on every successful read),
+      // rather than leaving state null/stuck on a cold start where nothing
+      // has loaded yet.
+      const cached = await getCachedRole(userId);
+      if (latestProfileRequest.current !== userId) return;
+      if (cached) {
+        setRole(cached.role);
+        setClientId(cached.clientId);
+      }
       return;
     }
 
     if (!data) {
-      // Query genuinely succeeded with zero rows even after the retry --
-      // this can legitimately happen in the split second before a brand-new
-      // signup's profiles-creation trigger commits. 'customer' is the
-      // correct default only in this confirmed case.
-      setRole('customer');
-      setClientId(null);
+      // Query genuinely succeeded with zero rows even after the retry. This
+      // is the exact race that intermittently routed a real salon owner
+      // into customer tabs: a single 400ms retry isn't always enough to
+      // outlast a token-refresh/RLS race on a real device/network, and
+      // blindly defaulting to 'customer' here punishes a returning user for
+      // a transient glitch. Only trust this as "genuinely no profile yet"
+      // when there's no cached role for this user (the real brand-new-
+      // signup case, before the profiles-creation trigger commits) --
+      // otherwise keep showing their last confirmed role.
+      const cached = await getCachedRole(userId);
+      if (latestProfileRequest.current !== userId) return;
+      if (cached) {
+        setRole(cached.role);
+        setClientId(cached.clientId);
+      } else {
+        setRole('customer');
+        setClientId(null);
+      }
       return;
     }
 
     setRole(data.role as UserRole);
     setClientId(data.client_id ?? null);
+    cacheRole(userId, data.role as UserRole, data.client_id ?? null);
   }
 
   useEffect(() => {

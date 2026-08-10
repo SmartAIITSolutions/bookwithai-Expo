@@ -35,7 +35,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { UpdateNagModal, STORE_URL, STORE_URL_FALLBACK } from '@/components/UpdateNagModal';
-import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
+import { AuthProvider, useAuth, getCachedRole } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
@@ -481,7 +481,17 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
         .eq('id', session.user.id)
         .maybeSingle());
     }
-    router.replace(roleHome(profile?.role ?? null) as never);
+    // Still nothing after the retry -- a single 400ms wait isn't always
+    // enough to outlast a token-refresh/RLS race on a real device. Fall
+    // back to this user's last confirmed role (cached by AuthContext on
+    // every successful load) instead of defaulting an existing owner/staff
+    // account into customer tabs.
+    let resolvedRole = profile?.role ?? null;
+    if (!profile) {
+      const cached = await getCachedRole(session.user.id);
+      if (cached) resolvedRole = cached.role;
+    }
+    router.replace(roleHome(resolvedRole) as never);
   } catch (error) {
     console.error('handleSplashDone: falling back to /auth after an error', error);
     router.replace('/auth');
