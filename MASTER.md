@@ -1285,3 +1285,11 @@ Reported via a live Play Console testing-feedback review (Amir Madadali): *"it's
 **Fix**: added `formatDobInput()`, which strips non-digits and auto-inserts the `/` separators as the user types (so typing `08091990` becomes `08/09/1990` automatically) — keeps the numeric keypad (still the right choice for a date) and the existing storage/parsing format untouched, just fixes the actual input experience. Also added `maxLength={10}` to match the formatted length.
 
 **Verified**: `tsc --noEmit` clean. **Not yet visually verified on-device** — needs a fresh build to type through the field and confirm the slashes appear as expected while typing.
+
+### Push notification for app updates (2026-08-09)
+
+Backend half (`broadcastUpdateAvailable`, `POST /api/admin/broadcast-update`) documented in `booking-app/MASTER.md` Section 38 — triggered manually right after `app_version_config` is bumped, since the in-app `UpdateNagModal` only re-checks on a cold JS mount, not a background→foreground resume (confirmed live: opening an already-running app didn't show the nag, force-quitting and relaunching did).
+
+**This repo**: `_layout.tsx`'s notification-response listener gained an `app_update` case that opens the store listing directly on tap. `UpdateNagModal.tsx`'s `STORE_URL`/`STORE_URL_FALLBACK` are now exported so both places share the same store-link logic instead of duplicating it.
+
+**Verified**: `tsc --noEmit` clean. Not yet triggered for a real release — next `app_version_config` bump should be followed by calling the new broadcast endpoint.

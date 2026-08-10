@@ -8,12 +8,12 @@ import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 const DISMISSED_VERSION_KEY = 'bwa_update_nag_dismissed_version';
 
-const STORE_URL = Platform.select({
+export const STORE_URL = Platform.select({
   ios: 'https://apps.apple.com/app/id6793853590',
   android: 'market://details?id=app.bookwithai.app',
   default: '',
 });
-const STORE_URL_FALLBACK = 'https://play.google.com/store/apps/details?id=app.bookwithai.app';
+export const STORE_URL_FALLBACK = 'https://play.google.com/store/apps/details?id=app.bookwithai.app';
 
 // App-wide "a newer version exists" nudge — dismissible, checked once per
 // launch. Fails open (no modal) on any network/parse error so a version-check

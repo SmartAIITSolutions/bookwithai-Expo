@@ -34,7 +34,7 @@ import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { UpdateNagModal } from '@/components/UpdateNagModal';
+import { UpdateNagModal, STORE_URL, STORE_URL_FALLBACK } from '@/components/UpdateNagModal';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import { supabase } from '@/lib/supabase';
@@ -154,6 +154,14 @@ export default function RootLayout() {
           pathname: '/booking/pay-existing',
           params: { bookingId: data.bookingId },
         } as never);
+      }
+      // "Update available" broadcast, sent right after app_version_config is
+      // bumped for this platform -- tapping it goes straight to the store
+      // rather than just opening the app (where the in-app nag only checks
+      // on a cold JS mount, not a background->foreground resume).
+      if (data?.action === 'app_update' && STORE_URL) {
+        const canOpen = await Linking.canOpenURL(STORE_URL);
+        Linking.openURL(canOpen ? STORE_URL : STORE_URL_FALLBACK);
       }
       // Rebook nudge (immediate post-checkout, or the weekly "it's time to
       // book" cron) -- lands on the same booking flow a normal "Book Now"
