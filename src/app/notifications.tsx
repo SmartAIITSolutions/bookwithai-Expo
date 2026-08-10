@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Image, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
@@ -162,7 +162,49 @@ export default function NotificationsScreen() {
   const todayItems = items.filter((n) => isToday(n.created_at));
   const earlierItems = items.filter((n) => !isToday(n.created_at));
 
+  // "Payment needed" gets its own hero treatment instead of the generic
+  // category card -- it's the highest-stakes CTA in the inbox (an
+  // appointment isn't confirmed until this is paid), so it earns a gold
+  // celebratory glow and an embedded Pay Now button rather than blending
+  // in with everything else.
+  function renderBalanceDueCard(item: NotificationItem) {
+    return (
+      <ImageBackground
+        key={item.id}
+        source={require('../../assets/images/notifications/pay-now-card-bg.png')}
+        style={styles.heroCard}
+        imageStyle={styles.heroCardBgImage}>
+        <Pressable onPress={() => handleDelete(item)} style={styles.heroCloseBtn} hitSlop={8}>
+          <Ionicons name="close" size={16} color="rgba(255,255,255,0.7)" />
+        </Pressable>
+        <Pressable onPress={() => handlePress(item)} style={styles.heroTop}>
+          <Image
+            source={require('../../assets/images/notifications/calendar-check-icon.png')}
+            style={styles.heroIconImage}
+          />
+          <View style={styles.heroText}>
+            <Text style={styles.heroTitle}>You're Almost Booked! 🎉</Text>
+            <Text style={styles.heroSubtitle}>Complete your payment to confirm your appointment.</Text>
+            <Text style={styles.heroDetail}>{item.body}</Text>
+          </View>
+        </Pressable>
+        <Text style={styles.heroTime}>{timeAgo(item.created_at)}</Text>
+        <Pressable onPress={() => handlePress(item)} style={styles.heroPayBtn}>
+          <Ionicons name="lock-closed" size={16} color="#09000F" />
+          <Text style={styles.heroPayBtnText}>Pay Now</Text>
+          <Ionicons name="chevron-forward" size={16} color="#09000F" />
+        </Pressable>
+        <Image
+          source={require('../../assets/images/notifications/credit-card-icon.png')}
+          style={styles.heroCardDecoration}
+        />
+      </ImageBackground>
+    );
+  }
+
   function renderCard(item: NotificationItem) {
+    if (item.type === 'balance_due') return renderBalanceDueCard(item);
+
     const category = categoryFor(item.type);
     const style = CATEGORY_STYLES[category];
     const icon = TYPE_ICON[item.type] ?? style.icon;
@@ -318,5 +360,99 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+
+  heroCard: {
+    position: 'relative',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: Spacing.sm,
+    overflow: 'hidden',
+    shadowColor: '#F4D77A',
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  heroCardBgImage: {
+    borderRadius: 24,
+    resizeMode: 'cover',
+  },
+  heroCloseBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    zIndex: 2,
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    paddingRight: 28,
+    zIndex: 1,
+  },
+  heroIconImage: {
+    width: 56,
+    height: 56,
+    resizeMode: 'contain',
+  },
+  heroText: { flex: 1, gap: 4 },
+  heroCardDecoration: {
+    position: 'absolute',
+    width: 84,
+    height: 56,
+    right: 6,
+    top: 62,
+    resizeMode: 'contain',
+    opacity: 0.85,
+    transform: [{ rotate: '-10deg' }],
+    zIndex: -1,
+  },
+  heroTitle: {
+    fontFamily: FontFamily.frauncesBold,
+    fontSize: FontSize.md,
+    color: '#F4D77A',
+    textShadowColor: 'rgba(244,215,122,0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  heroSubtitle: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: FontSize.sm * 1.4,
+  },
+  heroDetail: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+    color: '#C9B8FF',
+    lineHeight: FontSize.sm * 1.4,
+  },
+  heroTime: {
+    fontFamily: FontFamily.sora,
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  heroPayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F4D77A',
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
+  },
+  heroPayBtnText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.base,
+    color: '#09000F',
   },
 });
