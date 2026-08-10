@@ -49,17 +49,27 @@ export async function upsertCustomerProfile(
 // server-side. Never throws into the caller's UI flow on failure; this is a
 // background reconciliation step, not something that should block sign-in
 // or profile saving if the network hiccups.
-export async function linkCustomerIdentity(phone: string, email?: string | null): Promise<void> {
+export async function linkCustomerIdentity(
+  phone: string,
+  email?: string | null
+): Promise<{ linked_count: number; existing_account_detected: boolean }> {
+  const fallback = { linked_count: 0, existing_account_detected: false };
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return;
+  if (!session) return fallback;
   try {
-    await fetch(`${API_BASE}/api/mobile/link-customer-identity`, {
+    const res = await fetch(`${API_BASE}/api/mobile/link-customer-identity`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ phone, email: email ?? undefined }),
     });
+    const json = await res.json();
+    return {
+      linked_count: json.linked_count ?? 0,
+      existing_account_detected: !!json.existing_account_detected,
+    };
   } catch {
     // best-effort -- retried next sign-in via AuthRedirectGate
+    return fallback;
   }
 }
 

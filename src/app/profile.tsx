@@ -128,10 +128,23 @@ export default function ProfileScreen() {
       // Covers a customer adding/changing phone or email later, not just
       // completing the mandatory gate at signup -- a salon's pre-existing
       // record might only match after this edit.
-      linkCustomerIdentity(phone.trim(), email.trim());
+      const linkResult = await linkCustomerIdentity(phone.trim(), email.trim());
       if (isRequired) {
         router.replace('/(tabs)/book' as never);
-      } else {
+      }
+      // This phone/email already belongs to a *different*, already-linked
+      // account -- most often someone who ended up with two accounts (e.g.
+      // Apple Sign-In's private-relay email confused them into signing up
+      // again with their real email). Auto-merging isn't safe here (it'd
+      // mean handing over booking history to whoever claims a phone/email
+      // next), so just point them back to their original account instead
+      // of leaving them stuck on an empty one with no explanation.
+      if (linkResult.existing_account_detected) {
+        Alert.alert(
+          'You may already have an account',
+          "This phone or email is linked to another account of yours. If your bookings or favorites are missing, try signing out and signing back in the same way you did the first time (for example, Sign in with Apple)."
+        );
+      } else if (!isRequired) {
         Alert.alert('Saved', 'Your profile has been updated.');
       }
     } catch (e: any) {
