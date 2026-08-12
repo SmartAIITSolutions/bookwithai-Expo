@@ -203,7 +203,20 @@ export default function ReviewScreen() {
           <Text style={styles.headerTitle}>Review Booking</Text>
           {salonName ? <Text style={styles.headerSub} numberOfLines={1}>{salonName}</Text> : null}
         </View>
-        <View style={styles.backBtn} />
+        <Pressable
+          onPress={() => router.push({
+            pathname: '/booking/staff',
+            params: {
+              salonId, salonSlug, salonName, requireOnlinePayment,
+              serviceIds, serviceNames, totalCents, totalMins,
+              ...(staffId ? { prefillStaffId: staffId } : {}),
+              ...(startsAt ? { prefillStartsAt: startsAt } : {}),
+            },
+          } as never)}
+          style={styles.editBtn}
+          hitSlop={8}>
+          <Text style={styles.editBtnText}>Edit</Text>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView
@@ -329,6 +342,12 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(212,175,55,0.25)',
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  editBtn: { minWidth: 40, height: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.sm },
+  editBtnText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+    color: '#F4D77A',
+  },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: {
     fontFamily: FontFamily.soraSemiBold,
