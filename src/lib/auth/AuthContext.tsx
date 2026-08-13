@@ -58,11 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadProfile(userId: string) {
     latestProfileRequest.current = userId;
+    console.log('[authcontext] loadProfile start', { userId });
 
     const fetchProfile = () =>
       supabase.from('profiles').select('role, client_id').eq('id', userId).maybeSingle();
 
     let { data, error } = await fetchProfile();
+    console.log('[authcontext] loadProfile attempt 1', { data, error: error?.message });
 
     // A failed query or zero rows for an already-authenticated user is
     // almost always a transient RLS/token-refresh race, not a real "no
@@ -76,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error || !data) {
       await new Promise((resolve) => setTimeout(resolve, 400));
       ({ data, error } = await fetchProfile());
+      console.log('[authcontext] loadProfile retry', { data, error: error?.message });
     }
 
     if (latestProfileRequest.current !== userId) {
@@ -90,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // rather than leaving state null/stuck on a cold start where nothing
       // has loaded yet.
       const cached = await getCachedRole(userId);
+      console.log('[authcontext] loadProfile error branch, cache fallback', { cached });
       if (latestProfileRequest.current !== userId) return;
       if (cached) {
         setRole(cached.role);
@@ -109,17 +113,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // signup case, before the profiles-creation trigger commits) --
       // otherwise keep showing their last confirmed role.
       const cached = await getCachedRole(userId);
+      console.log('[authcontext] loadProfile empty-after-retry branch, cache fallback', { cached });
       if (latestProfileRequest.current !== userId) return;
       if (cached) {
         setRole(cached.role);
         setClientId(cached.clientId);
       } else {
+        console.log('[authcontext] no cache either -- defaulting to customer');
         setRole('customer');
         setClientId(null);
       }
       return;
     }
 
+    console.log('[authcontext] loadProfile resolved from DB', { role: data.role });
     setRole(data.role as UserRole);
     setClientId(data.client_id ?? null);
     // Awaited (was previously fire-and-forget) -- a task-killed app soon
@@ -145,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[authcontext] event fired', { event, hasSession: !!session, userId: session?.user?.id });
       // `loading` may already be false from a previous settled auth state --
       // reset it here so consumers (AuthRedirectGate) don't act on a stale
       // `role` while this event's loadProfile() is still in flight. This was
