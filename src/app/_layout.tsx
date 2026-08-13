@@ -1,4 +1,5 @@
 import { Stack, router } from 'expo-router';
+import type { Session } from '@supabase/supabase-js';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
@@ -467,7 +468,26 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     }
 
     // 2. Auth is mandatory — no session, no entry
-    const { data: { session } } = await supabase.auth.getSession();
+    // Deliberately NOT a plain `getSession()` call. On a genuine cold
+    // process start (app fully task-killed, not just backgrounded) on a
+    // real device, `getSession()` can resolve with a restored session
+    // object before the Supabase client has actually finished attaching
+    // that session internally -- real-device AsyncStorage reads are
+    // measurably slower than an emulator's host-backed disk, which is
+    // exactly the gap where this races. The very next authenticated query
+    // (the profiles read below) could then fire a beat too early and go
+    // out effectively unauthenticated, silently returning zero rows. Only
+    // the emulator's near-instant storage I/O ever missed this window,
+    // which is why this never reproduced there. Waiting for the client's
+    // own first auth state event (INITIAL_SESSION, fired once the stored
+    // session has fully settled) instead of racing getSession() + an
+    // immediate query removes that gap at the source.
+    const session = await new Promise<Session | null>((resolve) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        subscription.unsubscribe();
+        resolve(session);
+      });
+    });
     if (!session) {
       router.replace('/auth');
       return;
@@ -496,19 +516,19 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
       .select('role')
       .eq('id', session.user.id)
       .maybeSingle();
-    if (!profile) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+    for (const delayMs of [300, 800] as const) {
+      if (profile) break;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
       ({ data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', session.user.id)
         .maybeSingle());
     }
-    // Still nothing after the retry -- a single 400ms wait isn't always
-    // enough to outlast a token-refresh/RLS race on a real device. Fall
-    // back to this user's last confirmed role (cached by AuthContext on
-    // every successful load) instead of defaulting an existing owner/staff
-    // account into customer tabs.
+    // Still nothing after both retries -- fall back to this user's last
+    // confirmed role (cached by AuthContext on every successful load)
+    // instead of defaulting an existing owner/staff account into customer
+    // tabs.
     let resolvedRole = profile?.role ?? null;
     if (!profile) {
       const cached = await getCachedRole(session.user.id);

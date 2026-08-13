@@ -122,7 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setRole(data.role as UserRole);
     setClientId(data.client_id ?? null);
-    cacheRole(userId, data.role as UserRole, data.client_id ?? null);
+    // Awaited (was previously fire-and-forget) -- a task-killed app soon
+    // after signing in could tear down the JS engine before an unawaited
+    // AsyncStorage write actually flushed, leaving handleSplashDone's
+    // cold-start fallback with nothing to recover to on the very next
+    // launch.
+    await cacheRole(userId, data.role as UserRole, data.client_id ?? null);
   }
 
   useEffect(() => {
