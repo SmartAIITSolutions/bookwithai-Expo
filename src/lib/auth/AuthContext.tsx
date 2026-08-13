@@ -131,23 +131,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Get initial session. Wrapped in try/catch/finally -- this gates the
-    // app's entire initial `loading` state, so if getSession() or
-    // loadProfile() ever throws (a real network failure, not just a
-    // Supabase-shaped {error} response), the whole app would otherwise be
-    // stuck on `loading: true` forever with nothing able to render.
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) await loadProfile(session.user.id);
-      } catch (error) {
-        console.error('AuthContext: initial getSession failed', error);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    // Deliberately NOT a separate direct getSession() call here anymore --
+    // onAuthStateChange (below) always fires its own INITIAL_SESSION event
+    // immediately on subscribe, with the session already fully settled. A
+    // direct getSession() call run in parallel with that subscription was
+    // racing it: both independently resolved a session and both called
+    // loadProfile() for the same user, and whichever one *finished last*
+    // won, silently overwriting a correct 'owner' role with a wrong one if
+    // the second, slightly-slower call hit a transient read failure. This
+    // was the real cause of the "flashes owner UI then flips to customer"
+    // symptom on a real device's cold boot -- having a single source of
+    // truth (this listener) removes the duplicate race entirely.
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
