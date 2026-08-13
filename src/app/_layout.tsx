@@ -350,7 +350,6 @@ function AuthRedirectGate() {
 
   useEffect(() => {
     if (loading) return;
-    console.log('[redirectgate] effect fired', { hasUser: !!user, role, segments: segments.join('/') });
     const onAuthStack = segments[0] === 'auth';
     // The owner sign-up wizard calls supabase.auth.signUp() partway through
     // its own flow (step 3), which establishes a session and makes `user`
@@ -365,7 +364,6 @@ function AuthRedirectGate() {
     if (onOwnerSignupWizard) return;
     if (user && onAuthStack) {
       if (role) {
-        console.log('[redirectgate] routing from auth stack with resolved role', { role, target: roleHome(role) });
         router.replace(roleHome(role) as never);
       } else {
         // `role` can still be null here even though `loading` is false --
@@ -377,7 +375,6 @@ function AuthRedirectGate() {
         // customer tabs before their actual role ever arrived. Prefer their
         // last confirmed role from AsyncStorage over guessing 'customer'.
         getCachedRole(user.id).then((cached) => {
-          console.log('[redirectgate] role was null, cache fallback', { cached, target: roleHome(cached?.role ?? role) });
           router.replace(roleHome(cached?.role ?? role) as never);
         });
       }
@@ -385,7 +382,6 @@ function AuthRedirectGate() {
       // Covers sign-out from any screen -- without this, a signed-out user
       // stays stuck on their last screen until a force-close/reopen
       // triggers the cold-start check in handleSplashDone instead.
-      console.log('[redirectgate] no user, redirecting to /auth');
       router.replace('/auth');
     }
   }, [user, role, loading, segments]);
@@ -492,7 +488,6 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
         resolve(session);
       });
     });
-    console.log('[coldstart] session resolved', { hasSession: !!session, userId: session?.user?.id });
     if (!session) {
       router.replace('/auth');
       return;
@@ -516,21 +511,19 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     // trusting an empty read, same fix as AuthContext.loadProfile. Without
     // this, an owner reopening the app could intermittently land on
     // customer tabs whenever this read raced a token refresh.
-    let { data: profile, error: profileError } = await supabase
+    let { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', session.user.id)
       .maybeSingle();
-    console.log('[coldstart] profile query attempt 1', { profile, error: profileError?.message });
     for (const delayMs of [300, 800] as const) {
       if (profile) break;
       await new Promise((resolve) => setTimeout(resolve, delayMs));
-      ({ data: profile, error: profileError } = await supabase
+      ({ data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', session.user.id)
         .maybeSingle());
-      console.log(`[coldstart] profile query retry (${delayMs}ms)`, { profile, error: profileError?.message });
     }
     // Still nothing after both retries -- fall back to this user's last
     // confirmed role (cached by AuthContext on every successful load)
@@ -539,10 +532,8 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     let resolvedRole = profile?.role ?? null;
     if (!profile) {
       const cached = await getCachedRole(session.user.id);
-      console.log('[coldstart] falling back to cache', { cached });
       if (cached) resolvedRole = cached.role;
     }
-    console.log('[coldstart] final routing decision', { resolvedRole, target: roleHome(resolvedRole) });
     router.replace(roleHome(resolvedRole) as never);
   } catch (error) {
     console.error('handleSplashDone: falling back to /auth after an error', error);
