@@ -3,7 +3,7 @@
  * user has a PIN set up (see /account-security) and biometrics fail or
  * are unavailable.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,6 +17,17 @@ export default function PinEntryScreen() {
   const { role } = useAuth();
   const [pin, setPin] = useState('');
   const [checking, setChecking] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+
+  // Same fix as biometrics.tsx: redirect from a dedicated effect keyed on
+  // the current `role`, not inline in the PIN-verified success branch --
+  // reading `role` from this component's render closure risks the same
+  // stale-value race if verifyPin() ever resolves before AuthContext has.
+  useEffect(() => {
+    if (unlocked && role) {
+      router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
+    }
+  }, [unlocked, role]);
 
   async function handleDigit(d: string) {
     if (checking || pin.length >= 4) return;
@@ -28,7 +39,7 @@ export default function PinEntryScreen() {
       setChecking(false);
       if (ok) {
         notificationSuccess();
-        router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
+        setUnlocked(true);
       } else {
         notificationError();
         setPin('');

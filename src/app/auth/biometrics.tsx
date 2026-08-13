@@ -19,6 +19,7 @@ export default function BiometricsScreen() {
   const { signOut, role } = useAuth();
   const [biometricType, setBiometricType] = useState<'fingerprint' | 'face' | 'none'>('none');
   const [pinAvailable, setPinAvailable] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
 
   useEffect(() => {
     detectBiometricType();
@@ -26,6 +27,27 @@ export default function BiometricsScreen() {
     // Auto-trigger on mount
     handleAuthenticate();
   }, []);
+
+  // Deliberately a separate effect, not decided inline inside
+  // handleAuthenticate() -- that success callback closed over `role` from
+  // this screen's very first render (its own effect above has an empty dep
+  // array), almost always still null at that point since AuthContext
+  // hasn't resolved yet. authenticateAsync() then waits for the actual
+  // Face ID/fingerprint scan -- real hardware, real user time -- so by the
+  // time it resolved, the *real* current role was already 'owner'
+  // elsewhere in the app, but the stale closure still redirected off the
+  // outdated null, silently overwriting an already-correct owner-dashboard
+  // redirect with customer tabs. This was the actual root cause of owner
+  // accounts intermittently landing on customer tabs after unlocking with
+  // biometrics -- only ever reproduced on a real device (an emulator has
+  // no real biometric-scan delay to expose the race), and needed no
+  // elapsed time at all to trigger. Waiting here for both `unlocked` and a
+  // resolved `role` means this always reads the current value.
+  useEffect(() => {
+    if (unlocked && role) {
+      router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
+    }
+  }, [unlocked, role]);
 
   async function detectBiometricType() {
     const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
@@ -46,7 +68,7 @@ export default function BiometricsScreen() {
       });
 
       if (result.success) {
-        router.replace(role === 'owner' ? '/(owner)/dashboard' : '/(tabs)/book');
+        setUnlocked(true);
       }
     } catch (e) {
       // User cancelled or error — stay on screen
