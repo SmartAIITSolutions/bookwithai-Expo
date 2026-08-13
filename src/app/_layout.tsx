@@ -362,7 +362,21 @@ function AuthRedirectGate() {
     const onOwnerSignupWizard = segments[0] === 'auth' && segments[1] === 'owner-signup';
     if (onOwnerSignupWizard) return;
     if (user && onAuthStack) {
-      router.replace(roleHome(role) as never);
+      if (role) {
+        router.replace(roleHome(role) as never);
+      } else {
+        // `role` can still be null here even though `loading` is false --
+        // AuthContext resolves loading/role in separate state updates, so
+        // there's a render in between where a real owner's role hasn't
+        // landed yet. roleHome(null) falls through to customer tabs, which
+        // was the second half of the owner-routing-to-customer bug: this
+        // effect fired on that transient null and sent a real owner to
+        // customer tabs before their actual role ever arrived. Prefer their
+        // last confirmed role from AsyncStorage over guessing 'customer'.
+        getCachedRole(user.id).then((cached) => {
+          router.replace(roleHome(cached?.role ?? role) as never);
+        });
+      }
     } else if (!user && !onAuthStack) {
       // Covers sign-out from any screen -- without this, a signed-out user
       // stays stuck on their last screen until a force-close/reopen

@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       // `loading` may already be false from a previous settled auth state --
       // reset it here so consumers (AuthRedirectGate) don't act on a stale
       // `role` while this event's loadProfile() is still in flight. This was
@@ -154,6 +154,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // but role hadn't been refreshed yet.
       setLoading(true);
       try {
+        // A `SIGNED_OUT`/null-session event with a previously-signed-in user
+        // still on record is treated as suspect, not final. On React Native,
+        // a background/foreground cycle with an overdue token refresh (the
+        // exact gap plugged in supabase.ts) can surface as a transient
+        // SIGNED_OUT before the SDK settles, and blindly trusting it here
+        // wiped `role`, which is the second half of the owner-routing bug:
+        // `_layout.tsx` sees `role === null` and defaults to customer tabs
+        // for the rest of that render. Re-check getSession() once before
+        // accepting the sign-out as real.
+        if (!session && event !== 'INITIAL_SESSION' && latestProfileRequest.current) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const { data: recheck } = await supabase.auth.getSession();
+          session = recheck.session;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
