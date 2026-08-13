@@ -382,6 +382,7 @@ export default function OwnerCalendarScreen() {
             onChanged={reload}
             onFillSlot={openWalkInFor}
             intervalMinutes={gridInterval}
+            onSwipeDate={(direction) => shiftDay(direction === 'next' ? 1 : -1)}
           />
         </View>
       ) : mode === 'month' ? (

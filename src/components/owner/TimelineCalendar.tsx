@@ -41,9 +41,13 @@ interface TimelineCalendarProps {
   // staff may actually be scheduled then.
   onFillSlot?: (startsAt: Date, staffId: string | null, outsideHours?: boolean) => void;
   intervalMinutes?: 15 | 30 | 60;
+  // Swiping the empty grid background (not an appointment block, which has
+  // its own drag gesture) pages a day forward/back, same direction
+  // convention as a page-turn: swipe left to go to the next day.
+  onSwipeDate?: (direction: 'prev' | 'next') => void;
 }
 
-export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60 }: TimelineCalendarProps) {
+export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60, onSwipeDate }: TimelineCalendarProps) {
   const zoom = useSharedValue(1);
   const [committedZoom, setCommittedZoom] = useState(1);
   const { width: screenWidth } = useWindowDimensions();
@@ -94,6 +98,18 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
       runOnJS(setCommittedZoom)(zoom.value);
     });
 
+  // Swipe the empty grid background to page a day forward/back. Each
+  // AppointmentBlock has its own GestureDetector (drag-to-reschedule), so a
+  // swipe that starts on a block never reaches this one -- only swipes over
+  // open grid space page the date.
+  const swipeNextDay = Gesture.Fling().direction(Directions.LEFT).onEnd(() => {
+    if (onSwipeDate) runOnJS(onSwipeDate)('next');
+  });
+  const swipePrevDay = Gesture.Fling().direction(Directions.RIGHT).onEnd(() => {
+    if (onSwipeDate) runOnJS(onSwipeDate)('prev');
+  });
+  const backgroundGesture = Gesture.Race(pinch, swipeNextDay, swipePrevDay);
+
   const labels = hourLabels(gridStart, gridEnd, intervalMinutes);
   const isToday = new Date().toDateString() === date.toDateString();
   // Explicit width for the row of columns, since a horizontal ScrollView's
@@ -132,7 +148,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
         indicator that bypasses RefreshControl/SwipeRefreshLayout entirely)
         -- realtime updates via useOwnerBookings already cover new data
         appearing without a manual pull in the meantime. */}
-    <GestureDetector gesture={pinch}>
+    <GestureDetector gesture={backgroundGesture}>
       {/* The owner tab bar floats over the bottom of the screen (absolute
           position, ~66px + safe-area inset) -- without matching bottom
           padding here, the last hour or two of the 24-hour grid (and the
@@ -309,10 +325,56 @@ function AppointmentBlock({
   const color = isRebookNudgeBooking(booking) ? REBOOK_NUDGE_COLOR : statusColor;
   const action = nextAction(booking);
 
-  async function commitMove(newStartMinutes: number, newColIndex: number) {
+  // Horizontal drag first tries to reassign the block to a different staff
+  // column (existing behavior, multi-column view only). Once the drag goes
+  // past the first/last column, the leftover distance beyond that edge pages
+  // across days instead -- one COLUMN_WIDTH of extra drag = one day, so
+  // holding and continuing to drag right/left keeps advancing. In a
+  // single-column view there's no column to reassign, so the entire
+  // horizontal distance goes straight to day-paging.
+  function finishDrag(translationY: number, translationX: number) {
+    const deltaMinutes = snapMinutes(translationY / pxPerMinute);
+    const totalColUnits = Math.round(translationX / COLUMN_WIDTH);
+    const rawColIndex = colIndex + totalColUnits;
+    const newColIndex = Math.min(columns.length - 1, Math.max(0, rawColIndex));
+    const dayOffset = rawColIndex - newColIndex;
+    const newStartMinutes = Math.max(0, startMin + deltaMinutes);
+    if (deltaMinutes !== 0 || newColIndex !== colIndex || dayOffset !== 0) {
+      confirmMove(newStartMinutes, newColIndex, dayOffset);
+    } else {
+      translateY.value = withSpring(0);
+      translateX.value = withSpring(0);
+    }
+  }
+
+  function confirmMove(newStartMinutes: number, newColIndex: number, dayOffset: number) {
+    const dayBase = new Date(booking.starts_at);
+    dayBase.setHours(0, 0, 0, 0);
+    dayBase.setDate(dayBase.getDate() + dayOffset);
+    const newStart = new Date(dayBase.getTime() + newStartMinutes * 60000);
+    const dateLabel = newStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const timeLabel = newStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+    Alert.alert(
+      'Reschedule appointment?',
+      `Move ${booking.customer?.name ?? 'this appointment'} to ${dateLabel} at ${timeLabel}?`,
+      [
+        {
+          text: 'Ignore', style: 'cancel', onPress: () => {
+            translateY.value = withSpring(0);
+            translateX.value = withSpring(0);
+          },
+        },
+        { text: 'Reschedule', onPress: () => commitMove(newStartMinutes, newColIndex, dayOffset) },
+      ],
+    );
+  }
+
+  async function commitMove(newStartMinutes: number, newColIndex: number, dayOffset: number) {
     const newStaffId = columns[newColIndex]?.id === 'unassigned' ? null : columns[newColIndex]?.id ?? booking.staff_id;
     const dayBase = new Date(booking.starts_at);
     dayBase.setHours(0, 0, 0, 0);
+    dayBase.setDate(dayBase.getDate() + dayOffset);
     const newStart = new Date(dayBase.getTime() + newStartMinutes * 60000);
     const newEnd = new Date(newStart.getTime() + durationMin * 60000);
 
@@ -324,11 +386,11 @@ function AppointmentBlock({
     });
     setBusy(false);
 
+    translateY.value = withSpring(0);
+    translateX.value = withSpring(0);
     if (result.ok) {
       onChanged();
     } else {
-      translateY.value = withSpring(0);
-      translateX.value = withSpring(0);
       Alert.alert('Could not move appointment', result.error);
     }
   }
@@ -357,20 +419,24 @@ function AppointmentBlock({
     .onBegin(() => { dragging.value = true; })
     .onUpdate((e) => {
       translateY.value = e.translationY;
-      translateX.value = columns.length > 1 ? e.translationX : 0;
+      // Tracked unconditionally now (was gated to multi-column views only)
+      // -- horizontal drag also drives day-paging in a single-column view,
+      // where there's no staff column to reassign.
+      translateX.value = e.translationX;
     })
     .onEnd((e) => {
       dragging.value = false;
-      const deltaMinutes = snapMinutes(e.translationY / pxPerMinute);
-      const columnDelta = columns.length > 1 ? Math.round(e.translationX / COLUMN_WIDTH) : 0;
-      const newColIndex = Math.min(columns.length - 1, Math.max(0, colIndex + columnDelta));
-      const newStartMinutes = Math.max(0, startMin + deltaMinutes);
-
-      translateY.value = withSpring(0);
-      translateX.value = withSpring(0);
-      if (deltaMinutes !== 0 || newColIndex !== colIndex) {
-        runOnJS(commitMove)(newStartMinutes, newColIndex);
-      }
+      // Deliberately NOT springing back here -- the block stays exactly
+      // where it was dropped (matching where the Reschedule confirmation
+      // below says it'll land) until the owner actually confirms or
+      // dismisses. confirmMove()'s Ignore button and commitMove() (success
+      // or failure) are what spring it back.
+      // snapMinutes() is a plain JS function, not a worklet -- calling it
+      // directly here (UI thread) throws "Tried to synchronously call a
+      // Remote Function" under the current react-native-worklets runtime.
+      // Do the snap/column math in finishDrag() on the JS thread instead,
+      // same as commitMove() already does.
+      runOnJS(finishDrag)(e.translationY, e.translationX);
     });
 
   const flingRight = Gesture.Fling().direction(Directions.RIGHT).onEnd(() => runOnJS(runSwipeAction)('right'));
