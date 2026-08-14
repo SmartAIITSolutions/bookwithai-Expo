@@ -1,5 +1,6 @@
 import { Stack, router } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
@@ -38,6 +39,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { UpdateNagModal, STORE_URL, STORE_URL_FALLBACK } from '@/components/UpdateNagModal';
 import { AuthProvider, useAuth, getCachedRole } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
+import { queryClient } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
 import { fetchCustomerProfile, isProfileComplete, linkCustomerIdentity } from '@/lib/api/customerProfile';
@@ -281,6 +283,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+    <QueryClientProvider client={queryClient}>
     <BottomSheetModalProvider>
     <AuthProvider>
     <FavoritesProvider>
@@ -335,6 +338,7 @@ export default function RootLayout() {
     </FavoritesProvider>
     </AuthProvider>
     </BottomSheetModalProvider>
+    </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }

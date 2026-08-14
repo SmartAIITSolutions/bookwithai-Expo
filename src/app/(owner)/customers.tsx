@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, FlatList, Pressable, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -68,10 +68,22 @@ export default function OwnerCustomersScreen() {
     setLoadingMore(false);
   }, [loadingMore, hasMore, loading, loadError, page, query]);
 
-  useEffect(() => { load(query); }, [load, query]);
   useEffect(() => {
     getMergeCandidates().then(r => { if (r.ok) setDuplicateGroups(r.data.groups.length); });
   }, []);
+
+  // Covers both "search query changed" and "screen regained focus" in one
+  // place -- tabs stay mounted when you switch away, so without the focus
+  // half of this, revisiting Customers after adding/editing one elsewhere
+  // showed stale data with no signal anything had changed. Deliberately
+  // re-runs the existing `load` (not a React Query migration) to avoid
+  // touching this screen's pagination/search-accumulation logic.
+  useFocusEffect(
+    useCallback(() => {
+      load(query);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [load, query])
+  );
 
   return (
     <View style={styles.container}>

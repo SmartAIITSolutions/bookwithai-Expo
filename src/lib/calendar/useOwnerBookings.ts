@@ -1,24 +1,35 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { listBookingsForDate, OwnerBooking } from '@/lib/api/ownerBookings';
 
-// Fetches a day's bookings, then subscribes to Realtime changes on the
+export function ownerBookingsQueryKey(clientId: string | null, date: string) {
+  return ['owner-bookings', clientId, date] as const;
+}
+
+// Fetches a day's bookings (via React Query, so the same day's data is
+// shared/cached across every screen that asks for it -- Dashboard and
+// Calendar previously each fired their own independent network request for
+// the exact same rows), then subscribes to Realtime changes on the
 // bookings table (scoped to this owner's salon by the bookings_select_own_salon
 // RLS policy) so check-ins, new bookings, or SANAA bookings appear instantly
-// without polling — matches Phase 0.6's "everything updates instantly, no refresh".
+// without polling -- matches Phase 0.6's "everything updates instantly, no
+// refresh".
 export function useOwnerBookings(date: string) {
   const { clientId } = useAuth();
-  const [bookings, setBookings] = useState<OwnerBooking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const queryKey = ownerBookingsQueryKey(clientId, date);
 
-  const reload = useCallback(async () => {
-    const result = await listBookingsForDate(date);
-    if (result.ok) setBookings(result.data.data);
-    setLoading(false);
-  }, [date]);
-
-  useEffect(() => { reload(); }, [reload]);
+  const { data, isLoading, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const result = await listBookingsForDate(date);
+      if (!result.ok) throw new Error(result.error);
+      return result.data.data;
+    },
+    enabled: !!clientId,
+  });
 
   useEffect(() => {
     if (!clientId) return;
@@ -34,12 +45,16 @@ export function useOwnerBookings(date: string) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings', filter: `client_id=eq.${clientId}` },
-        () => reload() // simple, correct refetch-on-change; fine-grained patching can come later
+        // Invalidating (not directly refetching) lets React Query dedupe
+        // this against any other in-flight/queued refetch for the same key
+        // -- e.g. Dashboard and Calendar both mounted at once.
+        () => queryClient.invalidateQueries({ queryKey })
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [clientId, date, reload]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, date]);
 
-  return { bookings, loading, reload };
+  return { bookings: data ?? ([] as OwnerBooking[]), loading: isLoading, reload: refetch };
 }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { DollarSign, Check, X } from 'lucide-react-native';
@@ -19,6 +20,9 @@ import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
 import { dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { groupBackToBackBookings } from '@/lib/calendar/groupBackToBack';
+import { ownerBookingsQueryKey } from '@/lib/calendar/useOwnerBookings';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 const THOUGHTS = [
@@ -94,38 +98,67 @@ function CardOverlay() {
 
 // Phase 0.2 Dashboard — "answer 'Am I okay today?' in under 5 seconds."
 export default function OwnerDashboardScreen() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [todaysBookings, setTodaysBookings] = useState<OwnerBooking[]>([]);
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatusResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { clientId } = useAuth();
   const [healthExpanded, setHealthExpanded] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
-  const [checkinFlowMode, setCheckinFlowMode] = useState<'full' | 'quick'>('full');
-  const [staff, setStaff] = useState<StaffMember[]>([]);
   const sheetRef = useRef<BottomSheetModal>(null);
   const checkoutRef = useRef<CheckoutSheetHandle>(null);
 
   const now = new Date();
   const todayKey = localDateKey(now);
   const dayIndex = now.getDate() % THOUGHTS.length;
+  const queryClient = useQueryClient();
 
-  const load = useCallback(async () => {
-    const [dash, bookings, payment, business, staffResult] = await Promise.all([
-      getDashboard(),
-      listBookingsForDate(todayKey),
-      getPaymentStatusForDate(todayKey),
-      getBusiness(),
-      listStaff(),
-    ]);
-    if (dash.ok) setData(dash.data);
-    if (bookings.ok) setTodaysBookings(bookings.data.data);
-    if (payment.ok) setPaymentStatus(payment.data);
-    if (business.ok) setCheckinFlowMode(business.data.business.checkin_flow_mode ?? 'full');
-    if (staffResult.ok) setStaff(staffResult.data.data);
-    setLoading(false);
-  }, [todayKey]);
+  // Each independently cached/de-duped by React Query. `bookings` shares its
+  // query key with useOwnerBookings (Calendar's hook) -- when both screens
+  // are mounted (tabs stay mounted in this app, so that's the common case
+  // after a first visit), they read the exact same cached data instead of
+  // each firing its own network request for today's bookings.
+  const dashQuery = useQuery({ queryKey: ['owner-dashboard-summary', todayKey], queryFn: async () => {
+    const r = await getDashboard();
+    if (!r.ok) throw new Error(r.error);
+    return r.data;
+  } });
+  const bookingsQuery = useQuery({ queryKey: ownerBookingsQueryKey(clientId, todayKey), queryFn: async () => {
+    const r = await listBookingsForDate(todayKey);
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  }, enabled: !!clientId });
+  const paymentQuery = useQuery({ queryKey: ['owner-payment-status', todayKey], queryFn: async () => {
+    const r = await getPaymentStatusForDate(todayKey);
+    if (!r.ok) throw new Error(r.error);
+    return r.data;
+  } });
+  const businessQuery = useQuery({ queryKey: ['owner-business'], queryFn: async () => {
+    const r = await getBusiness();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.business;
+  } });
+  const staffQuery = useQuery({ queryKey: ['owner-staff'], queryFn: async () => {
+    const r = await listStaff();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
 
-  useEffect(() => { load(); }, [load]);
+  const data = dashQuery.data ?? null;
+  const todaysBookings = bookingsQuery.data ?? [];
+  const paymentStatus = paymentQuery.data ?? null;
+  const checkinFlowMode = businessQuery.data?.checkin_flow_mode ?? 'full';
+  const staff = staffQuery.data ?? [];
+  const loading = dashQuery.isLoading;
+
+  function reloadAll() {
+    queryClient.invalidateQueries({ queryKey: ['owner-dashboard-summary', todayKey] });
+    queryClient.invalidateQueries({ queryKey: ownerBookingsQueryKey(clientId, todayKey) });
+    queryClient.invalidateQueries({ queryKey: ['owner-payment-status', todayKey] });
+    queryClient.invalidateQueries({ queryKey: ['owner-business'] });
+    queryClient.invalidateQueries({ queryKey: ['owner-staff'] });
+  }
+
+  // Tabs stay mounted when you switch away -- without this, revisiting
+  // Dashboard after a while showed whatever was cached at first mount, with
+  // no signal anything was stale.
+  useRefetchOnFocus(reloadAll);
 
   function openBooking(b: OwnerBooking) {
     setSelectedBooking(b);
@@ -239,7 +272,7 @@ export default function OwnerDashboardScreen() {
       <AppointmentSheet
         ref={sheetRef}
         booking={selectedBooking}
-        onChanged={() => { sheetRef.current?.dismiss(); load(); }}
+        onChanged={() => { sheetRef.current?.dismiss(); reloadAll(); }}
         onReadyForCheckout={() => checkoutRef.current?.present()}
         flowMode={checkinFlowMode}
         onOpenDetail={(b) => {
@@ -253,7 +286,7 @@ export default function OwnerDashboardScreen() {
       <CheckoutSheet
         ref={checkoutRef}
         booking={selectedBooking}
-        onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); load(); }}
+        onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); reloadAll(); }}
         staff={staff}
       />
       </View>
@@ -290,15 +323,17 @@ function StatChip({ label, value }: { label: string; value: string }) {
 // future, non-cancelled bookings show here -- past activity belongs to
 // history, not to something still needing attention today.
 function RecentActivity({ bookings, onOpen }: { bookings: OwnerBooking[]; onOpen: (id: string) => void }) {
-  const [items, setItems] = useState<UpcomingActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getUpcomingActivity(6).then(r => {
-      if (r.ok) setItems(r.data.data);
-      setLoading(false);
-    });
-  }, []);
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['owner-recent-activity'],
+    queryFn: async () => {
+      const r = await getUpcomingActivity(6);
+      if (!r.ok) throw new Error(r.error);
+      return r.data.data;
+    },
+  });
+  const items = data ?? [];
+  const loading = isLoading;
+  useRefetchOnFocus(refetch);
 
   const active = bookings.filter(b => b.status !== 'cancelled');
   // Back-to-back multi-service bookings for the same customer are one
