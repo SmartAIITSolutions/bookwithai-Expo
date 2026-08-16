@@ -125,17 +125,26 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       runAction((id) => updateBooking(id, { status: 'confirmed' }));
     }
 
-    async function handleDuplicate() {
+    async function handleDuplicate(overrideConflict = false) {
       setMenuOpen(false);
       if (!booking) return;
       const nextWeekStart = new Date(new Date(booking.starts_at).getTime() + 7 * 86400000);
       const nextWeekEnd = new Date(new Date(booking.ends_at).getTime() + 7 * 86400000);
       setWorking(true);
-      const result = await duplicateBooking(booking.id, nextWeekStart.toISOString(), nextWeekEnd.toISOString());
+      const result = await duplicateBooking(booking.id, nextWeekStart.toISOString(), nextWeekEnd.toISOString(), overrideConflict);
       setWorking(false);
       if (result.ok) {
         Alert.alert('Duplicated', `New appointment created for ${nextWeekStart.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}, same time.`);
         onChanged();
+      } else if (result.code === 'CONFLICT' && !overrideConflict) {
+        Alert.alert(
+          'Time slot is taken',
+          `${booking.staff?.name ?? 'That staff member'} already has an appointment then, next week. Double-book anyway?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Double-Book', style: 'destructive', onPress: () => handleDuplicate(true) },
+          ],
+        );
       } else {
         Alert.alert('Could not duplicate', result.error);
       }
@@ -189,7 +198,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
           {menuOpen && (
             <BlurView intensity={90} tint="dark" style={styles.menu}>
               <CardOverlay />
-              <TouchableOpacity style={styles.menuItem} onPress={handleDuplicate}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => handleDuplicate()}>
                 <Ionicons name="copy-outline" size={16} color="#FFFFFF" />
                 <Text style={styles.menuText}>Duplicate (same time next week)</Text>
               </TouchableOpacity>

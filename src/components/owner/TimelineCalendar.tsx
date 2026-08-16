@@ -45,9 +45,12 @@ interface TimelineCalendarProps {
   // its own drag gesture) pages a day forward/back, same direction
   // convention as a page-turn: swipe left to go to the next day.
   onSwipeDate?: (direction: 'prev' | 'next') => void;
+  // Long-press-then-release-without-dragging on an occupied block --
+  // intentional double-booking (availability-override, Sprint N).
+  onOpenAnother?: (startsAt: Date, staffId: string | null) => void;
 }
 
-export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60, onSwipeDate }: TimelineCalendarProps) {
+export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60, onSwipeDate, onOpenAnother }: TimelineCalendarProps) {
   const zoom = useSharedValue(1);
   const [committedZoom, setCommittedZoom] = useState(1);
   const { width: screenWidth } = useWindowDimensions();
@@ -197,6 +200,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                 {columns.map((col, colIndex) => {
                   const colBookings = bookings.filter(b => columnForBooking(b) === colIndex && b.status !== 'cancelled');
                   const gaps = onFillSlot && !isClosedToday ? findEmptySpaces(colBookings, schedule, 30) : [];
+                  const overlapLayout = layoutOverlaps(colBookings);
                   return (
                     <View key={col.id ?? 'all'} style={{ width: columnWidth, height: totalHeight, borderRightWidth: 1, borderRightColor: P.border }}>
                       {columns.length > 1 && <Text style={styles.columnLabel}>{col.label}</Text>}
@@ -259,18 +263,25 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                           }}
                         />
                       )}
-                      {colBookings.map(b => (
-                        <AppointmentBlock
-                          key={b.id}
-                          booking={b}
-                          gridStart={gridStart}
-                          pxPerMinute={pxPerMinute}
-                          columns={columns}
-                          colIndex={colIndex}
-                          onOpen={() => onOpenBooking(b)}
-                          onChanged={onChanged}
-                        />
-                      ))}
+                      {colBookings.map(b => {
+                        const slot = overlapLayout.get(b.id) ?? { slotIndex: 0, slotCount: 1 };
+                        return (
+                          <AppointmentBlock
+                            key={b.id}
+                            booking={b}
+                            gridStart={gridStart}
+                            pxPerMinute={pxPerMinute}
+                            columns={columns}
+                            colIndex={colIndex}
+                            columnWidth={columnWidth}
+                            slotIndex={slot.slotIndex}
+                            slotCount={slot.slotCount}
+                            onOpen={() => onOpenBooking(b)}
+                            onChanged={onChanged}
+                            onOpenAnother={onOpenAnother}
+                          />
+                        );
+                      })}
                     </View>
                   );
                 })}
@@ -300,21 +311,92 @@ class TimelineErrorBoundary extends Component<{ children: ReactNode }, { error: 
   }
 }
 
+interface OverlapSlot { slotIndex: number; slotCount: number }
+
+// Column-packing layout for same-staff double-bookings (availability-
+// override, Sprint N) -- assigns each overlapping booking a side-by-side
+// slot instead of letting them draw on top of each other. Standard
+// "meeting scheduler" algorithm: sweep bookings in start order, place each
+// in the first column whose last occupant already ended, opening a new
+// column when none are free; a cluster's slotCount is the most columns
+// that were ever simultaneously in use within that connected overlap group
+// (not the whole day's max), reset once no booking is left open.
+function layoutOverlaps(bookings: OwnerBooking[]): Map<string, OverlapSlot> {
+  const layout = new Map<string, OverlapSlot>();
+  const sorted = [...bookings].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+
+  const columnEnds: number[] = [];
+  let cluster: { id: string; colIndex: number }[] = [];
+  let clusterMaxCols = 0;
+  let clusterEndMax = -Infinity;
+
+  function flush() {
+    for (const item of cluster) {
+      layout.set(item.id, { slotIndex: item.colIndex, slotCount: clusterMaxCols });
+    }
+    cluster = [];
+    clusterMaxCols = 0;
+    clusterEndMax = -Infinity;
+  }
+
+  for (const b of sorted) {
+    const startMs = new Date(b.starts_at).getTime();
+    const endMs = new Date(b.ends_at).getTime();
+
+    if (cluster.length > 0 && startMs >= clusterEndMax) {
+      flush();
+      columnEnds.length = 0;
+    }
+
+    let colIndex = columnEnds.findIndex(end => end <= startMs);
+    if (colIndex === -1) { colIndex = columnEnds.length; columnEnds.push(endMs); }
+    else columnEnds[colIndex] = endMs;
+
+    cluster.push({ id: b.id, colIndex });
+    clusterMaxCols = Math.max(clusterMaxCols, columnEnds.length);
+    clusterEndMax = Math.max(clusterEndMax, endMs);
+  }
+  flush();
+
+  return layout;
+}
+
 function RailDot({ top, color }: { top: number; color: string }) {
   return <View style={[styles.railDot, { top: top - 3, backgroundColor: color }]} />;
 }
 
 function AppointmentBlock({
-  booking, gridStart, pxPerMinute, columns, colIndex, onOpen, onChanged,
+  booking, gridStart, pxPerMinute, columns, colIndex, onOpen, onChanged, onOpenAnother,
+  columnWidth, slotIndex = 0, slotCount = 1,
 }: {
   booking: OwnerBooking; gridStart: number; pxPerMinute: number;
   columns: Column[]; colIndex: number; onOpen: () => void; onChanged: () => void;
+  // Long-press-then-release-without-dragging on an occupied block -- the
+  // owner's way to intentionally book a second appointment at this same
+  // slot (availability-override, Sprint N), since the grid's own empty-space
+  // tap targets stop at existing bookings' boundaries.
+  onOpenAnother?: (startsAt: Date, staffId: string | null) => void;
+  // Side-by-side overlap layout (availability-override double-bookings) --
+  // slotCount > 1 splits the column's width evenly; slotIndex picks which
+  // of those slots this block renders in.
+  columnWidth?: number; slotIndex?: number; slotCount?: number;
 }) {
   const startMin = minutesSinceMidnight(booking.starts_at);
   const endMin = minutesSinceMidnight(booking.ends_at);
   const durationMin = Math.max(15, endMin - startMin);
   const baseTop = (startMin - gridStart) * pxPerMinute;
   const height = Math.max(44, durationMin * pxPerMinute); // fits the avatar circle + padding without clipping
+
+  // Overlap slot geometry -- undefined when slotCount is 1 so the block
+  // falls back to the plain full-width `styles.block` (left/right), exactly
+  // as before this feature existed.
+  const overlapStyle = slotCount > 1 && columnWidth
+    ? (() => {
+        const availableWidth = columnWidth - (RAIL_X + 10) - 8;
+        const slotWidth = availableWidth / slotCount;
+        return { left: RAIL_X + 10 + slotIndex * slotWidth, width: Math.max(40, slotWidth - 4), right: undefined };
+      })()
+    : null;
 
   const translateY = useSharedValue(0);
   const translateX = useSharedValue(0);
@@ -344,6 +426,7 @@ function AppointmentBlock({
     } else {
       translateY.value = withSpring(0);
       translateX.value = withSpring(0);
+      if (onOpenAnother) onOpenAnother(new Date(booking.starts_at), booking.staff_id);
     }
   }
 
@@ -370,7 +453,7 @@ function AppointmentBlock({
     );
   }
 
-  async function commitMove(newStartMinutes: number, newColIndex: number, dayOffset: number) {
+  async function commitMove(newStartMinutes: number, newColIndex: number, dayOffset: number, overrideConflict = false) {
     const newStaffId = columns[newColIndex]?.id === 'unassigned' ? null : columns[newColIndex]?.id ?? booking.staff_id;
     const dayBase = new Date(booking.starts_at);
     dayBase.setHours(0, 0, 0, 0);
@@ -383,16 +466,35 @@ function AppointmentBlock({
       starts_at: newStart.toISOString(),
       ends_at: newEnd.toISOString(),
       staff_id: newStaffId,
+      ...(overrideConflict ? { override_conflict: true } : {}),
     });
     setBusy(false);
 
+    if (result.ok) {
+      translateY.value = withSpring(0);
+      translateX.value = withSpring(0);
+      onChanged();
+      return;
+    }
+
+    if (result.code === 'CONFLICT' && !overrideConflict) {
+      // Deliberately not springing back here -- the block stays exactly
+      // where it was dropped until the owner actually decides, matching
+      // confirmMove's own Ignore/Reschedule pattern above.
+      Alert.alert(
+        'Time slot is taken',
+        `${columns[newColIndex]?.label ?? 'That staff member'} already has an appointment then. Double-book anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => { translateY.value = withSpring(0); translateX.value = withSpring(0); } },
+          { text: 'Double-Book', style: 'destructive', onPress: () => commitMove(newStartMinutes, newColIndex, dayOffset, true) },
+        ],
+      );
+      return;
+    }
+
     translateY.value = withSpring(0);
     translateX.value = withSpring(0);
-    if (result.ok) {
-      onChanged();
-    } else {
-      Alert.alert('Could not move appointment', result.error);
-    }
+    Alert.alert('Could not move appointment', result.error);
   }
 
   async function runSwipeAction(direction: 'left' | 'right') {
@@ -460,7 +562,7 @@ function AppointmentBlock({
 
   return (
     <GestureDetector gesture={composed}>
-      <Animated.View style={[styles.block, { top: baseTop, height }, animatedStyle]}>
+      <Animated.View style={[styles.block, { top: baseTop, height }, overlapStyle, animatedStyle]}>
         <View style={[styles.blockAvatar, { borderColor: color }]}>
           <Text style={[styles.blockAvatarText, { color }]}>{initials(booking.customer?.name ?? '?')}</Text>
         </View>

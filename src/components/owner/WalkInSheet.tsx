@@ -35,6 +35,25 @@ interface WalkInSheetProps {
   initialCustomer?: CustomerLite | null;
 }
 
+function TimeStepper({ label, value, onChange, step = 1, pad }: {
+  label: string; value: number; onChange: (v: number) => void; step?: number; pad?: boolean;
+}) {
+  return (
+    <View style={styles.stepper}>
+      <Text style={styles.stepperLabel}>{label}</Text>
+      <View style={styles.stepperControls}>
+        <TouchableOpacity style={styles.stepperBtn} onPress={() => onChange(value - step)}>
+          <Ionicons name="remove" size={14} color="#F4D77A" />
+        </TouchableOpacity>
+        <Text style={styles.stepperValue}>{pad ? String(value).padStart(2, '0') : value}</Text>
+        <TouchableOpacity style={styles.stepperBtn} onPress={() => onChange(value + step)}>
+          <Ionicons name="add" size={14} color="#F4D77A" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 function CardOverlay() {
   return (
     <LinearGradient
@@ -59,6 +78,29 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
     const [services, setServices] = useState<Service[]>([]);
     const [selectedService, setSelectedService] = useState<Service | null>(null);
     const [booking, setBooking] = useState(false);
+
+    // Manual time+staff override (availability-override, Sprint N) -- lets
+    // the owner pick ANY time/staff directly instead of only "earliest
+    // available" or whatever exact slot was tapped. Time-of-day only; the
+    // date always comes from initialTime (or "now" if the sheet was opened
+    // generically), matching this sheet's existing single-day scope --
+    // todaysBookings (used for the client-side conflict check below) is
+    // only ever loaded for that one day.
+    const [manualMode, setManualMode] = useState(false);
+    const [manualHour12, setManualHour12] = useState(12);
+    const [manualMinute, setManualMinute] = useState(0);
+    const [manualAmPm, setManualAmPm] = useState<'AM' | 'PM'>('AM');
+    const [manualStaffId, setManualStaffId] = useState<string | null>(null);
+
+    useEffect(() => {
+      const base = initialTime ?? new Date();
+      const h = base.getHours() % 12;
+      setManualHour12(h === 0 ? 12 : h);
+      setManualMinute(Math.round(base.getMinutes() / 5) * 5 % 60);
+      setManualAmPm(base.getHours() >= 12 ? 'PM' : 'AM');
+      setManualStaffId(initialStaffId ?? null);
+      setManualMode(false);
+    }, [initialTime, initialStaffId]);
 
     // New-customer form -- shown when a search comes back empty, since name,
     // phone, and email are all mandatory for every customer record (matches
@@ -127,7 +169,28 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       return null;
     }
 
-    async function handleBook() {
+    function hasClientConflict(staffId: string | null, start: Date, end: Date) {
+      return todaysBookings.some(b =>
+        b.status !== 'cancelled' &&
+        new Date(b.starts_at) < end && new Date(b.ends_at) > start &&
+        bookingStaffScopesConflictClient(staffId, b.staff_id)
+      );
+    }
+
+    function confirmDoubleBook(startsAt: Date, staffId: string | null) {
+      const staffLabel = staffId ? (staff.find(s => s.id === staffId)?.name ?? 'That staff member') : 'Someone';
+      const timeLabel = startsAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      Alert.alert(
+        'Time slot is taken',
+        `${staffLabel} already has an appointment at ${timeLabel}. Double-book anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Double-Book', style: 'destructive', onPress: () => handleBook(true) },
+        ],
+      );
+    }
+
+    async function handleBook(overrideConflict = false) {
       if (!selectedService) {
         Alert.alert('Pick a service', 'Choose what the walk-in is here for.');
         return;
@@ -138,29 +201,68 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
         return;
       }
 
-      const slot = findEarliestSlot(selectedService.duration_minutes);
-      if (!slot) {
-        setBooking(false);
-        Alert.alert('No chair available', 'Every staff member is busy right now.');
+      let staffId: string | null;
+      let startsAt: Date;
+
+      if (manualMode) {
+        const hour24 = manualAmPm === 'PM' ? (manualHour12 % 12) + 12 : manualHour12 % 12;
+        const dayBase = initialTime ? new Date(initialTime) : new Date();
+        dayBase.setHours(hour24, manualMinute, 0, 0);
+        startsAt = dayBase;
+        staffId = manualStaffId;
+      } else {
+        const slot = findEarliestSlot(selectedService.duration_minutes);
+        if (slot) {
+          staffId = slot.staffId;
+          startsAt = slot.startsAt;
+        } else if (initialTime) {
+          // Every candidate is busy -- but a specific time was targeted (a
+          // tapped slot that got taken out from under this sheet, or the
+          // long-press "book another here" entry point on an
+          // already-occupied block), so fall back to exactly that
+          // time/staff instead of a dead end. First time through, confirm
+          // before proceeding; once confirmed (overrideConflict), actually
+          // use that target for the booking below instead of re-hitting
+          // this same "nothing free" wall a second time.
+          if (!overrideConflict) {
+            confirmDoubleBook(initialTime, initialStaffId ?? null);
+            return;
+          }
+          staffId = initialStaffId ?? null;
+          startsAt = initialTime;
+        } else {
+          setBooking(false);
+          Alert.alert('No chair available', 'Every staff member is busy right now.');
+          return;
+        }
+      }
+
+      const endsAt = new Date(startsAt.getTime() + selectedService.duration_minutes * 60000);
+
+      if (!overrideConflict && hasClientConflict(staffId, startsAt, endsAt)) {
+        confirmDoubleBook(startsAt, staffId);
         return;
       }
 
-      const endsAt = new Date(slot.startsAt.getTime() + selectedService.duration_minutes * 60000);
       setBooking(true);
       const result = await createBooking({
         customer_id: customer.id,
         service_id: selectedService.id,
-        staff_id: slot.staffId,
-        starts_at: slot.startsAt.toISOString(),
+        staff_id: staffId,
+        starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
         source: 'walk_in',
+        override_conflict: overrideConflict || undefined,
       });
       setBooking(false);
 
       if (result.ok) {
         setQuery(''); setSelectedCustomer(null); setSelectedService(null); setResults([]);
         setAddingNew(false); setNewName(''); setNewPhone(''); setNewEmail('');
+        setManualMode(false);
         onBooked();
+      } else if (result.code === 'CONFLICT' && !overrideConflict) {
+        confirmDoubleBook(startsAt, staffId);
       } else if (result.error?.toLowerCase().includes('already booked')) {
         Alert.alert('Just got booked', 'That chair filled up — tap Book again to find the next one.');
       } else {
@@ -287,8 +389,75 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
             </TouchableOpacity>
           ))}
 
-          <TouchableOpacity style={styles.bookButton} onPress={handleBook} disabled={booking}>
-            {booking ? <ActivityIndicator color="#09000F" /> : <Text style={styles.bookButtonText}>Find chair & Book</Text>}
+          <Text style={styles.label}>Time & Staff</Text>
+          <View style={styles.modeToggleRow}>
+            <TouchableOpacity
+              style={[styles.modeChip, !manualMode && styles.modeChipActive]}
+              onPress={() => setManualMode(false)}
+            >
+              <Text style={[styles.modeChipText, !manualMode && styles.modeChipTextActive]}>Earliest available</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeChip, manualMode && styles.modeChipActive]}
+              onPress={() => setManualMode(true)}
+            >
+              <Text style={[styles.modeChipText, manualMode && styles.modeChipTextActive]}>Pick a time</Text>
+            </TouchableOpacity>
+          </View>
+
+          {manualMode && (
+            <View style={styles.manualPickerCard}>
+              <View style={styles.timeStepperRow}>
+                <TimeStepper
+                  label="Hour"
+                  value={manualHour12}
+                  onChange={(v) => setManualHour12(((((v - 1) % 12) + 12) % 12) + 1)}
+                />
+                <Text style={styles.timeColon}>:</Text>
+                <TimeStepper
+                  label="Min"
+                  value={manualMinute}
+                  step={5}
+                  pad
+                  onChange={(v) => setManualMinute(((v % 60) + 60) % 60)}
+                />
+                <View style={styles.ampmToggle}>
+                  {(['AM', 'PM'] as const).map(p => (
+                    <TouchableOpacity
+                      key={p}
+                      style={[styles.ampmChip, manualAmPm === p && styles.ampmChipActive]}
+                      onPress={() => setManualAmPm(p)}
+                    >
+                      <Text style={[styles.ampmChipText, manualAmPm === p && styles.ampmChipTextActive]}>{p}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <Text style={[styles.label, { marginTop: Spacing.sm }]}>Staff</Text>
+              <View style={styles.staffChipRow}>
+                <TouchableOpacity
+                  style={[styles.staffChip, manualStaffId === null && styles.staffChipActive]}
+                  onPress={() => setManualStaffId(null)}
+                >
+                  <Text style={[styles.staffChipText, manualStaffId === null && styles.staffChipTextActive]}>Unassigned</Text>
+                </TouchableOpacity>
+                {staff.map(s => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[styles.staffChip, manualStaffId === s.id && styles.staffChipActive]}
+                    onPress={() => setManualStaffId(s.id)}
+                  >
+                    <Text style={[styles.staffChipText, manualStaffId === s.id && styles.staffChipTextActive]}>{s.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.bookButton} onPress={() => handleBook()} disabled={booking}>
+            {booking
+              ? <ActivityIndicator color="#09000F" />
+              : <Text style={styles.bookButtonText}>{manualMode ? 'Book This Time' : 'Find chair & Book'}</Text>}
           </TouchableOpacity>
         </BottomSheetScrollView>
       </BottomSheetModal>
@@ -355,4 +524,42 @@ const styles = StyleSheet.create({
   serviceMeta: { fontFamily: FontFamily.sora, fontSize: 12.5, color: 'rgba(255,255,255,0.65)' },
   bookButton: { backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.lg },
   bookButtonText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: FontSize.base },
+  modeToggleRow: { flexDirection: 'row', gap: Spacing.xs, marginTop: 4 },
+  modeChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: BorderRadius.sm,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  modeChipActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.12)' },
+  modeChipText: { fontFamily: FontFamily.soraSemiBold, fontSize: 12.5, color: 'rgba(255,255,255,0.6)' },
+  modeChipTextActive: { color: '#F4D77A' },
+  manualPickerCard: {
+    marginTop: Spacing.sm, padding: Spacing.sm, borderRadius: BorderRadius.sm,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)', backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  timeStepperRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  timeColon: { fontFamily: FontFamily.soraSemiBold, fontSize: 18, color: '#FFFFFF', paddingBottom: 8 },
+  stepper: { alignItems: 'center' },
+  stepperLabel: { fontFamily: FontFamily.sora, fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 2 },
+  stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepperBtn: {
+    width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: 'rgba(212,175,55,0.08)',
+  },
+  stepperValue: { fontFamily: FontFamily.soraSemiBold, fontSize: 16, color: '#FFFFFF', minWidth: 24, textAlign: 'center' },
+  ampmToggle: { flexDirection: 'row', gap: 4, marginLeft: 4 },
+  ampmChip: {
+    paddingHorizontal: 9, paddingVertical: 6, borderRadius: BorderRadius.sm,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  ampmChipActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.12)' },
+  ampmChipText: { fontFamily: FontFamily.soraSemiBold, fontSize: 11.5, color: 'rgba(255,255,255,0.6)' },
+  ampmChipTextActive: { color: '#F4D77A' },
+  staffChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  staffChip: {
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: BorderRadius.full,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)', backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  staffChipActive: { borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.12)' },
+  staffChipText: { fontFamily: FontFamily.sora, fontSize: 12, color: 'rgba(255,255,255,0.6)' },
+  staffChipTextActive: { fontFamily: FontFamily.soraSemiBold, color: '#F4D77A' },
 });

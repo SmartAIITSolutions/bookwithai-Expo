@@ -85,6 +85,9 @@ export async function getUpcomingActivity(limit = 6) {
 export async function createBooking(body: {
   customer_id: string; service_id: string; staff_id?: string | null;
   starts_at: string; ends_at: string; source?: 'manual' | 'walk_in';
+  // Set once the owner has explicitly confirmed a "double-book anyway?"
+  // prompt -- skips the server's staff-conflict check for this request only.
+  override_conflict?: boolean;
 }) {
   return ownerFetch('/api/owner/bookings', { method: 'POST', body });
 }
@@ -94,6 +97,7 @@ export async function updateBooking(id: string, patch: Partial<{
   status: string; internal_notes: string | null;
   service_line_ids: string[] | null; price_cents: number | null;
   checked_in_at: string | null; service_started_at: string | null; service_completed_at: string | null;
+  override_conflict: boolean;
 }>) {
   return ownerFetch(`/api/owner/bookings/${id}`, { method: 'PATCH', body: patch });
 }
@@ -114,8 +118,8 @@ export function markNoShow(id: string) {
   return ownerFetch(`/api/owner/bookings/${id}/no-show`, { method: 'POST' });
 }
 
-export function duplicateBooking(id: string, starts_at: string, ends_at: string) {
-  return ownerFetch(`/api/owner/bookings/${id}/duplicate`, { method: 'POST', body: { starts_at, ends_at } });
+export function duplicateBooking(id: string, starts_at: string, ends_at: string, overrideConflict?: boolean) {
+  return ownerFetch(`/api/owner/bookings/${id}/duplicate`, { method: 'POST', body: { starts_at, ends_at, override_conflict: overrideConflict } });
 }
 
 export function setBookingLocked(id: string, locked: boolean) {

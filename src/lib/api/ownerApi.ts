@@ -15,7 +15,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
 export async function ownerFetch<T>(
   path: string,
   options: { method?: string; body?: unknown } = {}
-): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+): Promise<{ ok: true; data: T } | { ok: false; error: string; code?: string }> {
   // The whole body is wrapped in try/catch so this function always resolves
   // to the documented { ok: true | false } shape, never rejects -- callers
   // across the app assume that contract (e.g. `getX().then(r => { ...;
@@ -32,7 +32,7 @@ export async function ownerFetch<T>(
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: json.error || 'Something went wrong.' };
+    if (!res.ok) return { ok: false, error: json.error || 'Something went wrong.', code: json.code };
     return { ok: true, data: json as T };
   } catch {
     return { ok: false, error: 'Unable to connect. Please check your connection and try again.' };
