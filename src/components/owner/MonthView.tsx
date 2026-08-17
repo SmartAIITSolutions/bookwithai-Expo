@@ -1,58 +1,105 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
+} from 'react-native-reanimated';
 import { getMonthSummary } from '@/lib/api/ownerCalendarSummary';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
 import { WeekSchedule, dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+
+const PULL_THRESHOLD = 60;
+const PULL_MAX = 90;
 
 interface MonthViewProps {
   month: Date; // any date within the target month
   weekSchedule: WeekSchedule | null;
   onOpenBooking: (b: OwnerBooking) => void;
-  onViewFullDay: (d: Date) => void; // "N Open Slots — tap to view" -> switches to Day mode
+  onViewFullDay: (d: Date) => void; // tapping a day cell -> switches to Day mode
+  // Swiping the grid pages by a full month -- same left-to-go-forward/
+  // right-to-go-back convention as Day view's own swipe.
+  onSwipeDate?: (direction: 'prev' | 'next') => void;
 }
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const DOUBLE_TAP_MS = 300;
 
 // One of Phase 0.3's six calendar modes — "for planning only, never the
-// default, never used for daily operations." Tapping a day selects it and
-// shows an inline summary below the grid; only the summary's own
-// "Open Slots — tap to view" action jumps into the full Day view.
-export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }: MonthViewProps) {
+// default, never used for daily operations." Tapping a day jumps straight
+// into Day view for that date; the inline summary below the grid always
+// reflects whichever date was tapped most recently (or today, on first
+// load) as an at-a-glance preview.
+export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, onSwipeDate }: MonthViewProps) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [dayBookings, setDayBookings] = useState<OwnerBooking[]>([]);
   const [loadingDay, setLoadingDay] = useState(true);
-  const lastTapRef = useRef<{ key: string; time: number } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // Same hand-rolled pull-to-refresh as TimelineCalendar/MultiDayView --
+  // this screen never scrolls at all (fixed grid + summary card), so
+  // there's no scrollY to gate on: any downward drag counts as a pull.
+  const pullY = useSharedValue(0);
 
-  function handleCellPress(d: Date, key: string) {
-    const now = Date.now();
-    if (lastTapRef.current?.key === key && now - lastTapRef.current.time < DOUBLE_TAP_MS) {
-      lastTapRef.current = null;
-      onViewFullDay(d);
-      return;
-    }
-    lastTapRef.current = { key, time: now };
+  function handleCellPress(d: Date) {
     setSelectedDate(d);
+    onViewFullDay(d);
   }
 
   const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
 
+  async function loadMonth() {
+    const r = await getMonthSummary(monthKey);
+    if (r.ok) setCounts(r.data.counts);
+  }
+
+  async function loadDay() {
+    setLoadingDay(true);
+    const key = localDateKey(selectedDate);
+    const r = await listBookingsForDate(key);
+    if (r.ok) setDayBookings(r.data.data.filter(b => b.status !== 'cancelled'));
+    setLoadingDay(false);
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await Promise.all([loadMonth(), loadDay()]);
+    setRefreshing(false);
+  }
+
+  const swipeNext = Gesture.Fling().direction(Directions.LEFT).onEnd(() => {
+    if (onSwipeDate) runOnJS(onSwipeDate)('next');
+  });
+  const swipePrev = Gesture.Fling().direction(Directions.RIGHT).onEnd(() => {
+    if (onSwipeDate) runOnJS(onSwipeDate)('prev');
+  });
+  const pullGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      pullY.value = e.translationY > 0 ? Math.min(e.translationY * 0.5, PULL_MAX) : 0;
+    })
+    .onEnd(() => {
+      if (pullY.value > PULL_THRESHOLD) {
+        runOnJS(handleRefresh)();
+      }
+      pullY.value = withSpring(0);
+    });
+  const pullIndicatorStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(pullY.value, [0, PULL_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(pullY.value, [0, PULL_THRESHOLD], [0.6, 1], Extrapolation.CLAMP) }],
+  }));
+  const swipeGesture = Gesture.Race(swipeNext, swipePrev, pullGesture);
+
   useEffect(() => {
-    getMonthSummary(monthKey).then(r => { if (r.ok) setCounts(r.data.counts); });
+    loadMonth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthKey]);
 
   useEffect(() => {
-    setLoadingDay(true);
-    const key = localDateKey(selectedDate);
-    listBookingsForDate(key).then(r => {
-      if (r.ok) setDayBookings(r.data.data.filter(b => b.status !== 'cancelled'));
-      setLoadingDay(false);
-    });
+    loadDay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
   const firstOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -71,6 +118,16 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
   const sortedBookings = [...dayBookings].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
 
   return (
+    <GestureDetector gesture={swipeGesture}>
+    <View style={{ flex: 1 }}>
+    <Animated.View style={[styles.pullIndicator, pullIndicatorStyle]} pointerEvents="none">
+      <BreathingHeart size={26} color={P.accentGold} />
+    </Animated.View>
+    {refreshing && (
+      <View style={styles.pullIndicator} pointerEvents="none">
+        <BreathingHeart size={26} color={P.accentGold} />
+      </View>
+    )}
     <View style={styles.container}>
       <View style={styles.weekdayRow}>
         {WEEKDAYS.map((d) => <Text key={d} style={styles.weekdayLabel}>{d}</Text>)}
@@ -83,7 +140,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
           const isToday = key === todayKey;
           const isSelected = key === selectedKey;
           return (
-            <Pressable key={i} style={styles.cell} onPress={() => handleCellPress(d, key)}>
+            <Pressable key={i} style={styles.cell} onPress={() => handleCellPress(d)}>
               <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
                 <Text style={[styles.dayNumber, isToday && !isSelected && styles.dayNumberToday, isSelected && styles.dayNumberSelected]}>
                   {d.getDate()}
@@ -138,10 +195,16 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
         )}
       </View>
     </View>
+    </View>
+    </GestureDetector>
   );
 }
 
 const styles = StyleSheet.create({
+  pullIndicator: {
+    position: 'absolute', top: 10, left: 0, right: 0,
+    alignItems: 'center', zIndex: 20,
+  },
   container: { padding: Spacing.lg, gap: Spacing.md },
   weekdayRow: { flexDirection: 'row' },
   weekdayLabel: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 10.5, color: P.textDisabled, fontWeight: '700', letterSpacing: 0.5 },

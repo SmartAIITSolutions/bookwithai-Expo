@@ -2,15 +2,19 @@ import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
 import Animated, {
-  useSharedValue, useAnimatedStyle, runOnJS, withSpring,
+  useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
 } from 'react-native-reanimated';
 import { OwnerBooking, updateBooking, checkIn, startService, completeService, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { StaffMember } from '@/lib/api/ownerStaff';
 import { bookingStatusColor, nextAction, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { WeekSchedule, dayScheduleFor, minutesSinceMidnight, hourLabels, snapMinutes } from '@/lib/calendar/timeGrid';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+
+const PULL_THRESHOLD = 60;
+const PULL_MAX = 90;
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -55,6 +59,42 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   const [committedZoom, setCommittedZoom] = useState(1);
   const { width: screenWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // Pull-to-refresh, hand-rolled -- native <RefreshControl> doesn't fire at
+  // all on this screen (confirmed live: pulling down produces zero
+  // network activity) because this whole grid is already wrapped in a
+  // GestureDetector for pinch-zoom and day-paging swipes, and RNGH's
+  // gesture system intercepting the touch stream ahead of the native
+  // ScrollView starves SwipeRefreshLayout of the raw events it needs.
+  // Tracking scrollY ourselves and adding one more gesture to the same
+  // Race sidesteps the conflict instead of fighting two touch systems.
+  const scrollY = useSharedValue(0);
+  const pullY = useSharedValue(0);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await onChanged();
+    setRefreshing(false);
+  }
+
+  const pullGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      if (scrollY.value <= 2 && e.translationY > 0) {
+        pullY.value = Math.min(e.translationY * 0.5, PULL_MAX);
+      } else {
+        pullY.value = 0;
+      }
+    })
+    .onEnd(() => {
+      if (pullY.value > PULL_THRESHOLD) {
+        runOnJS(handleRefresh)();
+      }
+      pullY.value = withSpring(0);
+    });
+  const pullIndicatorStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(pullY.value, [0, PULL_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(pullY.value, [0, PULL_THRESHOLD], [0.6, 1], Extrapolation.CLAMP) }],
+  }));
 
   const schedule = dayScheduleFor(weekSchedule, date);
   // Full 24 hours, always -- hours outside business hours render as the
@@ -111,7 +151,11 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   const swipePrevDay = Gesture.Fling().direction(Directions.RIGHT).onEnd(() => {
     if (onSwipeDate) runOnJS(onSwipeDate)('prev');
   });
-  const backgroundGesture = Gesture.Race(pinch, swipeNextDay, swipePrevDay);
+  // Runs alongside (not instead of) the ScrollView's own native scroll --
+  // without this, RNGH would claim the touch for pullGesture and block
+  // ordinary scrolling entirely.
+  const pullGestureWithScroll = pullGesture.simultaneousWithExternalGesture(scrollRef as never);
+  const backgroundGesture = Gesture.Race(pinch, swipeNextDay, swipePrevDay, pullGestureWithScroll);
 
   const labels = hourLabels(gridStart, gridEnd, intervalMinutes);
   const isToday = new Date().toDateString() === date.toDateString();
@@ -141,23 +185,28 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
 
   return (
     <TimelineErrorBoundary>
-    {/* No RefreshControl here -- three distinct configurations (direct on
-        this ScrollView, with an explicit contentContainerStyle height, and
-        nested inside an outer flexGrow ScrollView) all broke rendering of
-        this absolute-positioned hour-grid content on this Android setup.
-        MultiDayView has the identical grid pattern and simply never uses
-        RefreshControl, which is why it's unaffected. Revisit only with a
-        genuinely different mechanism (e.g. a custom Pan-gesture pull
-        indicator that bypasses RefreshControl/SwipeRefreshLayout entirely)
-        -- realtime updates via useOwnerBookings already cover new data
-        appearing without a manual pull in the meantime. */}
     <GestureDetector gesture={backgroundGesture}>
       {/* The owner tab bar floats over the bottom of the screen (absolute
           position, ~66px + safe-area inset) -- without matching bottom
           padding here, the last hour or two of the 24-hour grid (and the
           live "now" line, whenever it's evening) render underneath it,
           scrolled-to but invisible/untappable. */}
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }}>
+      <View style={{ flex: 1 }}>
+      <Animated.View style={[styles.pullIndicator, pullIndicatorStyle]} pointerEvents="none">
+        <BreathingHeart size={26} color={P.accentGold} />
+      </Animated.View>
+      {refreshing && (
+        <View style={styles.pullIndicator} pointerEvents="none">
+          <BreathingHeart size={26} color={P.accentGold} />
+        </View>
+      )}
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 110 }}
+        onScroll={(e) => { scrollY.value = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
+      >
         {/* Wrapping gutter + the horizontal ScrollView in a plain row View,
             the outer ScrollView's single child, gives that row a real
             bounded width (the screen width) to lay out against -- same
@@ -290,6 +339,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
           </ScrollView>
         </View>
       </ScrollView>
+      </View>
     </GestureDetector>
     </TimelineErrorBoundary>
   );
@@ -622,6 +672,10 @@ function ClosedSlotBlock({ top, height, gridStart, pxPerMinute, onPressAt }: {
 }
 
 const styles = StyleSheet.create({
+  pullIndicator: {
+    position: 'absolute', top: 10, left: 0, right: 0,
+    alignItems: 'center', zIndex: 20,
+  },
   hourLabel: { position: 'absolute', fontSize: 12, fontWeight: '700', color: P.textSecondary, right: 6, width: TIME_GUTTER - 6, textAlign: 'right' },
   gridBackground: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: P.border },

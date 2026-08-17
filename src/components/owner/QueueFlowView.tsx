@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OwnerBooking, checkIn, startService, completeService, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
+import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 
@@ -37,10 +38,17 @@ function waitMinutes(since: string): number {
 export function QueueFlowView({ bookings, onOpen, onReadyForCheckout, onChanged, onAddWalkIn }: QueueFlowViewProps) {
   const [, forceTick] = useState(0);
   const [working, setWorking] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   // Guards against re-firing the auto-check-in PATCH for the same booking
   // more than once while waiting for the parent's `bookings` prop to
   // refresh and reflect the change.
   const autoCheckedIn = useRef<Set<string>>(new Set());
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await onChanged();
+    setRefreshing(false);
+  }
 
   useEffect(() => {
     const interval = setInterval(() => forceTick(t => t + 1), 30000);
@@ -83,7 +91,13 @@ export function QueueFlowView({ bookings, onOpen, onReadyForCheckout, onChanged,
   const readyToPay = active.filter(b => b.service_completed_at);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <View style={{ flex: 1 }}>
+    <RefreshHeartOverlay refreshing={refreshing} />
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+    >
       <TouchableOpacity style={styles.addWalkInButton} onPress={onAddWalkIn}>
         <Ionicons name="add" size={16} color="#09000F" />
         <Text style={styles.addWalkInText}>Add Walk-in</Text>
@@ -131,6 +145,7 @@ export function QueueFlowView({ bookings, onOpen, onReadyForCheckout, onChanged,
         ))}
       </Bucket>
     </ScrollView>
+    </View>
   );
 }
 

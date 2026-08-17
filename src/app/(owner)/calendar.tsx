@@ -178,6 +178,8 @@ export default function OwnerCalendarScreen() {
   function shiftView(delta: number) {
     if (mode === 'week') {
       shiftDay(delta * 7);
+    } else if (mode === '3day') {
+      shiftDay(delta * 3);
     } else if (mode === 'month') {
       const next = new Date(date);
       next.setDate(1); // avoid month-end rollover (e.g. Jan 31 + 1 month skipping to March)
@@ -190,6 +192,7 @@ export default function OwnerCalendarScreen() {
 
   const navLabels =
     mode === 'week' ? { prev: '← Last week', next: 'Next week →' } :
+    mode === '3day' ? { prev: '← Previous 3 days', next: 'Next 3 days →' } :
     mode === 'month' ? { prev: '← Last month', next: 'Next month →' } :
     { prev: '← Yesterday', next: 'Tomorrow →' };
 
@@ -270,10 +273,20 @@ export default function OwnerCalendarScreen() {
   const isToday = toDateKey(new Date()) === dateKey;
   const schedule = business ? dayScheduleFor(business.week_schedule, date) : null;
 
+  function handleModePress(key: CalendarMode) {
+    // "Today" is really just this mode switcher's chip for Day view -- its
+    // label promises the actual current date, but switching modes alone
+    // never touched `date`, so wandering off into Month/Week and tapping
+    // back to "Today" landed on whatever date was last viewed there
+    // instead of resetting to today.
+    if (key === 'agenda') setDate(new Date());
+    setMode(key);
+  }
+
   const chipRow = (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modeRow} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 6, alignItems: 'center' }}>
       {MODES.map(m => (
-        <Pressable key={m.key} style={[styles.modeChip, mode === m.key && styles.modeChipActive]} onPress={() => setMode(m.key)}>
+        <Pressable key={m.key} style={[styles.modeChip, mode === m.key && styles.modeChipActive]} onPress={() => handleModePress(m.key)}>
           <Text style={[styles.modeChipText, mode === m.key && styles.modeChipTextActive]}>{m.label}</Text>
         </Pressable>
       ))}
@@ -387,15 +400,41 @@ export default function OwnerCalendarScreen() {
           />
         </View>
       ) : mode === 'month' ? (
-        <MonthView month={date} weekSchedule={business.week_schedule} onOpenBooking={openBooking} onViewFullDay={handleViewFullDay} />
+        <MonthView
+          month={date}
+          weekSchedule={business.week_schedule}
+          onOpenBooking={openBooking}
+          onViewFullDay={handleViewFullDay}
+          onSwipeDate={(direction) => shiftView(direction === 'next' ? 1 : -1)}
+        />
       ) : mode === '3day' ? (
         // Option B: same opaque grid panel as Today, but the chrome row
         // above got the glass treatment instead (see the merged chip row).
         <View style={styles.opaqueGridPanel}>
-          <MultiDayView startDate={date} numDays={3} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} onViewFullDay={handleViewFullDay} intervalMinutes={gridInterval} />
+          <MultiDayView
+            startDate={date}
+            numDays={3}
+            weekSchedule={business.week_schedule}
+            selectedStaffId={selectedStaffId}
+            onOpen={openBooking}
+            onFillSlot={handleFillSlotOnDate}
+            onViewFullDay={handleViewFullDay}
+            intervalMinutes={gridInterval}
+            onSwipeDate={(direction) => shiftView(direction === 'next' ? 1 : -1)}
+          />
         </View>
       ) : (
-        <MultiDayView startDate={date} numDays={7} weekSchedule={business.week_schedule} selectedStaffId={selectedStaffId} onOpen={openBooking} onFillSlot={handleFillSlotOnDate} onViewFullDay={handleViewFullDay} intervalMinutes={gridInterval} />
+        <MultiDayView
+          startDate={date}
+          numDays={7}
+          weekSchedule={business.week_schedule}
+          selectedStaffId={selectedStaffId}
+          onOpen={openBooking}
+          onFillSlot={handleFillSlotOnDate}
+          onViewFullDay={handleViewFullDay}
+          intervalMinutes={gridInterval}
+          onSwipeDate={(direction) => shiftView(direction === 'next' ? 1 : -1)}
+        />
       )}
 
       <AppointmentSheet

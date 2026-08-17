@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
+} from 'react-native-reanimated';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
 import { WeekSchedule, dayScheduleFor, gridBoundsMinutes, minutesSinceMidnight, hourLabels, localDateKey, snapMinutes } from '@/lib/calendar/timeGrid';
+import { BreathingHeart } from '@/components/BreathingHeart';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+
+const PULL_THRESHOLD = 60;
+const PULL_MAX = 90;
 
 interface MultiDayViewProps {
   startDate: Date;
@@ -19,14 +27,16 @@ interface MultiDayViewProps {
   // landed in the closed-hours fringe (or a fully closed day) -- still
   // bookable, just flagged so the caller can warn no staff may be scheduled.
   onFillSlot: (date: Date, outsideHours?: boolean) => void;
-  // Double-tapping a day's header column jumps into Day view for that date
-  // -- lets an owner pick a time or see the schedule clearly without the
-  // 3-Day/Week columns' cramped, non-interactive block layout.
+  // Tapping a day's header column jumps into Day view for that date -- lets
+  // an owner pick a time or see the schedule clearly without the 3-Day/Week
+  // columns' cramped, non-interactive block layout.
   onViewFullDay?: (d: Date) => void;
   intervalMinutes?: 15 | 30 | 60;
+  // Swiping the grid pages by a full numDays block (3-Day pages by 3 days,
+  // Week by 7) -- same left-to-go-forward/right-to-go-back convention as
+  // Day view's own swipe.
+  onSwipeDate?: (direction: 'prev' | 'next') => void;
 }
-
-const DOUBLE_TAP_MS = 300;
 
 const TIME_GUTTER = 40;
 const HOUR_HEIGHT = 56;
@@ -79,19 +89,19 @@ function assignLanes(bookings: OwnerBooking[]): Lane[] {
 // screen at once (Option 3 in the reference mockup), so overlapping
 // appointments (only possible with "All" staff selected, since one staff
 // member can't double-book) collapse to initials-only capsules to fit.
-export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId, onOpen, onFillSlot, onViewFullDay, intervalMinutes = 60 }: MultiDayViewProps) {
+export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId, onOpen, onFillSlot, onViewFullDay, onSwipeDate, intervalMinutes = 60 }: MultiDayViewProps) {
   const [byDay, setByDay] = useState<Record<string, OwnerBooking[]>>({});
   const { width: screenWidth } = useWindowDimensions();
-  const lastHeaderTapRef = useRef<{ key: string; time: number } | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // Same hand-rolled pull-to-refresh as TimelineCalendar, for the same
+  // reason -- native <RefreshControl> doesn't fire while this grid is
+  // wrapped in a GestureDetector for day-paging swipes.
+  const scrollY = useSharedValue(0);
+  const pullY = useSharedValue(0);
 
-  function handleHeaderPress(d: Date, key: string) {
-    const now = Date.now();
-    if (lastHeaderTapRef.current?.key === key && now - lastHeaderTapRef.current.time < DOUBLE_TAP_MS) {
-      lastHeaderTapRef.current = null;
-      onViewFullDay?.(d);
-      return;
-    }
-    lastHeaderTapRef.current = { key, time: now };
+  function handleHeaderPress(d: Date) {
+    onViewFullDay?.(d);
   }
 
   const dates = Array.from({ length: numDays }, (_, i) => {
@@ -100,12 +110,48 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
     return d;
   });
 
+  async function load() {
+    const results = await Promise.all(dates.map(d => listBookingsForDate(localDateKey(d))));
+    const map: Record<string, OwnerBooking[]> = {};
+    results.forEach((r, i) => { if (r.ok) map[localDateKey(dates[i])] = r.data.data; });
+    setByDay(map);
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  const swipeNext = Gesture.Fling().direction(Directions.LEFT).onEnd(() => {
+    if (onSwipeDate) runOnJS(onSwipeDate)('next');
+  });
+  const swipePrev = Gesture.Fling().direction(Directions.RIGHT).onEnd(() => {
+    if (onSwipeDate) runOnJS(onSwipeDate)('prev');
+  });
+  const pullGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      if (scrollY.value <= 2 && e.translationY > 0) {
+        pullY.value = Math.min(e.translationY * 0.5, PULL_MAX);
+      } else {
+        pullY.value = 0;
+      }
+    })
+    .onEnd(() => {
+      if (pullY.value > PULL_THRESHOLD) {
+        runOnJS(handleRefresh)();
+      }
+      pullY.value = withSpring(0);
+    })
+    .simultaneousWithExternalGesture(scrollRef as never);
+  const pullIndicatorStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(pullY.value, [0, PULL_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(pullY.value, [0, PULL_THRESHOLD], [0.6, 1], Extrapolation.CLAMP) }],
+  }));
+  const swipeGesture = Gesture.Race(swipeNext, swipePrev, pullGesture);
+
   useEffect(() => {
-    Promise.all(dates.map(d => listBookingsForDate(localDateKey(d)))).then(results => {
-      const map: Record<string, OwnerBooking[]> = {};
-      results.forEach((r, i) => { if (r.ok) map[localDateKey(dates[i])] = r.data.data; });
-      setByDay(map);
-    });
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate.toDateString(), numDays]);
 
@@ -150,7 +196,7 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
         const closedBottomHeight = isClosed ? 0 : Math.max(0, gridEnd - schedules[di].end * 60) * pxPerMinute;
         return (
           <View key={key} style={[styles.column, { width: columnWidth }]}>
-            <Pressable style={styles.columnHeader} onPress={() => handleHeaderPress(d, key)}>
+            <Pressable style={styles.columnHeader} onPress={() => handleHeaderPress(d)}>
               <Text style={[styles.columnHeaderDow, isToday && styles.columnHeaderTextToday]}>
                 {d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
               </Text>
@@ -261,34 +307,52 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
   );
 
   return (
-    // The owner tab bar floats over the bottom of the screen (absolute
-    // position, ~66px + safe-area inset) -- without matching bottom
-    // padding here, the last hour or two of the day render underneath it,
-    // scrolled-to but invisible/untappable.
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }}>
-      <View style={{ flexDirection: 'row' }}>
-        <View style={{ width: TIME_GUTTER, height: totalHeight + 40 }}>
-          <View style={{ height: 40 }} />
-          {/* Each day column's grid starts 40px down (after its own header
-              row) -- these labels need that same 40px pushed in front of
-              them via this wrapper, since `position: absolute` positions
-              relative to THIS View's own top, not the page, and would
-              otherwise ignore the spacer above and line up 40px too high
-              against the actual gridlines/appointments. */}
-          <View style={{ height: totalHeight }}>
-            {labels.map(l => (
-              <Text key={l.minutes} style={[styles.hourLabel, { top: (l.minutes - gridStart) * pxPerMinute - 6 }]}>{l.label}</Text>
-            ))}
-          </View>
+    <GestureDetector gesture={swipeGesture}>
+      <View style={{ flex: 1 }}>
+      <Animated.View style={[styles.pullIndicator, pullIndicatorStyle]} pointerEvents="none">
+        <BreathingHeart size={26} color={P.accentGold} />
+      </Animated.View>
+      {refreshing && (
+        <View style={styles.pullIndicator} pointerEvents="none">
+          <BreathingHeart size={26} color={P.accentGold} />
         </View>
+      )}
+      {/* The owner tab bar floats over the bottom of the screen (absolute
+          position, ~66px + safe-area inset) -- without matching bottom
+          padding here, the last hour or two of the day render underneath it,
+          scrolled-to but invisible/untappable. */}
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 110 }}
+        onScroll={(e) => { scrollY.value = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
+      >
+        <View style={{ flexDirection: 'row' }}>
+          <View style={{ width: TIME_GUTTER, height: totalHeight + 40 }}>
+            <View style={{ height: 40 }} />
+            {/* Each day column's grid starts 40px down (after its own header
+                row) -- these labels need that same 40px pushed in front of
+                them via this wrapper, since `position: absolute` positions
+                relative to THIS View's own top, not the page, and would
+                otherwise ignore the spacer above and line up 40px too high
+                against the actual gridlines/appointments. */}
+            <View style={{ height: totalHeight }}>
+              {labels.map(l => (
+                <Text key={l.minutes} style={[styles.hourLabel, { top: (l.minutes - gridStart) * pxPerMinute - 6 }]}>{l.label}</Text>
+              ))}
+            </View>
+          </View>
 
-        {/* Week mode's columns are sized to fit the full width, so no
-            horizontal scroll is needed (matches Option 3); 3-Day's wider
-            columns still fit comfortably too since columnWidth is
-            recomputed from numDays either way. */}
-        {columnsContent}
+          {/* Week mode's columns are sized to fit the full width, so no
+              horizontal scroll is needed (matches Option 3); 3-Day's wider
+              columns still fit comfortably too since columnWidth is
+              recomputed from numDays either way. */}
+          {columnsContent}
+        </View>
+      </ScrollView>
       </View>
-    </ScrollView>
+    </GestureDetector>
   );
 }
 
@@ -333,6 +397,10 @@ function ClosedSlotBlock({ top, height, gridStart, pxPerMinute, onPressAt }: {
 }
 
 const styles = StyleSheet.create({
+  pullIndicator: {
+    position: 'absolute', top: 10, left: 0, right: 0,
+    alignItems: 'center', zIndex: 20,
+  },
   hourLabel: { position: 'absolute', fontSize: 10.5, color: P.textDisabled, right: 6, width: TIME_GUTTER - 6, textAlign: 'right' },
   column: { borderRightWidth: 1, borderRightColor: P.border },
   columnHeader: { height: 40, alignItems: 'center', justifyContent: 'center', gap: 2 },
