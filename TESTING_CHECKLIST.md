@@ -546,3 +546,13 @@ New `customer_favorite_salons` table (RLS `auth.uid() = auth_user_id`), so a sal
 - ⬜ **Side-by-side overlap rendering**: with two appointments truly overlapping in time for the same staff, confirm both render side by side in the calendar grid (narrower width each) instead of drawing on top of each other, and both are independently tappable.
 - ⬜ **Grayed-out (outside business hours) booking still works**: confirm tapping a closed-hours/outside-hours slot still books normally with the existing warning banner — this feature shouldn't have changed that pre-existing behavior.
 - ⬜ **Regression: normal (non-conflicting) Walk-In booking**: confirm a completely ordinary walk-in with no conflict still books in one tap with no dialog, exactly as before this feature existed.
+
+## Anonymous walk-in, multi-service cart, floating Book button (2026-08-17, live-verified)
+
+- ✅ **Anonymous walk-in books successfully**: toggle "Walk-in (no info)" in the Customer section, leave the label blank, add a service, tap Book — booking succeeds with no customer record created. Live-verified against production (real bug found and fixed: an empty label collapsed to `null` server-side and failed the same required-field check meant to let it through — both client and server now default it to "Walk-in").
+- ✅ **Multi-service cart with a duplicate**: tap the same service twice (e.g. two people getting Brow Mapping) — cart shows "x2", running total updates, booking succeeds with both counted in price/duration. Live-verified.
+- ✅ **Book button reachable without scrolling**: footer (summary + Book button) stays docked to the sheet's bottom via `BottomSheetFooter`, visible regardless of how many services are in the list above. Live-verified (previously was clipped half-offscreen as a plain sibling View — fixed).
+- ⬜ **Walk-in label persists and displays**: book an anonymous walk-in with a typed label (e.g. "Sarah's sister"), confirm it shows in place of a customer name on the calendar block, Appointment Sheet, Appointment Detail, Dashboard, Month/3-Day/Week views, and Queue/Waiting Queue.
+- ⬜ **Named customer still works (regression)**: search/select or add a real customer, confirm the booking still attaches to that customer record exactly as before — this feature is additive to the existing flow, not a replacement.
+- ⬜ **Cart line removal**: add a service, tap it again for x2, then tap the minus button twice — confirm it decrements to x1 then removes the line entirely (not into a negative/x0 state).
+- ⬜ **Mixed cart (different services)**: add 3 different services once each, confirm total duration/price sums correctly and all 3 show up on the resulting booking (`service_names`).
