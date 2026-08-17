@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { OwnerBooking } from '@/lib/api/ownerBookings';
+import { OwnerBooking, customerDisplayName } from '@/lib/api/ownerBookings';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 interface WaitingQueueProps {
@@ -68,7 +68,7 @@ export function WaitingQueue({ bookings, onOpen }: WaitingQueueProps) {
           <TouchableOpacity key={b.id} style={[styles.row, i > 0 && styles.rowBorder]} onPress={() => onOpen(b)}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               {b.customer?.priority && <Ionicons name="star" size={13} color="#F4D77A" />}
-              <Text style={styles.name}>{b.customer?.name ?? 'Customer'}</Text>
+              <Text style={styles.name}>{customerDisplayName(b)}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[styles.timer, minutes >= 10 && styles.timerLate]}>{minutes}m waiting</Text>

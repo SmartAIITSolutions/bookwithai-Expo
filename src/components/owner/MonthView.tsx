@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { getMonthSummary } from '@/lib/api/ownerCalendarSummary';
-import { listBookingsForDate, OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
 import { WeekSchedule, dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
@@ -113,7 +113,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay }:
                 {new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
               </Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.summaryCustomer} numberOfLines={1}>{b.customer?.name ?? 'Customer'}</Text>
+                <Text style={styles.summaryCustomer} numberOfLines={1}>{customerDisplayName(b)}</Text>
                 <Text style={styles.summaryService} numberOfLines={1}>{serviceDisplayName(b)}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: color + '26', borderColor: color }]}>

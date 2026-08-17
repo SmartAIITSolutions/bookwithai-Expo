@@ -14,6 +14,9 @@ export interface OwnerBooking {
   service_id: string | null;
   service_line_ids?: string[] | null;
   customer_id: string | null;
+  // Set instead of customer_id for a true walk-in with no name/phone/email
+  // captured -- free-text label stored directly on the booking.
+  walk_in_label?: string | null;
   checked_in_at: string | null;
   service_started_at: string | null;
   service_completed_at: string | null;
@@ -33,6 +36,10 @@ export interface OwnerBooking {
 export function serviceDisplayName(b: Pick<OwnerBooking, 'service' | 'service_names'>): string {
   if (b.service_names && b.service_names.length > 0) return b.service_names.join(' + ');
   return b.service?.name ?? 'Service';
+}
+
+export function customerDisplayName(b: Pick<OwnerBooking, 'customer' | 'walk_in_label'>): string {
+  return b.customer?.name ?? b.walk_in_label ?? 'Customer';
 }
 
 export async function listBookingsForDate(date: string) {
@@ -83,7 +90,15 @@ export async function getUpcomingActivity(limit = 6) {
 }
 
 export async function createBooking(body: {
-  customer_id: string; service_id: string; staff_id?: string | null;
+  // Exactly one of customer_id / walk_in_label -- a real customer, or a
+  // true walk-in with no name/phone/email captured (free-text label
+  // stored directly on the booking instead).
+  customer_id?: string | null; walk_in_label?: string | null;
+  // service_id is single-service back-compat; service_ids is the
+  // multi-service cart (order = quantity, duplicates allowed for e.g. two
+  // people getting the same service in one walk-in) -- prefer this.
+  service_id?: string; service_ids?: string[];
+  staff_id?: string | null;
   starts_at: string; ends_at: string; source?: 'manual' | 'walk_in';
   // Set once the owner has explicitly confirmed a "double-book anyway?"
   // prompt -- skips the server's staff-conflict check for this request only.

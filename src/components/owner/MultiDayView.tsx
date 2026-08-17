@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
-import { listBookingsForDate, OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
 import { WeekSchedule, dayScheduleFor, gridBoundsMinutes, minutesSinceMidnight, hourLabels, localDateKey, snapMinutes } from '@/lib/calendar/timeGrid';
@@ -239,7 +239,7 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
                       onPress={() => onOpen(b)}
                     >
                       <Text style={[styles.overlapChipText, { color }]} numberOfLines={1}>
-                        {initials(b.customer?.name ?? '?')}
+                        {initials(customerDisplayName(b))}
                       </Text>
                     </Pressable>
                   );
@@ -248,7 +248,7 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
                 return (
                   <Pressable key={b.id} style={[styles.block, { top, height, borderLeftColor: color }]} onPress={() => onOpen(b)}>
                     <Text style={styles.time}>{new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
-                    <Text style={styles.customer} numberOfLines={1}>{b.customer?.name ?? 'Customer'}</Text>
+                    <Text style={styles.customer} numberOfLines={1}>{customerDisplayName(b)}</Text>
                     {height > 44 && <Text style={styles.service} numberOfLines={1}>{serviceDisplayName(b)}</Text>}
                   </Pressable>
                 );

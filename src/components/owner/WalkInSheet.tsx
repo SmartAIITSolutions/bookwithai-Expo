@@ -1,6 +1,6 @@
 import { forwardRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView, BottomSheetFooter, type BottomSheetFooterProps } from '@gorhom/bottom-sheet';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -54,6 +54,8 @@ function TimeStepper({ label, value, onChange, step = 1, pad }: {
   );
 }
 
+interface CartLine { service: Service; qty: number }
+
 function CardOverlay() {
   return (
     <LinearGradient
@@ -76,8 +78,17 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       if (initialCustomer) { setSelectedCustomer(initialCustomer); setQuery(initialCustomer.name); }
     }, [initialCustomer]);
     const [services, setServices] = useState<Service[]>([]);
-    const [selectedService, setSelectedService] = useState<Service | null>(null);
+    // Tap-to-add cart, not single-select -- tapping a service again adds a
+    // 2nd (or 3rd, ...) of it, since one walk-in often covers a whole
+    // family/friend group getting the same thing.
+    const [cart, setCart] = useState<CartLine[]>([]);
     const [booking, setBooking] = useState(false);
+
+    // True walk-in with no name/phone/email at all -- a free-text label
+    // stored directly on the booking instead of a real customer record, so
+    // it never touches the mandatory-phone/email rule real customers have.
+    const [walkInMode, setWalkInMode] = useState(false);
+    const [walkInLabel, setWalkInLabel] = useState('');
 
     // Manual time+staff override (availability-override, Sprint N) -- lets
     // the owner pick ANY time/staff directly instead of only "earliest
@@ -146,6 +157,28 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       setAddingNew(false);
     }
 
+    function addToCart(service: Service) {
+      setCart(prev => {
+        const idx = prev.findIndex(l => l.service.id === service.id);
+        if (idx === -1) return [...prev, { service, qty: 1 }];
+        const next = [...prev];
+        next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
+        return next;
+      });
+    }
+
+    function removeFromCart(serviceId: string) {
+      setCart(prev => prev.flatMap(l => {
+        if (l.service.id !== serviceId) return [l];
+        return l.qty <= 1 ? [] : [{ ...l, qty: l.qty - 1 }];
+      }));
+    }
+
+    const cartServiceIds = cart.flatMap(l => Array(l.qty).fill(l.service.id));
+    const cartDurationMin = cart.reduce((s, l) => s + l.service.duration_minutes * l.qty, 0);
+    const cartPriceCents = cart.reduce((s, l) => s + l.service.price_cents * l.qty, 0);
+    const cartCount = cart.reduce((s, l) => s + l.qty, 0);
+
     function findEarliestSlot(durationMin: number): { staffId: string | null; startsAt: Date } | null {
       const baseStart = initialTime
         ? new Date(initialTime)
@@ -191,13 +224,20 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
     }
 
     async function handleBook(overrideConflict = false) {
-      if (!selectedService) {
+      if (cart.length === 0) {
         Alert.alert('Pick a service', 'Choose what the walk-in is here for.');
         return;
       }
       const customer = selectedCustomer;
-      if (!customer) {
-        Alert.alert('Pick or add a customer', 'Search for an existing customer or add a new one first.');
+      // The label itself is optional -- walkInMode alone is enough to book
+      // anonymously ("Walk-in" is the server's own default when none is
+      // typed), same as walking in off the street with no name at all.
+      const label = walkInMode ? walkInLabel.trim() : '';
+      if (!customer && !walkInMode) {
+        Alert.alert(
+          'Pick a customer',
+          'Search for an existing customer, add a new one, or switch to "Walk-in (no info)" below.'
+        );
         return;
       }
 
@@ -211,7 +251,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
         startsAt = dayBase;
         staffId = manualStaffId;
       } else {
-        const slot = findEarliestSlot(selectedService.duration_minutes);
+        const slot = findEarliestSlot(cartDurationMin);
         if (slot) {
           staffId = slot.staffId;
           startsAt = slot.startsAt;
@@ -237,7 +277,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
         }
       }
 
-      const endsAt = new Date(startsAt.getTime() + selectedService.duration_minutes * 60000);
+      const endsAt = new Date(startsAt.getTime() + cartDurationMin * 60000);
 
       if (!overrideConflict && hasClientConflict(staffId, startsAt, endsAt)) {
         confirmDoubleBook(startsAt, staffId);
@@ -246,8 +286,13 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
 
       setBooking(true);
       const result = await createBooking({
-        customer_id: customer.id,
-        service_id: selectedService.id,
+        customer_id: customer?.id ?? null,
+        // An empty label still has to reach the server as a non-empty
+        // string -- otherwise it collapses to null there and looks
+        // indistinguishable from "no customer, no walk-in intent at all",
+        // failing the same required-field check meant to let this through.
+        walk_in_label: customer ? null : (label || 'Walk-in'),
+        service_ids: cartServiceIds,
         staff_id: staffId,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
@@ -257,8 +302,9 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       setBooking(false);
 
       if (result.ok) {
-        setQuery(''); setSelectedCustomer(null); setSelectedService(null); setResults([]);
+        setQuery(''); setSelectedCustomer(null); setCart([]); setResults([]);
         setAddingNew(false); setNewName(''); setNewPhone(''); setNewEmail('');
+        setWalkInMode(false); setWalkInLabel('');
         setManualMode(false);
         onBooked();
       } else if (result.code === 'CONFLICT' && !overrideConflict) {
@@ -272,11 +318,34 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
 
     const renderBackdrop = (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />;
 
+    // Plain sibling Views after BottomSheetScrollView get clipped to the
+    // sheet's snap-point-constrained content area instead of docking to
+    // its actual bottom edge (the "Book" button was rendering half
+    // offscreen) -- BottomSheetFooter is the library's own API for a
+    // footer that stays pinned to the sheet's bottom regardless of snap
+    // point or keyboard state.
+    const renderFooter = useCallback((props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props} style={styles.footer}>
+        {cartCount > 0 && (
+          <Text style={styles.footerSummary}>
+            {cartCount} service{cartCount === 1 ? '' : 's'} · {cartDurationMin} min · ${(cartPriceCents / 100).toFixed(2)}
+          </Text>
+        )}
+        <TouchableOpacity style={styles.bookButton} onPress={() => handleBook()} disabled={booking}>
+          {booking
+            ? <ActivityIndicator color="#09000F" />
+            : <Text style={styles.bookButtonText}>{manualMode ? 'Book This Time' : 'Find chair & Book'}</Text>}
+        </TouchableOpacity>
+      </BottomSheetFooter>
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [cartCount, cartDurationMin, cartPriceCents, booking, manualMode, cart, selectedCustomer, walkInMode, walkInLabel, manualHour12, manualMinute, manualAmPm, manualStaffId, initialTime, initialStaffId, staff, todaysBookings]);
+
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={['70%']}
         backdropComponent={renderBackdrop}
+        footerComponent={renderFooter}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handleIndicator}
       >
@@ -305,8 +374,33 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
             </View>
           )}
         </View>
-        <BottomSheetScrollView contentContainerStyle={styles.content}>
+        <BottomSheetScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
           <Text style={styles.label}>Customer</Text>
+          <View style={styles.modeToggleRow}>
+            <TouchableOpacity
+              style={[styles.modeChip, !walkInMode && styles.modeChipActive]}
+              onPress={() => { setWalkInMode(false); setWalkInLabel(''); }}
+            >
+              <Text style={[styles.modeChipText, !walkInMode && styles.modeChipTextActive]}>Add customer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeChip, walkInMode && styles.modeChipActive]}
+              onPress={() => { setWalkInMode(true); setSelectedCustomer(null); setQuery(''); setResults([]); setAddingNew(false); }}
+            >
+              <Text style={[styles.modeChipText, walkInMode && styles.modeChipTextActive]}>Walk-in (no info)</Text>
+            </TouchableOpacity>
+          </View>
+
+          {walkInMode ? (
+            <TextInput
+              style={[styles.input, { marginTop: 6 }]}
+              placeholder={"Optional label, e.g. \"Sarah's sister\""}
+              placeholderTextColor="rgba(255,255,255,0.4)"
+              value={walkInLabel}
+              onChangeText={setWalkInLabel}
+            />
+          ) : (
+          <>
           <TextInput
             style={styles.input}
             placeholder="Search by name, phone, or email"
@@ -376,13 +470,33 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               </View>
             </BlurView>
           )}
+          </>
+          )}
 
-          <Text style={styles.label}>Service</Text>
+          <Text style={styles.label}>Service{cartCount > 0 ? ` (${cartCount})` : ''}</Text>
+          {cart.length > 0 && (
+            <View style={styles.cartCard}>
+              {cart.map(line => (
+                <View key={line.service.id} style={styles.cartLine}>
+                  <Text style={styles.cartLineName} numberOfLines={1}>{line.service.name}</Text>
+                  <View style={styles.cartLineControls}>
+                    <TouchableOpacity style={styles.cartQtyBtn} onPress={() => removeFromCart(line.service.id)}>
+                      <Ionicons name="remove" size={13} color="#F4D77A" />
+                    </TouchableOpacity>
+                    <Text style={styles.cartQtyText}>x{line.qty}</Text>
+                    <TouchableOpacity style={styles.cartQtyBtn} onPress={() => addToCart(line.service)}>
+                      <Ionicons name="add" size={13} color="#F4D77A" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
           {services.map(s => (
             <TouchableOpacity
               key={s.id}
-              style={[styles.serviceRow, selectedService?.id === s.id && styles.serviceRowActive]}
-              onPress={() => setSelectedService(s)}
+              style={styles.serviceRow}
+              onPress={() => addToCart(s)}
             >
               <Text style={styles.serviceName}>{s.name}</Text>
               <Text style={styles.serviceMeta}>{s.duration_minutes} min · ${(s.price_cents / 100).toFixed(2)}</Text>
@@ -453,12 +567,6 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               </View>
             </View>
           )}
-
-          <TouchableOpacity style={styles.bookButton} onPress={() => handleBook()} disabled={booking}>
-            {booking
-              ? <ActivityIndicator color="#09000F" />
-              : <Text style={styles.bookButtonText}>{manualMode ? 'Book This Time' : 'Find chair & Book'}</Text>}
-          </TouchableOpacity>
         </BottomSheetScrollView>
       </BottomSheetModal>
     );
@@ -481,7 +589,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(244,215,122,0.12)', borderWidth: 1, borderColor: 'rgba(244,215,122,0.3)',
   },
   warningText: { flex: 1, fontFamily: FontFamily.sora, fontSize: 11, color: '#F4D77A' },
-  content: { padding: Spacing.lg, gap: Spacing.xs, paddingBottom: Spacing['2xl'] },
+  content: { padding: Spacing.lg, gap: Spacing.xs, paddingBottom: 110 },
+  footer: {
+    paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xl,
+    borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)', backgroundColor: '#0B0712',
+  },
+  footerSummary: {
+    textAlign: 'center', fontFamily: FontFamily.sora, fontSize: 12,
+    color: 'rgba(255,255,255,0.6)', marginBottom: 8,
+  },
+  cartCard: {
+    borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)',
+    backgroundColor: 'rgba(212,175,55,0.08)', padding: Spacing.xs, marginTop: 6, gap: 4,
+  },
+  cartLine: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 4, paddingHorizontal: 4,
+  },
+  cartLineName: { flex: 1, fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#FFFFFF' },
+  cartLineControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cartQtyBtn: {
+    width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)', backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  cartQtyText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A', minWidth: 20, textAlign: 'center' },
   label: {
     fontFamily: FontFamily.soraSemiBold, fontSize: 11, textTransform: 'uppercase',
     letterSpacing: 0.5, color: '#F4D77A', marginTop: Spacing.sm, marginBottom: 4,
@@ -519,10 +650,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, padding: Spacing.sm, marginTop: 6,
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)',
   },
-  serviceRowActive: { borderWidth: 2, borderColor: '#F4D77A', backgroundColor: 'rgba(212,175,55,0.08)' },
   serviceName: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#FFFFFF' },
   serviceMeta: { fontFamily: FontFamily.sora, fontSize: 12.5, color: 'rgba(255,255,255,0.65)' },
-  bookButton: { backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.lg },
+  bookButton: { backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center' },
   bookButtonText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: FontSize.base },
   modeToggleRow: { flexDirection: 'row', gap: Spacing.xs, marginTop: 4 },
   modeChip: {

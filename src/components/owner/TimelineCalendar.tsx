@@ -4,7 +4,7 @@ import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handl
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring,
 } from 'react-native-reanimated';
-import { OwnerBooking, updateBooking, checkIn, startService, completeService, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { OwnerBooking, updateBooking, checkIn, startService, completeService, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { StaffMember } from '@/lib/api/ownerStaff';
 import { bookingStatusColor, nextAction, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { WeekSchedule, dayScheduleFor, minutesSinceMidnight, hourLabels, snapMinutes } from '@/lib/calendar/timeGrid';
@@ -440,7 +440,7 @@ function AppointmentBlock({
 
     Alert.alert(
       'Reschedule appointment?',
-      `Move ${booking.customer?.name ?? 'this appointment'} to ${dateLabel} at ${timeLabel}?`,
+      `Move ${booking.customer ? customerDisplayName(booking) : 'this appointment'} to ${dateLabel} at ${timeLabel}?`,
       [
         {
           text: 'Ignore', style: 'cancel', onPress: () => {
@@ -564,10 +564,10 @@ function AppointmentBlock({
     <GestureDetector gesture={composed}>
       <Animated.View style={[styles.block, { top: baseTop, height }, overlapStyle, animatedStyle]}>
         <View style={[styles.blockAvatar, { borderColor: color }]}>
-          <Text style={[styles.blockAvatarText, { color }]}>{initials(booking.customer?.name ?? '?')}</Text>
+          <Text style={[styles.blockAvatarText, { color }]}>{initials(customerDisplayName(booking))}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.blockCustomer} numberOfLines={1}>{booking.customer?.name ?? 'Customer'}</Text>
+          <Text style={styles.blockCustomer} numberOfLines={1}>{customerDisplayName(booking)}</Text>
           {showMeta && <Text style={styles.blockMeta} numberOfLines={1}>{serviceDisplayName(booking)}</Text>}
         </View>
         {showBadge && (

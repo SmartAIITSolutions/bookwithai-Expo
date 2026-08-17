@@ -15,7 +15,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { getDashboard, DashboardData } from '@/lib/api/ownerDashboard';
 import { getBusiness } from '@/lib/api/ownerBusiness';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
-import { listBookingsForDate, getPaymentStatusForDate, getUpcomingActivity, getBooking, serviceDisplayName, OwnerBooking, PaymentStatusResult, UpcomingActivityItem } from '@/lib/api/ownerBookings';
+import { listBookingsForDate, getPaymentStatusForDate, getUpcomingActivity, getBooking, serviceDisplayName, customerDisplayName, OwnerBooking, PaymentStatusResult, UpcomingActivityItem } from '@/lib/api/ownerBookings';
 import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
 import { dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
@@ -238,10 +238,10 @@ export default function OwnerDashboardScreen() {
                     <BlurView intensity={90} tint="dark" style={styles.apptCard}>
                       <CardOverlay />
                       <View style={styles.apptAvatar}>
-                        <Text style={styles.apptAvatarText}>{initials(first.customer?.name ?? '?')}</Text>
+                        <Text style={styles.apptAvatarText}>{initials(customerDisplayName(first))}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.apptName} numberOfLines={1}>{first.customer?.name ?? 'Customer'}</Text>
+                        <Text style={styles.apptName} numberOfLines={1}>{customerDisplayName(first)}</Text>
                         <Text style={styles.apptMeta} numberOfLines={1}>
                           {timeLabel(first.starts_at)}{first.staff?.name ? ` · ${first.staff.name}` : ''}
                         </Text>

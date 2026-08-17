@@ -5,7 +5,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { checkIn, startService, completeService, completeAndReadyForCheckout, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
 import { getAddOnSuggestion, AddOnSuggestion } from '@/lib/api/ownerServices';
 import { bookingStatusColor, nextAction, CheckinFlowMode } from '@/lib/calendar/bookingStatus';
@@ -177,13 +177,13 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}
                 onPress={() => onOpenDetail(booking)}
               >
-                <Text style={styles.customerName}>{booking.customer?.name ?? 'Customer'}</Text>
+                <Text style={styles.customerName}>{customerDisplayName(booking)}</Text>
                 {booking.locked && <Ionicons name="lock-closed" size={14} color="rgba(255,255,255,0.5)" />}
                 <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
               </TouchableOpacity>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                <Text style={styles.customerName}>{booking.customer?.name ?? 'Customer'}</Text>
+                <Text style={styles.customerName}>{customerDisplayName(booking)}</Text>
                 {booking.locked && <Ionicons name="lock-closed" size={14} color="rgba(255,255,255,0.5)" />}
               </View>
             )}

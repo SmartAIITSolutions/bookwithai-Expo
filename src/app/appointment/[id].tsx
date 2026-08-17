@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { getBooking, updateBooking, OwnerBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
+import { getBooking, updateBooking, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { getCustomer, addNote, pinNote, deleteNote, CustomerNote } from '@/lib/api/ownerCustomers';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { listServices, Service } from '@/lib/api/ownerServices';
@@ -186,13 +186,13 @@ export default function AppointmentDetailScreen() {
       <Stack.Screen options={{
         headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A',
         headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-        title: booking.customer?.name ?? 'Appointment',
+        title: customerDisplayName(booking),
       }} />
       <ScrollView contentContainerStyle={styles.content}>
 
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.customerName}>{booking.customer?.name ?? 'Customer'}</Text>
+            <Text style={styles.customerName}>{customerDisplayName(booking)}</Text>
             <Text style={styles.meta}>
               {new Date(booking.starts_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
               {'  ·  '}{new Date(booking.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
