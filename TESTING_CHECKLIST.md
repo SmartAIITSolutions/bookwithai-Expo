@@ -610,3 +610,9 @@ Rewrote the previously-empty `owner-sanaa/phone.tsx` shell into a real screen: a
 - ⬜ **"Get My SANAA Number" button was not tapped** — tapping it triggers a real Telnyx number search + purchase against production. This needs the user's explicit live go-ahead before it's exercised; not attempted this session.
 - ⬜ **Post-provisioning "connected" state** — once a real number exists, confirm the two option cards are replaced by the single Human Transfer status card, and the Connection Status card shows the green dot + formatted number. Only reachable after a real provisioning run, not yet checked.
 - ⬜ **Idempotency in practice**: confirm that provisioning twice for the same salon (e.g. a retried tap) returns the same number both times rather than buying a second one — the guard was verified by code review only, not exercised live.
+
+## SANAA P3 tool-call latency (2026-08-18, backend-only, no mobile UI change)
+
+Final P3–P6 slice — no mobile files touched, so nothing new to walk on the emulator. Added native Telnyx filler messages (scripted "one moment" phrases spoken while a slow tool call is in flight) to 4 of SANAA's booking tools, and parallelized/backgrounded several backend calls in `booking-app`'s `check-availability`/`book` routes to reduce real latency. Full detail in `booking-app/MASTER.md` §47 and `sanaa-app/SANAA-MASTER.md` §23.
+
+- ⬜ **Real live-call verification** — not performed and not performable from this session: no live tenant's Telnyx agent was re-provisioned (that would push a new config to real production phone lines, requiring the same explicit go-ahead as any live-production action), and there's no safe way to simulate a real Telnyx call otherwise. These changes reach zero real calls until an agency owner next hits "Refresh Prompt"/"Activate SANAA" for their salon.
