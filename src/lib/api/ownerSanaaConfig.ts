@@ -22,10 +22,22 @@ export interface SanaaConfigResponse {
   business: SanaaKnownBusiness;
   config: SanaaOwnerConfig;
   has_tenant: boolean;
+  telnyx_number: string | null;
 }
 
 export function getSanaaConfig() {
   return ownerFetch<SanaaConfigResponse>('/api/owner/sanaa/config');
+}
+
+// Real financial transaction on the other end (Telnyx number purchase).
+// Idempotent server-side -- safe to call again if this returns an error or
+// the app doesn't hear back; the backend never buys a second number for the
+// same salon.
+export function provisionSanaaNumber() {
+  return ownerFetch<{ success: boolean; telnyx_number: string; already_provisioned?: boolean }>(
+    '/api/owner/sanaa/provision-number',
+    { method: 'POST' }
+  );
 }
 
 export function updateSanaaConfig(patch: Partial<SanaaOwnerConfig>) {
