@@ -16,11 +16,15 @@ export function TabIcon({
   color,
   size,
   focused,
+  badge,
 }: {
   Icon: LucideIcon;
   color: ColorValue;
   size: number;
   focused: boolean;
+  // Real-condition attention indicator only (e.g. SANAA action-required) --
+  // never a decorative or fake sales badge.
+  badge?: boolean;
 }) {
   return (
     <View style={styles.iconSlot}>
@@ -38,6 +42,7 @@ export function TabIcon({
       />
 
       {focused && <View style={styles.activeDot} />}
+      {badge && <View style={styles.attentionBadge} />}
     </View>
   );
 }
@@ -83,5 +88,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 0 },
+  },
+
+  attentionBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#09000F',
   },
 });

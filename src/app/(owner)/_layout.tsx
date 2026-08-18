@@ -1,10 +1,12 @@
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, CalendarDays, Users, BarChart3, Menu } from 'lucide-react-native';
+import { Home, CalendarDays, Users, Sparkles, Menu } from 'lucide-react-native';
 import { TabIcon, TAB_ICON_COLORS } from '@/components/TabIcon';
 import { carouselTransitionSpec, makeArcInterpolator } from '@/lib/navigation/tabTransition';
+import { getSanaaStatus, deriveSanaaLifecycle } from '@/lib/api/ownerSanaa';
 
 const COLORS = {
   ...TAB_ICON_COLORS,
@@ -12,13 +14,28 @@ const COLORS = {
   background: 'rgba(20,10,34,0.82)',
 };
 
-// Salon-owner mode — 5-tab shell, Phase 0.1 (locked 2026-07-16).
-// Exactly these 5 tabs, nothing else: Dashboard · Calendar · Customers ·
-// Reports · More. No floating action button — primary actions live inside
-// each screen, never floating over content.
+// Salon-owner mode — 5-tab shell, Phase 0.1 (locked 2026-07-16), amended
+// 2026-08-17: Reports moved into the More screen to make room for SANAA's
+// required permanent nav entry (SANAA-P0/P1-SPEC §4.1) without exceeding
+// the locked tab count. Exactly these 5 tabs, nothing else: Dashboard ·
+// Calendar · Customers · SANAA · More. No floating action button — primary
+// actions live inside each screen, never floating over content.
 export default function OwnerTabsLayout() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+
+  // Attention indicator is a real-condition badge only (SANAA-P0/P1-SPEC
+  // §20) -- never shown for non-subscribers or a healthy/live tenant.
+  const { data: sanaaStatus } = useQuery({
+    queryKey: ['owner-sanaa-status'],
+    queryFn: async () => {
+      const r = await getSanaaStatus();
+      if (!r.ok) throw new Error(r.error);
+      return r.data;
+    },
+  });
+  const sanaaNeedsAttention = sanaaStatus ? deriveSanaaLifecycle(sanaaStatus) === 'action_required' : false;
+
   return (
     <View style={styles.root}>
       <Tabs
@@ -88,11 +105,11 @@ export default function OwnerTabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="reports"
+          name="sanaa"
           options={{
-            title: 'Reports',
+            title: 'SANAA',
             tabBarIcon: ({ color, size, focused }) => (
-              <TabIcon Icon={BarChart3} color={color} size={size} focused={focused} />
+              <TabIcon Icon={Sparkles} color={color} size={size} focused={focused} badge={sanaaNeedsAttention} />
             ),
           }}
         />

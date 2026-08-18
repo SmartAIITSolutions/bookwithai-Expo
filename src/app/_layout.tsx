@@ -309,6 +309,11 @@ export default function RootLayout() {
         <Stack.Screen name="owner-settings/membership-plans" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/service-packages" options={{ headerShown: true }} />
         <Stack.Screen name="owner-settings/payments" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-settings/reports" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-sanaa/calls" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-sanaa/configure" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-sanaa/phone" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-sanaa/billing" options={{ headerShown: true }} />
         <Stack.Screen name="reviews" options={{ headerShown: true }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true }} />
         <Stack.Screen name="appointment/[id]" options={{ headerShown: true }} />
@@ -387,6 +392,16 @@ function AuthRedirectGate() {
       // stays stuck on their last screen until a force-close/reopen
       // triggers the cold-start check in handleSplashDone instead.
       router.replace('/auth');
+    } else if (user && role && role !== 'owner' && isOwnerOnlySegment(segments[0])) {
+      // The branch above only redirects at the moment of sign-in transition
+      // FROM the auth stack -- it does not otherwise guard owner-only
+      // routes. A signed-in customer or staff account reaching one directly
+      // (a deep link, a stale bookmark, router.push from unrelated code)
+      // would render it with no check at all. This is that continuous
+      // check, re-evaluated on every segment change. Gated on `role` being
+      // truthy so it never fires during the transient null-role window
+      // right after sign-in (see the comment above on that race).
+      router.replace(roleHome(role) as never);
     }
   }, [user, role, loading, segments]);
 
@@ -447,6 +462,16 @@ function roleHome(role: string | null): string {
   if (role === 'owner') return '/(owner)/dashboard';
   if (role === 'staff') return '/(staff)/schedule';
   return '/(tabs)/book';
+}
+
+// Every top-level route segment that only makes sense for role === 'owner'.
+// useSegments() includes route-group names literally (e.g. '(owner)'), so
+// this covers the owner tab group itself plus the sibling folders reached
+// by pushing off of it (owner-settings/*, owner-sanaa/*) that have no
+// per-screen role check of their own.
+const OWNER_ONLY_SEGMENTS = new Set(['(owner)', 'owner-settings', 'owner-sanaa']);
+function isOwnerOnlySegment(segment: string | undefined): boolean {
+  return !!segment && OWNER_ONLY_SEGMENTS.has(segment);
 }
 
 async function handleSplashDone(setSplashReady: (v: boolean) => void) {

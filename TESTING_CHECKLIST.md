@@ -556,3 +556,17 @@ New `customer_favorite_salons` table (RLS `auth.uid() = auth_user_id`), so a sal
 - ⬜ **Named customer still works (regression)**: search/select or add a real customer, confirm the booking still attaches to that customer record exactly as before — this feature is additive to the existing flow, not a replacement.
 - ⬜ **Cart line removal**: add a service, tap it again for x2, then tap the minus button twice — confirm it decrements to x1 then removes the line entirely (not into a negative/x0 state).
 - ⬜ **Mixed cart (different services)**: add 3 different services once each, confirm total duration/price sums correctly and all 3 show up on the resulting booking (`service_names`).
+
+## SANAA P0/P1 product shell (2026-08-17, dev-fixture-verified, not live)
+
+Foundation only — navigation, lifecycle shell, and destination stubs. No real pricing, checkout, Telnyx provisioning, or configuration logic exists yet (all separately scoped later phases). `GET /api/owner/sanaa/status` is new and not yet deployed, so every real salon currently sees the non-subscriber Discovery Home — this is correct, not a bug.
+
+- ✅ **Tab bar still exactly 5 tabs**: Dashboard, Calendar, Customers, SANAA (Sparkles icon, replacing Reports' old slot), More. Verified on emulator.
+- ✅ **Reports still fully functional from More**: Settings group now includes "Reports", opens the unchanged report screen with a native header ("← More" back title) instead of the old tab-bar header. Verified on emulator.
+- ✅ **All 8 lifecycle states render correctly** via the `__DEV__`-only state-override chip row at the top of the SANAA tab (never shown in production builds): non-subscriber → Discovery Home (wordmark, hero, demo placeholder, capabilities grid, how-it-works, FAQ placeholder, See Plans CTA); setup states → Setup Home (step tracker correctly shows done/current/upcoming, CTA label changes per state: Continue Setup / Test SANAA / Activate SANAA); live/paused/action-required → Operations Home (status → results placeholder → recent activity placeholder → 4 management rows, in that order). Verified on emulator.
+- ✅ **Real-fetch error state**: with the backend route not yet deployed, "Real" mode correctly shows the existing `ErrorState` component rather than a blank screen or a guessed lifecycle. Verified on emulator.
+- ✅ **Destination shells navigate correctly**: Calls & Activity opens with a native header (back button, "SANAA" back title) and a clear "coming soon" placeholder — same pattern needed for Configure/Phone/Billing. Verified on emulator.
+- ⬜ **Deploy `/api/owner/sanaa/status` and re-verify against a real `sanaa_tenants` row**: confirm a salon with no row lands on Discovery, a row with `telnyx_agent_id` but no number lands on action-required (agent created but number never assigned — matches today's actual manual-provisioning gap), and `active: true` + a completed test lands on Live.
+- ⬜ **Dashboard card**: confirm `SanaaDashboardCard` appears on the owner dashboard once the backend is deployed, matches the tab's lifecycle state, and the non-subscriber dismiss (✕) hides only the card — not the SANAA tab — across an app restart (AsyncStorage-backed).
+- ⬜ **Tab attention badge**: confirm the small red dot only appears on the SANAA tab icon when the real (non-override) status resolves to action-required, never for non-subscriber or live.
+- ⬜ **Safe-area / notch check**: confirm the SANAA header and all 3 lifecycle homes have no clipped content on a notch-style device frame.

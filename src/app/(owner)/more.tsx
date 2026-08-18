@@ -39,6 +39,7 @@ const GROUPS: { name: string; items: { label: string; route: string }[] }[] = [
   { name: 'System', items: [
     { label: 'Settings', route: '/owner-settings/business' },
     { label: 'Payments', route: '/owner-settings/payments' },
+    { label: 'Reports', route: '/owner-settings/reports' },
     { label: 'Reviews', route: '/reviews' },
   ] },
   { name: 'Legal', items: [

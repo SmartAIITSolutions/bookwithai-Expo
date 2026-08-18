@@ -7,6 +7,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
+import { SanaaDashboardCard } from '@/components/owner/SanaaDashboardCard';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { AppointmentSheet } from '@/components/owner/AppointmentSheet';
 import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutSheet';
@@ -195,6 +196,8 @@ export default function OwnerDashboardScreen() {
             <Text style={styles.date}>{now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
             <Text style={styles.thought}>{THOUGHTS[dayIndex]}</Text>
           </View>
+
+          <SanaaDashboardCard />
 
           {/* Today's Snapshot — Health + Revenue + Appointments + Occupancy in one row */}
           <View style={styles.snapshotGrid}>

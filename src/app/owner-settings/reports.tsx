@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
-import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
 import { getOwnerReport, OwnerReport, ReportRange } from '@/lib/api/ownerReports';
@@ -27,10 +26,20 @@ function CardOverlay() {
   );
 }
 
+const HEADER_OPTIONS = {
+  headerStyle: { backgroundColor: '#0B0712' },
+  headerTintColor: '#F4D77A',
+  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+  title: 'Reports',
+  headerBackTitle: 'More',
+};
+
 // v1 real-data Reports -- revenue, appointments, and staff/service
 // breakdowns computed from completed bookings already in the database.
-// Deliberately simple (three ranges, no charts, no export yet) rather than
-// shipping the tab as a permanent placeholder.
+// Moved out of the owner tab bar into More on 2026-08-17 to free up the
+// tab slot SANAA now occupies (SANAA-P0/P1-SPEC §4.1) -- same screen,
+// reached one tap further in, native Stack header like other More entries
+// (owner-settings/business.tsx etc.) instead of the tab-bar OwnerScreenHeader.
 export default function OwnerReportsScreen() {
   const [range, setRange] = useState<ReportRange>('week');
   const [report, setReport] = useState<OwnerReport | null>(null);
@@ -45,10 +54,6 @@ export default function OwnerReportsScreen() {
         if (result.ok) setReport(result.data);
         else setError(result.error);
       })
-      // getOwnerReport's underlying fetch() rejects (not just resolves
-      // ok:false) on a real network failure -- without this, that leaves
-      // `loading` stuck true forever with no error shown, which is exactly
-      // what looked like a permanent spinner that "doesn't do anything".
       .catch(() => setError('Unable to load reports. Please check your connection and try again.'))
       .finally(() => setLoading(false));
   }, [range]);
@@ -60,7 +65,7 @@ export default function OwnerReportsScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <OwnerScreenHeader title="Reports" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
+      <Stack.Screen options={HEADER_OPTIONS} />
 
       <View style={styles.rangeRow}>
         {RANGES.map(r => (
@@ -144,7 +149,7 @@ function SnapshotCard({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  rangeRow: { flexDirection: 'row', gap: 8, paddingHorizontal: Spacing.lg, marginBottom: Spacing.md },
+  rangeRow: { flexDirection: 'row', gap: 8, paddingHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.md },
   rangeChip: {
     paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full,
     backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
