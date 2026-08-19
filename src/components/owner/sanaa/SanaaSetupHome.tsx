@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +35,14 @@ const CTA_LABEL: Record<string, string> = {
   ready_to_activate: 'Activate SANAA',
 };
 
+// Real destinations for each step, in the order defined by STEPS/STEP_INDEX.
+// Test (2) and Activate (3) have no built screen yet -- those steps stay
+// unwired on purpose rather than inventing a destination.
+const STEP_ROUTES: Partial<Record<number, string>> = {
+  0: '/owner-sanaa/configure',
+  1: '/owner-sanaa/phone',
+};
+
 interface SanaaSetupHomeProps {
   state: SanaaLifecycle;
 }
@@ -41,6 +50,7 @@ interface SanaaSetupHomeProps {
 export function SanaaSetupHome({ state }: SanaaSetupHomeProps) {
   const activeStep = STEP_INDEX[state] ?? 0;
   const ctaLabel = CTA_LABEL[state] ?? 'Continue Setup';
+  const ctaRoute = STEP_ROUTES[activeStep];
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -55,8 +65,16 @@ export function SanaaSetupHome({ state }: SanaaSetupHomeProps) {
         {STEPS.map((label, i) => {
           const done = i < activeStep;
           const isCurrent = i === activeStep;
+          const route = STEP_ROUTES[i];
+          const pressable = isCurrent && !!route;
           return (
-            <View key={label} style={[styles.stepRow, i > 0 && styles.rowBorder]}>
+            <Pressable
+              key={label}
+              style={[styles.stepRow, i > 0 && styles.rowBorder]}
+              onPress={pressable ? () => router.push(route as never) : undefined}
+              accessibilityRole={pressable ? 'button' : undefined}
+              accessibilityLabel={pressable ? `Continue to ${label}` : undefined}
+            >
               <View style={[styles.stepBadge, done && styles.stepBadgeDone, isCurrent && styles.stepBadgeCurrent]}>
                 {done ? (
                   <Ionicons name="checkmark" size={14} color="#09000F" />
@@ -66,12 +84,17 @@ export function SanaaSetupHome({ state }: SanaaSetupHomeProps) {
               </View>
               <Text style={[styles.stepLabel, isCurrent && styles.stepLabelCurrent]}>{label}</Text>
               {isCurrent && <Text style={styles.stepNextTag}>NEXT</Text>}
-            </View>
+            </Pressable>
           );
         })}
       </BlurView>
 
-      <Pressable style={styles.primaryCta}>
+      <Pressable
+        style={styles.primaryCta}
+        onPress={ctaRoute ? () => router.push(ctaRoute as never) : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={ctaLabel}
+      >
         <Text style={styles.primaryCtaText}>{ctaLabel}</Text>
       </Pressable>
     </ScrollView>
