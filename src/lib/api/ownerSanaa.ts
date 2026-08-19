@@ -1,8 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ownerFetch } from './ownerApi';
 
+export type SanaaCommercialState =
+  | 'none'
+  | 'incomplete'
+  | 'experience'
+  | 'converting'
+  | 'active'
+  | 'past_due'
+  | 'suspended'
+  | 'cancel_scheduled'
+  | 'cancelled'
+  | 'conversion_failed'
+  | 'conversion_action_required';
+
 export interface SanaaStatus {
   subscribed: boolean;
+  /** Real P4 commercial-to-setup bridge state -- additive, `subscribed` is
+   *  still the only field deriveSanaaLifecycle reads. */
+  commercial_state?: SanaaCommercialState;
   telnyx_agent_id: string | null;
   telnyx_number: string | null;
   active: boolean;
@@ -35,22 +51,19 @@ export type SanaaLifecycle =
   | 'paused'
   | 'action_required';
 
-// IMPORTANT — what this function can honestly claim today:
+// `subscribed` is now truthful in production -- the backend derives it from
+// the real sanaa_subscriptions commercial state (SANAA commercial-to-setup
+// bridge), not a hardcoded false. This function itself is UNCHANGED by that
+// bridge: once subscribed=true, its existing telephony-based branches
+// (setup_not_started/setup_partial/ready_to_test/ready_to_activate/live)
+// already correctly route a freshly-entitled salon into Setup Home. Payment
+// success never auto-provisions anything -- the owner still explicitly taps
+// through Setup themselves.
 //
-// The backend (`GET /api/owner/sanaa/status`) always reports
-// `subscribed: false` until P4 introduces a real subscription/billing
-// source (see that route's comments) -- so in production this function
-// only ever returns 'non_subscriber'. That is intentional, not an
-// oversight: the other 7 states are NOT genuinely derivable from what the
-// current fields can tell us. In particular `action_required` will
-// eventually need to distinguish payment failure, phone disconnection,
-// provisioning error, invalid config, suspended subscription, a removed
-// number, and an unhealthy Telnyx agent -- none of which today's fields
-// (telnyx_agent_id/telnyx_number/active) can tell apart. The branches below
-// exist only so the `__DEV__` state-override switcher has real logic to
-// preview against once those fields genuinely exist -- they are not live
-// production logic yet. Do not treat this as a finished state machine;
-// extend the backend fields first, then this function, together.
+// `action_required` still only distinguishes "agent created, number missing"
+// -- it does not yet separately surface a suspended/past-due commercial
+// state or an unhealthy Telnyx agent. That's real remaining scope, not
+// something this bridge slice was asked to build.
 export function deriveSanaaLifecycle(status: SanaaStatus): SanaaLifecycle {
   if (!status.subscribed) return 'non_subscriber';
 

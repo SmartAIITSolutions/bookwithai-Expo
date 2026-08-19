@@ -1,4 +1,5 @@
 import { Pressable, Text, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { FontFamily, FontSize, BorderRadius } from '@/constants/Theme';
 import { trackSanaaEvent } from '@/lib/analytics/sanaaEvents';
 
@@ -14,7 +15,10 @@ export function SanaaSeePlansButton({ variant = 'primary', location }: SanaaSeeP
   return (
     <Pressable
       style={variant === 'primary' ? styles.primary : styles.secondary}
-      onPress={() => trackSanaaEvent('see_plans_tapped', { location })}
+      onPress={() => {
+        trackSanaaEvent('see_plans_tapped', { location });
+        router.push('/owner-sanaa/plans');
+      }}
     >
       <Text style={variant === 'primary' ? styles.primaryText : styles.secondaryText}>See Plans</Text>
     </Pressable>

@@ -616,3 +616,12 @@ Rewrote the previously-empty `owner-sanaa/phone.tsx` shell into a real screen: a
 Final P3–P6 slice — no mobile files touched, so nothing new to walk on the emulator. Added native Telnyx filler messages (scripted "one moment" phrases spoken while a slow tool call is in flight) to 4 of SANAA's booking tools, and parallelized/backgrounded several backend calls in `booking-app`'s `check-availability`/`book` routes to reduce real latency. Full detail in `booking-app/MASTER.md` §47 and `sanaa-app/SANAA-MASTER.md` §23.
 
 - ⬜ **Real live-call verification** — not performed and not performable from this session: no live tenant's Telnyx agent was re-provisioned (that would push a new config to real production phone lines, requiring the same explicit go-ahead as any live-production action), and there's no safe way to simulate a real Telnyx call otherwise. These changes reach zero real calls until an agency owner next hits "Refresh Prompt"/"Activate SANAA" for their salon.
+
+## SANAA commercial-to-setup bridge (2026-08-19, tsc-verified only, no live purchase exercised)
+
+New `owner-sanaa/plans.tsx` — the real Plans/Offer screen (Founding $5 Experience tier picker + standard plans), reachable now via `SanaaSeePlansButton` ("See Plans" on Discovery Home) and via `owner-sanaa/billing.tsx`'s "See Plans" button when no subscription exists yet. Full backend design in `booking-app/MASTER.md` §48.
+
+- ⬜ **Plans screen renders real offer data** — not yet checked on the emulator: confirm `GET /api/owner/sanaa/offer` returns the seeded Essential/Professional/Premier plans and the Founding Salon Experience campaign for a fresh account, and that the screen renders all of it (no hardcoded prices anywhere in the component).
+- ⬜ **"See Plans" navigation** — confirm tapping "See Plans" on Discovery Home actually opens `owner-sanaa/plans` now (previously a no-op).
+- ⬜ **Full checkout flow** — blocked on Stripe test-mode credentials (`STRIPE_SANAA_TEST_SECRET_KEY` not yet configured): starting a $5 Experience checkout, completing it in the in-app browser, returning to the app, and confirming the "Confirming SANAA purchase…" polling state resolves to a real `experience` status and routes into Setup Home.
+- ⬜ **`owner-sanaa/billing.tsx`** — confirm it shows real commercial state once a subscription exists, distinct from the Plans (browse/buy) screen.
