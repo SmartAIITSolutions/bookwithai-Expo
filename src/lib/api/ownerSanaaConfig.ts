@@ -2,7 +2,10 @@ import { ownerFetch } from './ownerApi';
 
 export interface SanaaKnownBusiness {
   business_name: string | null;
-  business_hours: Record<string, { open?: string; close?: string; closed?: boolean }> | null;
+  // Effective hours (week_schedule ?? business_hours), keyed by full day
+  // name ("Sunday".."Saturday") -- same shape /api/owner/sanaa/config
+  // normalizes both source fields into.
+  business_hours: Record<string, { open: boolean; start: string; end: string }> | null;
   cancellation_policy: string;
   rescheduling_policy: string;
   service_count: number;

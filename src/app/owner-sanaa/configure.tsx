@@ -41,8 +41,8 @@ function formatHours(hours: SanaaConfigResponse['business']['business_hours']): 
   if (!hours) return ['Hours not configured yet.'];
   const lines: string[] = [];
   for (const [day, val] of Object.entries(hours)) {
-    if (val?.closed) lines.push(`${day}: Closed`);
-    else if (val?.open && val?.close) lines.push(`${day}: ${val.open} – ${val.close}`);
+    if (!val?.open) lines.push(`${day}: Closed`);
+    else if (val.start && val.end) lines.push(`${day}: ${val.start} – ${val.end}`);
   }
   return lines.length > 0 ? lines : ['Hours not configured yet.'];
 }

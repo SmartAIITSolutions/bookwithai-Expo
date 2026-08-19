@@ -9,6 +9,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { getBusiness, updateBusiness, addHoliday, removeHoliday, Business, Holiday } from '@/lib/api/ownerBusiness';
 import { listClosures, addClosure, removeClosure, BusinessClosure } from '@/lib/api/ownerDailyOps';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { DAY_KEYS, DEFAULT_SCHEDULE, type WeekSchedule } from '@/lib/calendar/timeGrid';
+
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function formatHour(h: number): string {
+  const hh = ((h % 24) + 24) % 24;
+  const period = hh >= 12 ? 'PM' : 'AM';
+  const twelve = hh % 12 === 0 ? 12 : hh % 12;
+  return `${twelve}${period}`;
+}
 
 function CardOverlay() {
   return (
@@ -41,6 +51,8 @@ export default function BusinessSetupScreen() {
   const [closureStart, setClosureStart] = useState('');
   const [closureEnd, setClosureEnd] = useState('');
   const [closureReason, setClosureReason] = useState('');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState(false);
 
   // Raw text mirrors of the deposit number fields -- kept separate from
   // `business` itself so the TextInput's displayed value is exactly what
@@ -51,6 +63,7 @@ export default function BusinessSetupScreen() {
   const [depositPercentInput, setDepositPercentInput] = useState('');
   const [depositAmountInput, setDepositAmountInput] = useState('');
   const [cutoffHoursInput, setCutoffHoursInput] = useState('');
+  const [schedule, setSchedule] = useState<WeekSchedule>(DEFAULT_SCHEDULE);
 
   const load = useCallback(async () => {
     const [result, closureResult] = await Promise.all([getBusiness(), listClosures()]);
@@ -60,10 +73,15 @@ export default function BusinessSetupScreen() {
       setDepositPercentInput(result.data.business.deposit_percent != null ? String(result.data.business.deposit_percent) : '');
       setDepositAmountInput(result.data.business.deposit_amount_cents != null ? (result.data.business.deposit_amount_cents / 100).toFixed(2) : '');
       setCutoffHoursInput(String(result.data.business.deposit_refund_cutoff_hours ?? 24));
+      setSchedule(result.data.business.week_schedule ? { ...DEFAULT_SCHEDULE, ...result.data.business.week_schedule } : DEFAULT_SCHEDULE);
     }
     if (closureResult.ok) setClosures(closureResult.data.data);
     setLoading(false);
   }, []);
+
+  function setDay(key: string, patch: Partial<{ open: boolean; start: number; end: number }>) {
+    setSchedule(s => ({ ...s, [key]: { ...s[key], ...patch } }));
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -99,6 +117,14 @@ export default function BusinessSetupScreen() {
     });
     setSaving(false);
     if (!result.ok) Alert.alert('Could not save', result.error);
+  }
+
+  async function handleSaveSchedule() {
+    setSavingSchedule(true);
+    const result = await updateBusiness({ week_schedule: schedule });
+    setSavingSchedule(false);
+    if (!result.ok) Alert.alert('Could not save', result.error);
+    else { setScheduleSaved(true); setTimeout(() => setScheduleSaved(false), 2500); }
   }
 
   async function handleAddHoliday() {
@@ -166,6 +192,36 @@ export default function BusinessSetupScreen() {
           <Field label="City" value={business.city ?? ''} onChangeText={v => set('city', v)} />
           <Field label="State" value={business.state ?? ''} onChangeText={v => set('state', v)} />
           <Field label="Postal code" value={business.postal_code ?? ''} onChangeText={v => set('postal_code', v)} keyboardType="number-pad" />
+        </Section>
+
+        <Section title="Operating Hours">
+          {DAY_KEYS.map((key, idx) => {
+            const day = schedule[key] ?? DEFAULT_SCHEDULE[key];
+            return (
+              <View key={key} style={[styles.dayRow, idx > 0 && styles.dayRowBorder]}>
+                <View style={styles.dayRowTop}>
+                  <Text style={styles.dayLabel}>{DAY_LABELS[idx]}</Text>
+                  <Switch
+                    value={day.open}
+                    onValueChange={(v) => setDay(key, { open: v })}
+                    trackColor={{ true: '#F4D77A' }}
+                  />
+                </View>
+                {day.open && (
+                  <View style={styles.dayRowHours}>
+                    <HourStepper label="Open" hour={day.start} onChange={(h) => setDay(key, { start: h })} />
+                    <HourStepper label="Close" hour={day.end} onChange={(h) => setDay(key, { end: h })} />
+                  </View>
+                )}
+              </View>
+            );
+          })}
+          <TouchableOpacity style={styles.saveSmallButton} onPress={handleSaveSchedule} disabled={savingSchedule}>
+            <Text style={styles.saveSmallButtonText}>
+              {scheduleSaved ? '✓ Hours saved!' : savingSchedule ? 'Saving…' : 'Save operating hours'}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.emptyHint}>This is what SANAA and your online booking page use to know when you're open.</Text>
         </Section>
 
         <Section title="Policies">
@@ -478,6 +534,23 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function HourStepper({ label, hour, onChange }: { label: string; hour: number; onChange: (h: number) => void }) {
+  return (
+    <View style={styles.hourStepper}>
+      <Text style={styles.hourStepperLabel}>{label}</Text>
+      <View style={styles.hourStepperControl}>
+        <TouchableOpacity onPress={() => onChange((hour + 23) % 24)} hitSlop={8}>
+          <Ionicons name="remove-circle-outline" size={22} color="#F4D77A" />
+        </TouchableOpacity>
+        <Text style={styles.hourStepperValue}>{formatHour(hour)}</Text>
+        <TouchableOpacity onPress={() => onChange((hour + 1) % 24)} hitSlop={8}>
+          <Ionicons name="add-circle-outline" size={22} color="#F4D77A" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 function Field(props: {
   label: string; value: string; onChangeText: (v: string) => void;
   keyboardType?: 'default' | 'phone-pad' | 'number-pad'; multiline?: boolean;
@@ -559,6 +632,20 @@ const styles = StyleSheet.create({
   inlineForm: { gap: Spacing.sm, paddingTop: Spacing.xs },
   inlineFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.lg, paddingTop: 2 },
   cancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: 'rgba(255,255,255,0.6)' },
+  dayRow: { paddingVertical: Spacing.xs, gap: Spacing.xs },
+  dayRowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' },
+  dayRowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dayLabel: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#FFFFFF' },
+  dayRowHours: { flexDirection: 'row', gap: Spacing.lg },
+  hourStepper: { gap: 2 },
+  hourStepperLabel: { fontFamily: FontFamily.sora, fontSize: 11, color: 'rgba(255,255,255,0.45)' },
+  hourStepperControl: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hourStepperValue: { fontFamily: FontFamily.soraSemiBold, fontSize: 14, color: '#F4D77A', minWidth: 44, textAlign: 'center' },
+  saveSmallButton: {
+    alignSelf: 'flex-start', backgroundColor: '#F4D77A', borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md, paddingVertical: 9, marginTop: Spacing.xs,
+  },
+  saveSmallButtonText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: '#09000F' },
   saveButton: {
     backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg,
     paddingVertical: 14, alignItems: 'center',

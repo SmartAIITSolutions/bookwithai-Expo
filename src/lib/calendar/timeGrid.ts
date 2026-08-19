@@ -1,9 +1,9 @@
 export interface DaySchedule { open: boolean; start: number; end: number }
 export type WeekSchedule = Record<string, DaySchedule>;
 
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+export const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-const DEFAULT_SCHEDULE: WeekSchedule = {
+export const DEFAULT_SCHEDULE: WeekSchedule = {
   sun: { open: false, start: 9, end: 17 },
   mon: { open: true,  start: 9, end: 18 },
   tue: { open: true,  start: 9, end: 18 },
