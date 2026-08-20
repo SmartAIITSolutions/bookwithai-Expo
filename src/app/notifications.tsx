@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Image, ImageBackground, Animated, Easing, useWindowDimensions, Linking } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Image, ImageBackground, Animated, Easing, useWindowDimensions, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
@@ -372,6 +372,10 @@ export default function NotificationsScreen() {
   // so the cancelled card matches the Pay Now hero card's proportions.
   const { width: windowWidth } = useWindowDimensions();
   const cancelledCardHeight = (windowWidth - Spacing.md * 2) / 2.6;
+  // Per-notification "which check-in option did they just tap" feedback --
+  // shows a brief confirmation in place of the 4 buttons instead of a toast.
+  const [checkinSentFor, setCheckinSentFor] = useState<Record<string, string>>({});
+
   const load = useCallback(async () => {
     const data = await fetchNotifications();
     setItems(data);
@@ -472,6 +476,51 @@ export default function NotificationsScreen() {
     } catch {
       router.push({ pathname: '/(tabs)/my-booking' });
     }
+  }
+
+  // "Are You Here?" card's 4 options -- every one of them notifies the
+  // salon (dashboard bell + push), same as check-in already did and the
+  // self-cancel route already does; eta-status is a new lightweight
+  // endpoint just for the "Almost"/"Running Late" pings, since there's no
+  // booking-row state to track for those (unlike checked_in_at/cancelled).
+  async function handleCheckinOption(item: NotificationItem, option: 'here' | 'almost' | 'running_late' | 'cancel') {
+    if (!item.booking_id) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+
+    if (option === 'cancel') {
+      Alert.alert(
+        'Cancel this appointment?',
+        'This will let the salon know you’re not coming.',
+        [
+          { text: 'Keep appointment', style: 'cancel' },
+          {
+            text: 'Cancel appointment',
+            style: 'destructive',
+            onPress: async () => {
+              await fetch(`${API_BASE}/api/mobile/bookings/${item.booking_id}/cancel`, { method: 'POST', headers, body: '{}' });
+              setCheckinSentFor((prev) => ({ ...prev, [item.id]: 'Cancelled' }));
+              load();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    if (option === 'here') {
+      await fetch(`${API_BASE}/api/mobile/bookings/${item.booking_id}/check-in`, { method: 'POST', headers });
+      setCheckinSentFor((prev) => ({ ...prev, [item.id]: "You're checked in" }));
+      return;
+    }
+
+    await fetch(`${API_BASE}/api/mobile/bookings/${item.booking_id}/eta-status`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ status: option }),
+    });
+    setCheckinSentFor((prev) => ({ ...prev, [item.id]: option === 'almost' ? "Salon notified — almost there" : 'Salon notified — running late' }));
   }
 
   async function handlePress(item: NotificationItem) {
@@ -675,6 +724,45 @@ export default function NotificationsScreen() {
         {renderHeroDateBlock(item, accent, config?.subtitle)}
       </>
     );
+
+    if (item.type === 'checkin_ready') {
+      const sent = checkinSentFor[item.id];
+      return (
+        <ImageBackground key={item.id} source={bgSource} style={[styles.card, styles.cancelledCardSize]} imageStyle={styles.cancelledCardBgImage}>
+          <View style={styles.heroBody}>
+            <View style={styles.cancelledLeftCol}>
+              {iconBlock}
+              <Text style={[styles.cancelledTime, { color: accent }]}>{timeAgo(item.created_at)}</Text>
+            </View>
+            <View style={styles.heroRightCol}>
+              {textBlock}
+              {sent ? (
+                <View style={styles.checkinSentRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={accent} />
+                  <Text style={[styles.checkinSentText, { color: accent }]}>{sent}</Text>
+                </View>
+              ) : (
+                <View style={styles.checkinOptionsGrid}>
+                  <Pressable style={[styles.checkinOptionBtn, { backgroundColor: '#3DD68C' }]} onPress={() => handleCheckinOption(item, 'here')}>
+                    <Text style={styles.checkinOptionText}>Here</Text>
+                  </Pressable>
+                  <Pressable style={[styles.checkinOptionBtn, { backgroundColor: accent }]} onPress={() => handleCheckinOption(item, 'almost')}>
+                    <Text style={styles.checkinOptionText}>Almost</Text>
+                  </Pressable>
+                  <Pressable style={[styles.checkinOptionBtn, { backgroundColor: '#FF8A5C' }]} onPress={() => handleCheckinOption(item, 'running_late')}>
+                    <Text style={styles.checkinOptionText}>Running Late</Text>
+                  </Pressable>
+                  <Pressable style={[styles.checkinOptionBtn, styles.checkinCancelBtn]} onPress={() => handleCheckinOption(item, 'cancel')}>
+                    <Text style={[styles.checkinOptionText, styles.checkinCancelText]}>Cancel</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          </View>
+          {!item.read && <View style={[styles.unreadDot, { backgroundColor: accent, right: 12 }]} />}
+        </ImageBackground>
+      );
+    }
 
     if (hasButton) {
       return (
@@ -926,6 +1014,44 @@ const styles = StyleSheet.create({
     top: 16,
     right: 14,
   },
+  checkinOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  checkinOptionBtn: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkinOptionText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.xs,
+    color: '#09000F',
+  },
+  checkinCancelBtn: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  checkinCancelText: {
+    color: 'rgba(255,255,255,0.75)',
+  },
+  checkinSentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  checkinSentText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+  },
+
   heroCard: {
     position: 'relative',
     borderRadius: 24,
