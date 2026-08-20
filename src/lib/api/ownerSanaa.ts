@@ -28,6 +28,12 @@ export interface SanaaStatus {
    *  action) -- distinct from telnyx_agent_id, which only gets set during
    *  Connect/Provision. */
   config_completed: boolean;
+  /** Real Telnyx provisioning state machine (sanaa_tenants.provisioning_status):
+   *  'not_started' | 'agent_created' | 'number_purchased' | 'complete'.
+   *  Connect isn't genuinely done until this reaches 'complete' -- a
+   *  purchased-but-unassigned number ('number_purchased') must not read as
+   *  ready for Test. */
+  provisioning_status: 'not_started' | 'agent_created' | 'number_purchased' | 'complete';
 }
 
 export function getSanaaStatus() {
@@ -65,25 +71,23 @@ export type SanaaLifecycle =
 // success never auto-provisions anything -- the owner still explicitly taps
 // through Setup themselves.
 //
-// `action_required` still only distinguishes "agent created, number missing"
-// -- it does not yet separately surface a suspended/past-due commercial
-// state or an unhealthy Telnyx agent. That's real remaining scope, not
-// something this bridge slice was asked to build.
+// Connect isn't genuinely done until the real Telnyx provisioning state
+// machine (provisioning_status) reaches 'complete' -- telnyx_agent_id/
+// telnyx_number presence alone is not sufficient. A number can be
+// purchased (provisioning_status='number_purchased', telnyx_number set)
+// while it's still unassigned to the agent's real Telnyx connection; that
+// must read as "Connect still in progress," never as ready for Test.
 export function deriveSanaaLifecycle(status: SanaaStatus): SanaaLifecycle {
   if (!status.subscribed) return 'non_subscriber';
-
-  // Provisioned but the agent was never fully wired up (e.g. Telnyx
-  // agent creation failed) -- surfaced as needing attention rather than
-  // silently sitting in an ambiguous setup state.
-  if (status.telnyx_agent_id && !status.telnyx_number) return 'action_required';
 
   // Configure isn't done until the owner explicitly saves & continues --
   // reaching this via telnyx_agent_id presence alone would mean Configure
   // is only ever "complete" once Connect/Provision already ran, which is
   // backwards and skips ever showing Connect as the active step.
   if (!status.config_completed) return 'setup_not_started';
-  if (!status.telnyx_agent_id) return 'setup_partial';
-  if (!status.telnyx_number) return 'setup_partial';
+
+  if (status.provisioning_status !== 'complete') return 'setup_partial';
+
   if (!status.test_call_completed) return 'ready_to_test';
   if (!status.active) return status.test_call_completed ? 'ready_to_activate' : 'setup_partial';
 
