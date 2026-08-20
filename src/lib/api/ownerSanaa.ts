@@ -23,6 +23,11 @@ export interface SanaaStatus {
   telnyx_number: string | null;
   active: boolean;
   test_call_completed: boolean;
+  /** Real, server-set signal that the owner explicitly finished Configure
+   *  (sanaa_tenants.config_completed_at, set by the "Save & Continue"
+   *  action) -- distinct from telnyx_agent_id, which only gets set during
+   *  Connect/Provision. */
+  config_completed: boolean;
 }
 
 export function getSanaaStatus() {
@@ -72,7 +77,12 @@ export function deriveSanaaLifecycle(status: SanaaStatus): SanaaLifecycle {
   // silently sitting in an ambiguous setup state.
   if (status.telnyx_agent_id && !status.telnyx_number) return 'action_required';
 
-  if (!status.telnyx_agent_id) return 'setup_not_started';
+  // Configure isn't done until the owner explicitly saves & continues --
+  // reaching this via telnyx_agent_id presence alone would mean Configure
+  // is only ever "complete" once Connect/Provision already ran, which is
+  // backwards and skips ever showing Connect as the active step.
+  if (!status.config_completed) return 'setup_not_started';
+  if (!status.telnyx_agent_id) return 'setup_partial';
   if (!status.telnyx_number) return 'setup_partial';
   if (!status.test_call_completed) return 'ready_to_test';
   if (!status.active) return status.test_call_completed ? 'ready_to_activate' : 'setup_partial';

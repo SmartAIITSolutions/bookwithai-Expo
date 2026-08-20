@@ -47,6 +47,12 @@ export function updateSanaaConfig(patch: Partial<SanaaOwnerConfig>) {
   return ownerFetch<SanaaOwnerConfig>('/api/owner/sanaa/config', { method: 'PATCH', body: patch });
 }
 
+// The "Save & Continue" action -- marks Configure done with a real,
+// server-set timestamp so Setup Home advances to Connect. Idempotent.
+export function completeSanaaConfig() {
+  return ownerFetch<{ config_completed_at: string }>('/api/owner/sanaa/config/complete', { method: 'POST' });
+}
+
 export interface SanaaFaq {
   id: string;
   question: string;

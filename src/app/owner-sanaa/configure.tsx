@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,7 @@ import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
 import {
-  getSanaaConfig, updateSanaaConfig, SanaaConfigResponse, SanaaOwnerConfig,
+  getSanaaConfig, updateSanaaConfig, completeSanaaConfig, SanaaConfigResponse, SanaaOwnerConfig,
   listSanaaFaqs, createSanaaFaq, updateSanaaFaq, deleteSanaaFaq, SanaaFaq,
 } from '@/lib/api/ownerSanaaConfig';
 import { updateBusiness } from '@/lib/api/ownerBusiness';
@@ -116,6 +116,14 @@ export default function SanaaConfigureScreen() {
     else Alert.alert('Saved', 'Human transfer number updated.');
   }
 
+  async function saveAndContinue() {
+    setSaving(true);
+    const result = await completeSanaaConfig();
+    setSaving(false);
+    if (!result.ok) { Alert.alert('Could not continue', result.error); return; }
+    router.push('/owner-sanaa/phone');
+  }
+
   async function addFaq() {
     if (!newQuestion.trim() || !newAnswer.trim()) return;
     const result = await createSanaaFaq({ question: newQuestion.trim(), answer: newAnswer.trim() });
@@ -168,7 +176,7 @@ export default function SanaaConfigureScreen() {
     <View style={styles.container}>
       <DualBreathingBackground />
       <Stack.Screen options={HEADER_OPTIONS} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* What SANAA already knows -- read-only, sourced from the same data SANAA's live calls already use */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What SANAA Already Knows</Text>
@@ -357,6 +365,10 @@ export default function SanaaConfigureScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        <TouchableOpacity style={styles.continueButton} onPress={saveAndContinue} disabled={saving}>
+          <Text style={styles.continueButtonText}>Save & Continue to Connect</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -417,6 +429,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', backgroundColor: '#F4D77A', borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md, paddingVertical: 9,
   },
+  continueButton: {
+    borderRadius: BorderRadius.full, backgroundColor: '#F4D77A', paddingVertical: 16, alignItems: 'center',
+  },
+  continueButtonText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#09000F' },
   saveSmallButtonText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: '#09000F' },
   cancelButton: { paddingHorizontal: Spacing.md, paddingVertical: 9, justifyContent: 'center' },
   cancelButtonText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)' },
