@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
-import { getSanaaConfig, provisionSanaaAgent, provisionSanaaNumber } from '@/lib/api/ownerSanaaConfig';
+import { getSanaaConfig, provisionSanaaAgent, provisionSanaaNumber, SanaaProvisioningStatus } from '@/lib/api/ownerSanaaConfig';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -43,6 +43,7 @@ export default function SanaaPhoneScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasAgent, setHasAgent] = useState(false);
   const [telnyxNumber, setTelnyxNumber] = useState<string | null>(null);
+  const [provisioningStatus, setProvisioningStatus] = useState<SanaaProvisioningStatus>('not_started');
   const [transferNumber, setTransferNumber] = useState('');
   const [provisioning, setProvisioning] = useState(false);
 
@@ -53,6 +54,7 @@ export default function SanaaPhoneScreen() {
     if (result.ok) {
       setHasAgent(result.data.has_agent);
       setTelnyxNumber(result.data.telnyx_number);
+      setProvisioningStatus(result.data.provisioning_status);
       setTransferNumber(result.data.config.transfer_number);
     } else {
       setLoadError(result.error);
@@ -85,8 +87,14 @@ export default function SanaaPhoneScreen() {
       return;
     }
     setTelnyxNumber(result.data.telnyx_number);
+    // A successful response here means the backend reached its 'complete'
+    // state (assigned to the real Telnyx connection) -- provisionSanaaNumber
+    // never returns success without that.
+    setProvisioningStatus('complete');
     Alert.alert('Number ready', `SANAA now has a dedicated number: ${formatPhoneDisplay(result.data.telnyx_number)}`);
   }
+
+  const isConnected = provisioningStatus === 'complete';
 
   if (loading) {
     return (
@@ -115,27 +123,31 @@ export default function SanaaPhoneScreen() {
           <Text style={styles.sectionTitle}>Connection Status</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
-            {telnyxNumber ? (
+            {isConnected ? (
               <View style={styles.statusRow}>
                 <View style={styles.statusDotConnected} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.statusTitle}>Connected</Text>
-                  <Text style={styles.statusValue}>{formatPhoneDisplay(telnyxNumber)}</Text>
+                  <Text style={styles.statusValue}>{telnyxNumber ? formatPhoneDisplay(telnyxNumber) : ''}</Text>
                 </View>
               </View>
             ) : (
               <View style={styles.statusRow}>
                 <View style={styles.statusDotPending} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.statusTitle}>Not connected yet</Text>
-                  <Text style={styles.statusValue}>Choose an option below to give SANAA a number to answer.</Text>
+                  <Text style={styles.statusTitle}>{telnyxNumber ? 'Almost connected' : 'Not connected yet'}</Text>
+                  <Text style={styles.statusValue}>
+                    {telnyxNumber
+                      ? 'Your number is purchased but not finished connecting — resume below.'
+                      : 'Choose an option below to give SANAA a number to answer.'}
+                  </Text>
                 </View>
               </View>
             )}
           </BlurView>
         </View>
 
-        {!telnyxNumber && (
+        {!isConnected && (
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Get a Dedicated SANAA Number</Text>
@@ -149,7 +161,13 @@ export default function SanaaPhoneScreen() {
                   onPress={handleProvision}
                   disabled={provisioning}
                 >
-                  <Text style={styles.provisionButtonText}>{provisioning ? 'Getting your number…' : 'Get My SANAA Number'}</Text>
+                  <Text style={styles.provisionButtonText}>
+                    {provisioning
+                      ? 'Connecting…'
+                      : telnyxNumber
+                        ? 'Resume Connection'
+                        : 'Get My SANAA Number'}
+                  </Text>
                 </TouchableOpacity>
               </BlurView>
             </View>

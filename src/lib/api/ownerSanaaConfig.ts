@@ -21,11 +21,17 @@ export interface SanaaOwnerConfig {
   upsell_enabled: boolean;
 }
 
+export type SanaaProvisioningStatus = 'not_started' | 'agent_created' | 'number_purchased' | 'complete';
+
 export interface SanaaConfigResponse {
   business: SanaaKnownBusiness;
   config: SanaaOwnerConfig;
   has_agent: boolean;
   telnyx_number: string | null;
+  // Real provisioning state machine -- a number can be purchased
+  // (provisioning_status='number_purchased') before it's actually assigned
+  // to the agent's Telnyx connection. Only 'complete' means genuinely done.
+  provisioning_status: SanaaProvisioningStatus;
 }
 
 export function getSanaaConfig() {
