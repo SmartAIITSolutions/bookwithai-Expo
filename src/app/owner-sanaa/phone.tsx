@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
-import { getSanaaConfig, provisionSanaaNumber } from '@/lib/api/ownerSanaaConfig';
+import { getSanaaConfig, provisionSanaaAgent, provisionSanaaNumber } from '@/lib/api/ownerSanaaConfig';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -34,14 +34,14 @@ function formatPhoneDisplay(number: string): string {
   return `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`;
 }
 
-// P6: automated Telnyx number provisioning surface. Reads has_tenant /
+// P6: automated Telnyx number provisioning surface. Reads has_agent /
 // telnyx_number from the existing /api/owner/sanaa/config (P5) rather than
 // duplicating that fetch. Deliberately no live test-call button here --
 // that's P7, not this slice.
 export default function SanaaPhoneScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [hasTenant, setHasTenant] = useState(false);
+  const [hasAgent, setHasAgent] = useState(false);
   const [telnyxNumber, setTelnyxNumber] = useState<string | null>(null);
   const [transferNumber, setTransferNumber] = useState('');
   const [provisioning, setProvisioning] = useState(false);
@@ -51,7 +51,7 @@ export default function SanaaPhoneScreen() {
     setLoadError(null);
     const result = await getSanaaConfig();
     if (result.ok) {
-      setHasTenant(result.data.has_tenant);
+      setHasAgent(result.data.has_agent);
       setTelnyxNumber(result.data.telnyx_number);
       setTransferNumber(result.data.config.transfer_number);
     } else {
@@ -62,12 +62,22 @@ export default function SanaaPhoneScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // The agent is a prerequisite for a number, not a gate the owner has to
+  // clear themselves -- this button creates it (or refreshes it, if one
+  // already exists) before requesting a number, all in one tap.
   async function handleProvision() {
-    if (!hasTenant) {
-      Alert.alert('SANAA not set up yet', 'Finish setting up SANAA before getting a dedicated number.');
-      return;
-    }
     setProvisioning(true);
+
+    if (!hasAgent) {
+      const agentResult = await provisionSanaaAgent();
+      if (!agentResult.ok) {
+        setProvisioning(false);
+        Alert.alert('Could not set up SANAA', agentResult.error);
+        return;
+      }
+      setHasAgent(true);
+    }
+
     const result = await provisionSanaaNumber();
     setProvisioning(false);
     if (!result.ok) {

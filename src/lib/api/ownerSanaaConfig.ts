@@ -24,12 +24,22 @@ export interface SanaaOwnerConfig {
 export interface SanaaConfigResponse {
   business: SanaaKnownBusiness;
   config: SanaaOwnerConfig;
-  has_tenant: boolean;
+  has_agent: boolean;
   telnyx_number: string | null;
 }
 
 export function getSanaaConfig() {
   return ownerFetch<SanaaConfigResponse>('/api/owner/sanaa/config');
+}
+
+// Creates the Telnyx AI agent if none exists yet, or refreshes the existing
+// one in place (same agent_id) -- idempotent server-side, safe to call every
+// time "Get My SANAA Number" is tapped. No phone number is touched here.
+export function provisionSanaaAgent() {
+  return ownerFetch<{ success: boolean; agent_id: string; tenant_id: string }>(
+    '/api/owner/sanaa/provision-agent',
+    { method: 'POST' }
+  );
 }
 
 // Real financial transaction on the other end (Telnyx number purchase).
