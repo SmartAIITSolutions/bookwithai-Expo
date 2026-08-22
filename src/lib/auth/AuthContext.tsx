@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+import { unregisterPushToken } from '@/lib/push/registerForPushNotifications';
 
 const ROLE_CACHE_PREFIX = 'bwa_role_cache_';
 
@@ -187,7 +188,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // P12.8 — centralized so every real sign-out path (owner, staff,
+  // customer, global, biometric) gets push-token cleanup for free, rather
+  // than each screen needing to remember to call it. Failure-tolerant by
+  // design: a push-token unregister network failure must never trap the
+  // user inside their account -- it's attempted, but sign-out proceeds
+  // regardless. Local role-cache state is cleared unconditionally (no
+  // network dependency, nothing to fail).
   async function signOut(scope: 'local' | 'global' = 'local') {
+    const userId = user?.id;
+    try {
+      await unregisterPushToken();
+    } catch (err) {
+      console.error('AuthContext: push token unregister failed during sign-out (continuing)', err);
+    }
+    if (userId) {
+      await AsyncStorage.removeItem(`${ROLE_CACHE_PREFIX}${userId}`).catch(() => {});
+    }
     await supabase.auth.signOut({ scope });
   }
 

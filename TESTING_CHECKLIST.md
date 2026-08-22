@@ -712,3 +712,19 @@ Locked decision: no payment = no SANAA service at all, enforced by flipping the 
 - ⬜ **Billing portal** — confirm "Update Billing" opens a real Stripe-hosted portal session for the correct customer, and that it never accepts/echoes a client-supplied Stripe customer id.
 - ⬜ **Lifecycle no longer misroutes billing-lapsed salons** — confirm a suspended/cancelled salon that has been through onboarding before lands on `action_required` with the correct billing copy, never on the generic non-subscriber Discovery screen.
 - ⬜ **Agency pause/resume parity** — confirm the agency dashboard's real (no longer cosmetic) pause/resume also respects the billing-authorization guard, and that agency billing visibility (status/plan/period end) is accurate.
+
+## SANAA P12 — security & privacy hardening (2026-08-22, static/read-only verified, live walkthrough deferred to combined P8+ pass)
+
+Full detail in `MASTER.md`. Doppler must have `TELNYX_PUBLIC_KEY`/`SANAA_WEBHOOK_CALLBACK_SECRET` set before any of the webhook-authenticity items below can pass live.
+
+- ⬜ **Real inbound call still works end-to-end** — after Doppler env vars are set and a Repair/re-provision has run for the test tenant, place a real call and confirm SANAA still answers normally (the new required Ed25519/token checks must not break legitimate traffic).
+- ⬜ **Forged webhook rejected** — attempt a POST to `inbound-webhook`/`call-events` without valid signature/token headers and confirm a 401 with no DB write, no notification, no minutes charged.
+- ⬜ **Existing (not-yet-repaired) tenant's TeXML callback** — before Repair runs for a given tenant, confirm whether their status_callback still authenticates (Ed25519 only, no token yet) or needs Repair first — record the actual behavior, since this was a known honest gap in the investigation.
+- ⬜ **Cross-tenant upsell leak fix** — confirm live that requesting an upsell suggestion with a foreign-tenant service_id now returns nothing instead of another salon's real service/price (already verified read-only against production data pre-deploy; confirm again through the real tool call path).
+- ⬜ **Notification mark-read works from the web dashboard** — this was silently broken (RLS-denied) before P12; confirm both single and mark-all-read now actually persist.
+- ⬜ **Unknown-service booking rejected** — ask SANAA to book a made-up/garbled service name and confirm it asks for clarification instead of creating a $0/no-service booking.
+- ⬜ **Tone/transfer-number validation** — attempt to save an invalid tone or malformed transfer number from both the owner app and the agency dashboard, confirm both are rejected with a clear error.
+- ⬜ **Mobile session survives the SecureStore migration** — sign in on a device that already had a session under the old plaintext AsyncStorage format, confirm it migrates cleanly with no forced re-login.
+- ⬜ **Push token cleanup on every logout path** — sign out from the owner tab, staff tab, and via biometric sign-out; confirm the push_tokens row is actually removed each time (not just from the customer tab).
+- ⬜ **Stripe webhook retry recovery** — simulate (or wait for) a webhook handler failure and confirm Stripe's retry actually reprocesses it rather than being silently dropped as a duplicate.
+- ⬜ **P11 mutations now show up in the audit log** — pause, resume, a billing-driven suspend, and a Repair run should each produce a `sanaa_config_audit` row with the correct actor type.

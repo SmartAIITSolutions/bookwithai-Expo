@@ -1,13 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
+import { secureSessionStorage } from './secureSessionStorage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
+// P12.7 — session material (access/refresh tokens) is no longer persisted
+// in plain AsyncStorage. secureSessionStorage encrypts it (AES-256-CTR)
+// with the key held in SecureStore (iOS Keychain / Android Keystore),
+// migrating any existing plaintext session on first read. See
+// secureSessionStorage.ts for the full reasoning and Supabase's own
+// documented pattern this follows.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: secureSessionStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

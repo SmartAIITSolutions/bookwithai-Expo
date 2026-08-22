@@ -1528,3 +1528,22 @@ Full backend/audit detail lives in `booking-app`'s `MASTER.md` §53. Audit confi
 **EXTENDED**: `owner-notifications.tsx` (deep-link switch), `ownerSanaaUsage.ts` (type cleanup).
 **NOT IMPLEMENTED**: everything in the explicit P10 out-of-scope list — no new notification center, no owner SMS, no notification detail screen, no per-category preference UI.
 **REGRESSION RESULTS**: `tsc --noEmit` clean. No push/email sent, no test call placed.
+
+### SANAA P11 — lifecycle & recovery, real Telnyx-level suspension (2026-08-22)
+
+Full backend detail lives in `booking-app`'s `MASTER.md` §54. `deriveSanaaLifecycle()` (`lib/api/ownerSanaa.ts`) extended to read `commercial_state`/`service_synced`/`service_state` in addition to the existing 4 fields — a previously-onboarded, now-suspended/cancelled salon now routes to `action_required` (billing copy, real CTAs) instead of falling back to the generic non-subscriber Discovery screen. `paused` and `action_required` — previously dead lifecycle values with fully-built but unreachable UI — are now real, reachable states. `SanaaOperationsHome.tsx` wires the previously-dead Resume button, adds a working Pause link, and distinguishes 4 separate `action_required` causes (suspended/cancelled/other-billing/provider-sync) each with correct copy and CTA, plus inline banners for `past_due` grace and `cancel_scheduled` on the still-`live` state. `billing.tsx` gets a real Update Billing CTA (opens the Stripe portal via `expo-web-browser`) and a Restart CTA for `cancelled`. New API functions: `pauseSanaa`, `resumeSanaa`, `repairSanaaConnection`, `openSanaaBillingPortal`.
+
+**REUSED**: the existing `SanaaLifecycle` type/UI (`paused`/`action_required` already had full component code, just unreachable), `expo-web-browser`'s existing checkout pattern.
+**NEW**: `pauseSanaa`/`resumeSanaa`/`repairSanaaConnection`/`openSanaaBillingPortal` in `ownerSanaa.ts`.
+**EXTENDED**: `ownerSanaa.ts` (types + `deriveSanaaLifecycle`), `SanaaOperationsHome.tsx`, `billing.tsx`, `(owner)/sanaa.tsx` (passes raw status through).
+**REGRESSION RESULTS**: `tsc --noEmit` clean. No pause/suspend actually triggered live this session.
+
+### SANAA P12 — security & privacy hardening (2026-08-22)
+
+Full investigation + backend detail lives in `booking-app`'s `MASTER.md` §55. This repo's changes: Supabase session storage moved off plaintext AsyncStorage to a new `lib/secureSessionStorage.ts` (`LargeSecureStore` — Supabase's own documented Expo pattern; AES-256-CTR via `aes-js`, key in `expo-secure-store`, ciphertext in AsyncStorage, since SecureStore alone is capped at 2048 bytes/value on Android, smaller than a real session). Existing signed-in users migrate on first read (encrypt-then-write, rolled back on partial failure — plaintext is only ever superseded after both writes succeed). Push-token cleanup (`unregisterPushToken()`) centralized into `AuthContext.tsx`'s `signOut()` itself — previously only the customer tab's logout called it; owner/staff/global/biometric sign-out all skipped it. Failure-tolerant by design (a network failure during cleanup never blocks sign-out). Local role-cache entry also cleared on sign-out.
+
+**REUSED**: `expo-secure-store` (already a dependency, used elsewhere for the PIN feature), the existing `signOut()` call sites (no changes needed at most of them — cleanup now happens inside the shared function).
+**NEW**: `secureSessionStorage.ts`, `aes-js`/`react-native-get-random-values` dependencies.
+**EXTENDED**: `supabase.ts` (storage adapter swap), `AuthContext.tsx` (`signOut()`), `(tabs)/account.tsx` (removed now-redundant explicit `unregisterPushToken()` call).
+**NOT IMPLEMENTED**: nothing deferred on this repo's side — the full P12 scope for bookwithai-expo was mobile token/push handling, both addressed.
+**REGRESSION RESULTS**: `tsc --noEmit` clean.

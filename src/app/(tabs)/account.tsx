@@ -11,7 +11,6 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import {
   requestAndRegisterPushToken,
   getNotificationPermissionStatus,
-  unregisterPushToken,
 } from '@/lib/push/registerForPushNotifications';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { fetchMembershipStatus } from '@/lib/api/customer';
@@ -106,7 +105,7 @@ export default function AccountScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            await unregisterPushToken();
+            // P12.8 — push-token cleanup now happens inside signOut() itself.
             await signOut();
             router.replace('/auth');
           },
