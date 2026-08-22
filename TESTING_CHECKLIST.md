@@ -625,3 +625,90 @@ New `owner-sanaa/plans.tsx` — the real Plans/Offer screen (Founding $5 Experie
 - ⬜ **"See Plans" navigation** — confirm tapping "See Plans" on Discovery Home actually opens `owner-sanaa/plans` now (previously a no-op).
 - ⬜ **Full checkout flow** — blocked on Stripe test-mode credentials (`STRIPE_SANAA_TEST_SECRET_KEY` not yet configured): starting a $5 Experience checkout, completing it in the in-app browser, returning to the app, and confirming the "Confirming SANAA purchase…" polling state resolves to a real `experience` status and routes into Setup Home.
 - ⬜ **`owner-sanaa/billing.tsx`** — confirm it shows real commercial state once a subscription exists, distinct from the Plans (browse/buy) screen.
+
+## SANAA P7 — real Test SANAA call flow (2026-08-21, tsc/build-verified only, no live call placed yet)
+
+New `owner-sanaa/test.tsx`, reachable now via Setup Home's `TEST SANAA` CTA (previously a genuine no-op — `STEP_ROUTES[2]` was unmapped). Completion requires both a real Telnyx-verified call and the owner's explicit confirmation; neither alone can complete Test. Full backend design in `booking-app/MASTER.md` §49. Migration not yet applied to production, so none of this is reachable against a real backend yet.
+
+- ⬜ **`TEST SANAA` now navigates** — confirm tapping the CTA on Setup Home (state `ready_to_test`) opens `owner-sanaa/test` instead of doing nothing.
+- ⬜ **Initial state renders correctly** — "Test Your SANAA" hero copy, real tenant SANAA number displayed (formatted), 3-item guided checklist (ask about the business / try an appointment conversation / ask to speak to a human), "Start Test Call" button.
+- ⬜ **Start Test Call → dialer handoff** — tapping it calls `/test/start` first (server-side session stamp), then opens the device dialer via `Linking.openURL('tel:...')` to the real number. Confirm the order: no dialer opens if `/test/start` fails.
+- ⬜ **Returning to the app surfaces "Check Call Status"** — via the `AppState` foreground listener, confirm the screen auto-refreshes status when the owner returns from the Phone app after `Start Test Call`.
+- ⬜ **No qualifying call yet** — tapping "Check Call Status" before actually completing a real call shows "We haven't confirmed a completed SANAA call yet. Finish the call, then check again." and does *not* advance state.
+- ⬜ **Call verified** — after a real answered/hung-up call to the tenant's number, "Check Call Status" shows "SANAA answered ✓" and the "Did SANAA sound and behave correctly?" confirm step (Yes — Continue / Test Again).
+- ⬜ **"Yes — Continue" only advances on server success** — confirm the UI does not show Test Complete unless `/test/confirm` actually returns 200; simulate a stale/expired session (e.g. restart Test in another session first) and confirm the error path surfaces rather than silently advancing.
+- ⬜ **"Test Again" restarts cleanly** — confirm it calls `/test/start` again (new session anchor) and returns to the Start Test Call flow, without disturbing `provisioning_status` or Configure/Connect state.
+- ⬜ **Test Complete state** — "Test Complete ✓" + "Continue to Activation" CTA; confirm tapping it returns to Setup Home and Activate now renders as the current/unlocked step (per `deriveSanaaLifecycle`), since Activate itself is still P8/unbuilt.
+- ⬜ **Historical-call exclusion** — confirm a call placed *before* tapping "Start Test Call" (e.g. a real customer call, or a leftover call from a previous Test session) never satisfies a newly-started Test — this is the `test_session_started_at` correlation guard, code-reviewed but not yet exercised live.
+- ⬜ **Cross-tenant isolation** — confirm one owner's Test session can never be confirmed using another tenant's call data (relies on `verifyOwnerUser`'s `client_id` scoping throughout — code-reviewed, not yet exercised live with two real accounts).
+- ⬜ **Migration deploy** — `20260821060000_sanaa_test_call_state.sql` has not yet been pushed to production; nothing above is reachable against a real backend until it is.
+- ✅ **Migration applied, real end-to-end call verified** — superseded by the lifecycle-correction entry below: the migration was pushed, real Glam Studio calls were placed and correctly verified, and Test Complete's copy/CTA changed from "Continue to Activation" to "Go to SANAA" — see that entry, not this one, for current behavior.
+
+## SANAA lifecycle correction — Connect is the real activation boundary (2026-08-22, real Glam Studio data verified, no live owner walkthrough yet)
+
+No separate Activate step exists anymore — Configure → Connect → Test → LIVE. Full detail in `MASTER.md`.
+
+- ⬜ **Connect success screen** — after a real "Get My SANAA Number"/"Connect SANAA" tap succeeds, confirm "Congratulations! SANAA is Active" renders with the real number and a "Test SANAA" CTA that opens `/owner-sanaa/test` directly — and confirm it does *not* reappear on a later revisit to Phone & Connectivity (only shown the moment Connect completes in that session).
+- ⬜ **Test Complete copy/CTA** — confirm the completed state now reads "✓ Test Complete" / "SANAA is ready for your customers." with a single "Go to SANAA" button → `/(owner)/sanaa`, not the old "Continue to Activation" text.
+- ⬜ **Setup tracker shows exactly 3 steps** — Configure, Connect, Test — with no fourth Activate row, unreachable or otherwise.
+- ✅ **Glam Studio derives LIVE without manual DB change** — verified read-only against production: `config_completed_at` set, `provisioning_status='complete'`, `test_call_completed_at` set → simulated lifecycle correctly resolves to `'live'`.
+- ⬜ **Live owner walkthrough** — the above was verified via direct DB read, not by actually tapping through the app end-to-end; still needs a real on-device pass.
+
+## SANAA P8 — LIVE Operations, Calls & Activity (2026-08-22, tsc-verified only, live walkthrough deferred to combined P8+ pass)
+
+Real call history, Operations Home Results/Recent Activity, and Realtime replace the P0/P1 placeholders. Full detail in `MASTER.md`. Deliberately not live-tested yet — per explicit instruction, P8-onward testing is deferred to a final combined pass.
+
+- ⬜ **Calls & Activity screen loads real data** — confirm `owner-sanaa/calls` shows Glam Studio's real P7-era calls (including the one with a transfer), correct timestamps/durations/outcomes.
+- ⬜ **Expand/collapse** — confirm summary/transcript only render when a row is tapped, never inline in the collapsed list.
+- ⬜ **Load More** — confirm pagination advances correctly past the first page once enough real calls exist.
+- ⬜ **View Appointment deep-link** — confirm a call with a real `booking_id` shows the CTA and correctly opens the existing appointment detail screen.
+- ⬜ **Operations Home Results** — confirm the 3 metrics (Calls Handled/Booked/Transfers, labeled "Last 30 Days") reflect real `sanaa_call_logs` rows.
+- ⬜ **Operations Home Recent Activity** — confirm the latest 5 calls render with correct outcome badges and a working "View All Calls" CTA.
+- ⬜ **Realtime refresh** — place a real call while Operations Home or the Calls screen is open, confirm it appears without a manual pull (debounced, not multiple rapid reloads for one call's lifecycle events).
+- ⬜ **Cross-tenant isolation** — confirm the Realtime subscription (now RLS-backed, not just client-filtered) never surfaces another salon's call data.
+
+## SANAA P9 — usage tracking & owner visibility (2026-08-22, read-only data verified, live walkthrough deferred to combined P8+ pass)
+
+Real used/remaining/overage minutes computed from the call ledger for the real Stripe billing period. No automatic overage charging exists yet — display only. Full detail in `MASTER.md`.
+
+- ✅ **Honest "no billing period" state verified** — Glam Studio (Experience-tier, no real subscription period) correctly returns `available: false` rather than a fabricated date range — verified read-only against production.
+- ⬜ **Real active-subscriber usage display** — not yet exercisable against Glam Studio (still Experience-tier); needs a real Essential/Professional/Premier subscription with `current_period_start/end` populated to verify the full card/breakdown render correctly.
+- ⬜ **Operations Home compact Usage card** — plan name, `X / Y minutes`, progress bar color (gold under limit, red once in overage), remaining-or-overage line, billing-cycle label, "View Usage & Billing" CTA.
+- ⬜ **Plan & Billing full breakdown** — plan + price, minutes/percent, progress bar, plain-language remaining/overage copy exactly as specified, "Estimated additional usage" label (never "amount due"), billing-cycle dates.
+- ⬜ **Test-call exclusion for a *new* Test** — confirm a fresh P7 Test run (after this deploy) correctly gets its qualifying call marked `is_test_call=true` and excluded from the next usage calculation. Glam Studio's *existing* historical test call is confirmed to remain unmarked (verified read-only) — expected, not a bug, per the no-retroactive-guessing instruction.
+- ⬜ **Overage math** — with real over-allowance usage, confirm `overage_minutes`/`estimated_overage_cents` match `overage_minutes × plan.overage_rate_cents_per_min` exactly.
+
+## SANAA P10 — notifications (2026-08-22, static-verified only, live walkthrough deferred to combined P8+ pass)
+
+Reuses the existing Notification Center end-to-end — no new UI, only new triggers into `notifyOwner()`/`sendPushToOwner()` and one new deep-link switch. Full detail in `MASTER.md`.
+
+- ⬜ **Live-call push** — place a real call, confirm exactly one "SANAA is on a call" push arrives right after SANAA picks up (not on ringing), and confirm it does **not** appear in the in-app Notification Center (ephemeral, push-only by design).
+- ⬜ **Live-call dedup** — confirm a single call never produces more than one live-call push even if Telnyx redelivers `call.answered`.
+- ⬜ **Transfer notification** — ask SANAA to transfer to a human, confirm "SANAA transferred a caller" arrives as both a push and a Notification Center row, and confirm tapping it opens `/owner-sanaa/calls`.
+- ⬜ **Reschedule notification (new)** — have SANAA reschedule an appointment, confirm a notification now fires (previously a real gap) matching the Booked/Cancelled pattern.
+- ⬜ **Cancel notification preference respected** — confirm a SANAA cancellation notification now honors `notify_owner_bell` (previously fired unconditionally) and that an email now arrives too (previously missing).
+- ⬜ **Usage threshold — real crossing** — with a real subscription past 75/90/100% minutes, confirm the notification fires once, immediately after the hangup that crosses it, not on a later app open/read.
+- ⬜ **Usage threshold — no duplicate on re-check** — confirm reopening the Usage screen or placing another call while still above the same threshold does **not** re-send that threshold's notification.
+- ⬜ **Usage threshold — jump case** — a single long call that pushes usage past two thresholds at once should produce exactly one notification (the higher one), not two back-to-back.
+- ⬜ **Billing alert — payment failed** — with a real Stripe test-mode failed invoice, confirm push+bell+email all arrive regardless of the salon's `notify_owner_bell`/`notify_owner_email` settings.
+- ⬜ **Billing alert — the other 3 transitions** — suspended, cancel-scheduled, cancelled — same mandatory-delivery check.
+- ⬜ **Deep links** — confirm every new notification type opens the correct existing screen (`/owner-sanaa/calls` or `/owner-sanaa/billing`) and that ordinary booking notifications still open the calendar as before.
+- ⬜ **Privacy** — confirm no push notification body ever shows a caller's phone number, name, or any transcript/summary content, on a real device lock screen.
+
+## SANAA P11 — lifecycle & recovery, real Telnyx-level suspension (2026-08-22, static-verified only, live walkthrough deferred to combined P8+ pass)
+
+Locked decision: no payment = no SANAA service at all, enforced by flipping the tenant's own TeXML application `active` field — not simulated in-app. Full detail in `MASTER.md`.
+
+- ⬜ **Suspension actually stops calls** — with a real Stripe test-mode subscription pushed to `suspended` (2 failed invoices), place a real call to that salon's SANAA number and confirm it does **not** reach the AI (exact caller experience — dead line vs. carrier message — was deliberately left unverified by the investigation; observe and record it here).
+- ⬜ **Recovery re-enables the same resources** — pay the failed invoice, confirm SANAA answers again on the *same* number/assistant, with no reprovisioning delay.
+- ⬜ **`suspended → active` recovery bug fix** — this was a genuine pre-existing bug (no code path existed) — confirm a real Stripe recovery from `suspended` now actually restores `active`, not just from `past_due`.
+- ⬜ **Owner Pause** — tap "Pause SANAA" on a live, paid subscription; confirm calls stop reaching the AI and the subscription itself is untouched (still billing).
+- ⬜ **Owner Resume from Pause** — confirm it restores service instantly on the same resources.
+- ⬜ **Owner Resume blocked during billing suspension** — with a subscription in `suspended`/`cancelled`, confirm `service_state='paused'` (if reachable) does NOT let Resume succeed — it must return the billing-required response and route to Billing, never silently re-enable Telnyx.
+- ⬜ **Cancel-scheduled stays live** — confirm scheduling a cancellation does not disable SANAA, and the app shows "SANAA will remain active until [date]."
+- ⬜ **Effective cancellation disables service, keeps everything else** — confirm the number/assistant/config/history/FAQs all remain in place after a subscription fully ends.
+- ⬜ **Re-subscribe restores service on existing resources** — resubscribe a cancelled salon and confirm no new number is purchased and no new assistant is created; SANAA re-enables on the original ones.
+- ⬜ **Repair Connection** — deliberately desync (e.g. manually flip Telnyx `active` outside the app) and confirm the app surfaces `action_required` with a "Repair Connection" CTA that fixes it without buying a number or recreating the assistant.
+- ⬜ **Billing portal** — confirm "Update Billing" opens a real Stripe-hosted portal session for the correct customer, and that it never accepts/echoes a client-supplied Stripe customer id.
+- ⬜ **Lifecycle no longer misroutes billing-lapsed salons** — confirm a suspended/cancelled salon that has been through onboarding before lands on `action_required` with the correct billing copy, never on the generic non-subscriber Discovery screen.
+- ⬜ **Agency pause/resume parity** — confirm the agency dashboard's real (no longer cosmetic) pause/resume also respects the billing-authorization guard, and that agency billing visibility (status/plan/period end) is accurate.
