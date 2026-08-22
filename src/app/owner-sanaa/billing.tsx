@@ -3,11 +3,24 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
 import { getSanaaOffer, SanaaOfferResponse } from '@/lib/api/ownerSanaaOffer';
+import { getSanaaUsage, SanaaUsage } from '@/lib/api/ownerSanaaUsage';
+import { openSanaaBillingPortal } from '@/lib/api/ownerSanaa';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+
+const BILLING_CTA_STATUSES = new Set(['past_due', 'suspended', 'conversion_failed', 'conversion_action_required']);
+
+function formatMoney(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function formatFullDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 function CardOverlay() {
   return (
@@ -42,17 +55,28 @@ export default function SanaaBillingScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [offer, setOffer] = useState<SanaaOfferResponse | null>(null);
+  const [usage, setUsage] = useState<SanaaUsage | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const result = await getSanaaOffer();
-    if (result.ok) setOffer(result.data);
-    else setLoadError(result.error);
+    const [offerResult, usageResult] = await Promise.all([getSanaaOffer(), getSanaaUsage()]);
+    if (offerResult.ok) setOffer(offerResult.data);
+    else setLoadError(offerResult.error);
+    if (usageResult.ok) setUsage(usageResult.data);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  async function handleUpdateBilling() {
+    const result = await openSanaaBillingPortal();
+    if (result.ok) {
+      await WebBrowser.openBrowserAsync(result.data.url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      });
+    }
+  }
 
   if (loading) {
     return (
@@ -88,9 +112,70 @@ export default function SanaaBillingScreen() {
                   Experience ends {new Date(offer.current.experience_expires_at).toLocaleDateString()}, or after 30 calling minutes.
                 </Text>
               )}
+              {BILLING_CTA_STATUSES.has(offer.current.status) && (
+                <TouchableOpacity style={styles.plansButton} onPress={handleUpdateBilling}>
+                  <Text style={styles.plansButtonText}>Update Billing</Text>
+                </TouchableOpacity>
+              )}
+              {offer.current.status === 'cancelled' && (
+                <TouchableOpacity style={styles.plansButton} onPress={() => router.push('/owner-sanaa/plans')}>
+                  <Text style={styles.plansButtonText}>Restart SANAA</Text>
+                </TouchableOpacity>
+              )}
             </BlurView>
           </View>
-        ) : (
+        ) : null}
+
+        {usage?.available && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Usage This Billing Period</Text>
+            <BlurView intensity={90} tint="dark" style={styles.card}>
+              <CardOverlay />
+              <Text style={styles.statusText}>{usage.plan_name}</Text>
+              <Text style={styles.usagePrice}>{formatMoney(usage.monthly_price_cents)}/month</Text>
+
+              <View style={styles.usageRow}>
+                <Text style={styles.usageMinutes}>{usage.used_minutes} / {usage.included_minutes} minutes</Text>
+                <Text style={styles.usagePercent}>{usage.usage_percent}%</Text>
+              </View>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.min(usage.usage_percent, 100)}%`,
+                      backgroundColor: usage.overage_minutes > 0 ? '#F87171' : '#F4D77A',
+                    },
+                  ]}
+                />
+              </View>
+
+              {usage.overage_minutes > 0 ? (
+                <>
+                  <Text style={styles.overageText}>
+                    You've used {usage.overage_minutes} additional minutes this billing period.
+                  </Text>
+                  <Text style={styles.estimateText}>
+                    Estimated additional usage: {formatMoney(usage.estimated_overage_cents)}
+                  </Text>
+                  <Text style={styles.overageRateHint}>
+                    Based on your plan's {formatMoney(usage.overage_rate_cents_per_min)}/min overage rate.
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.remainingText}>
+                  {usage.remaining_minutes} included minutes remaining this billing period.
+                </Text>
+              )}
+
+              <Text style={styles.cycleLabel}>
+                Billing cycle: {formatFullDate(usage.current_period_start)} – {formatFullDate(usage.current_period_end)}
+              </Text>
+            </BlurView>
+          </View>
+        )}
+
+        {offer.current ? null : (
           <View style={styles.section}>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
@@ -121,6 +206,19 @@ const styles = StyleSheet.create({
   },
   statusText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#FFFFFF' },
   hint: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)' },
+  usagePrice: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)' },
+  usageRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.sm },
+  usageMinutes: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.lg, color: '#FFFFFF' },
+  usagePercent: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.5)' },
+  progressTrack: {
+    height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 4 },
+  remainingText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)' },
+  overageText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F87171' },
+  estimateText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.75)' },
+  overageRateHint: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.45)' },
+  cycleLabel: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.4)', marginTop: 4 },
   emptyText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)' },
   plansButton: {
     alignSelf: 'flex-start', backgroundColor: '#F4D77A', borderRadius: BorderRadius.full,

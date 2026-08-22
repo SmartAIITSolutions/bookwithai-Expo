@@ -1454,3 +1454,77 @@ Provisioning Glam Studio through the real owner flow exposed that Discovery Home
 **NEW**: `owner-sanaa/plans.tsx`, `ownerSanaaOffer.ts` API client.
 **NOT IMPLEMENTED**: the full in-app 3DS challenge/re-authentication UI for `conversion_action_required` — the state is shown, but the actual recovery flow is flagged as a smaller follow-up.
 **REGRESSION RESULTS**: `tsc --noEmit` clean (after the route-type regeneration above). Not yet walked on the emulator with a real backend response — blocked on the same Stripe test-mode credentials gap as the rest of this slice; no live purchase has been exercised end-to-end.
+
+### SANAA P7 — real Test SANAA call flow (2026-08-21)
+
+Closes the gap a strict read-only diagnostic pass surfaced earlier the same day: Setup Home's `TEST SANAA` CTA had no `onPress` handler at all (`STEP_ROUTES[2]` was deliberately unmapped, per P6's own boundary comment), and `test_call_completed` was hardcoded `false` server-side with a `TODO(P8)` marker — a genuinely unbuilt feature, not a hidden bug. Full architecture investigated and proposed in a separate read-only pass (15 numbered questions, no code/DB/Telnyx changes) before any implementation — see that pass's findings folded into the design below.
+
+**Trust model, built exactly as specified**: `test_call_completed_at` is written only when *both* are true — (1) a real Telnyx-answered call verified server-side against `sanaa_call_logs`, never trusted from the client, and (2) the owner's explicit confirmation tap. Pressing "Start Test Call" alone, or "Yes — Continue" alone, can never complete Test on its own; `POST /api/owner/sanaa/test/confirm` independently re-runs the same verification query `GET /api/owner/sanaa/test/status` used, rather than trusting whatever state the mobile screen last showed.
+
+**Reused, not rebuilt**: `sanaa_call_logs` (Telnyx already writes real, persisted `status` values into it via `sanaa-app`'s `call-events` webhook — confirmed by reading `handleAnswered()`/`handleHangup()` directly rather than assumed: the literal stored values are `'answered'` and `'hangup'`, not Telnyx's raw `call.hangup` event name); the existing `telnyx_number` → `sanaa_tenants.client_id` mapping every other SANAA webhook already does; `verifyOwnerUser` (client_id always derived from the authenticated profile, never accepted from the request body — same convention as every other owner route); `logSanaaConfigChange`/`sanaa_config_audit` (P5's shared audit table, exactly the `actor_type: 'owner'` case it was built for); the `config_completed_at`/`config/complete` idempotent-completion pattern (P5) as the template for `test_call_completed_at`/`test/confirm`; core React Native `Linking.openURL('tel:...')` and `AppState` — no new native dependency for the device-dialer handoff or foreground-return detection. `deriveSanaaLifecycle()` itself is genuinely unchanged, exactly as scoped — it already branches Test → Activate correctly once the backend returns real truth.
+
+**New, `booking-app`**: 2-column additive migration (`test_session_started_at`, `test_call_completed_at` on `sanaa_tenants`); `POST /api/owner/sanaa/test/start` (stamps the session-start correlation anchor after confirming `provisioning_status === 'complete'`, so Test can't start against an unconnected tenant); `GET /api/owner/sanaa/test/status` (read-only poll); `POST /api/owner/sanaa/test/confirm` (the only writer of `test_call_completed_at`, idempotent — a second call returns the original timestamp rather than re-writing); shared `src/lib/sanaa/testVerification.ts` (`findQualifyingCall()` — kept out of the route files themselves since Next.js route modules may only export HTTP-verb handlers, a real constraint this codebase already learned the hard way; `tsc --noEmit` alone would not have caught a violation, only `next build` would).
+
+**New, this repo**: `owner-sanaa/test.tsx` (Start Test Call → device dialer handoff → foreground-return detection via `AppState` → Check Call Status → confirm-or-retry, matching the existing dark/gold card visual language, no redesign); `ownerSanaaTest.ts` API client (`startSanaaTest`/`getSanaaTestStatus`/`confirmSanaaTest`, same `ownerFetch` wrapper convention every other SANAA client file uses).
+
+**Extended**: `booking-app`'s `GET /api/owner/sanaa/status` now returns the real `test_call_completed: !!tenant?.test_call_completed_at` instead of the hardcoded `false` — confirmed by diff that `provisioning_status`/`config_completed_at`/`telnyx_agent_id`/`telnyx_number` reads are byte-for-byte untouched. `SanaaSetupHome.tsx`'s `STEP_ROUTES` gets one new entry (`2: '/owner-sanaa/test'`) — mechanical, mirrors the existing Configure/Connect wiring exactly, no other Setup Home lifecycle logic touched. `_layout.tsx` gets one new `Stack.Screen` registration.
+
+**Correlation/retry safety, built exactly as specified**: `test_session_started_at` is the sole guard against a historical or real customer call satisfying a newly-started Test — every verification query requires `sanaa_call_logs.started_at >= test_session_started_at`. "Test Again" simply re-calls `/test/start`, which is intentionally idempotent (a plain single-column overwrite) and moves that anchor forward; it never touches `test_call_completed_at` once set, and never touches any Configure/Connect column.
+
+**NOT IMPLEMENTED**: Activate (P8) — `Continue to Activation` on the Test Complete state currently routes back to Setup Home, where Activate should now render unlocked/current per `deriveSanaaLifecycle`, but no dedicated Activate screen exists yet, unchanged from P6's boundary. Conversational-quality scoring of any kind — explicitly out of scope per this slice's own constraints; "SANAA answered" (a real Telnyx event) and the owner's own judgment are the only two signals used, deliberately.
+**MIGRATIONS**: `20260821060000_sanaa_test_call_state.sql`, additive only, applied to production via `supabase db push` (2026-08-21).
+**REGRESSION RESULTS**: `tsc --noEmit` clean in both `booking-app` and `bookwithai-expo`. `npm run build` clean in `booking-app` — all three new routes compiled and appear in the route manifest, confirming no illegal route-file export (the real risk `tsc` alone can't catch, per this repo's own prior lesson). Diff-reviewed line by line to confirm zero Configure/Connect logic touched. Metro dev server started locally. **Not yet live-tested** — no real call has been placed against Glam Studio's number yet; that owner-facing pass is still outstanding.
+
+### SANAA lifecycle correction — Connect is the real activation boundary, no Activate step (2026-08-22)
+
+Real Telnyx calls during P7 testing established that "Activate" (built the same day, see the entry above) was product-artificial: Connect completing already means Telnyx is live and answering calls, so there's no distinct technical event afterward for an owner action to gate. Locked correction: **Configure → Connect → Test → LIVE**, no `ready_to_activate`. Full backend/architecture detail lives in `booking-app`'s `MASTER.md` §50.
+
+**Removed**: `owner-sanaa/activate.tsx` screen, `lib/api/ownerSanaaActivate.ts` client, its `_layout.tsx` registration, `STEP_ROUTES[3]`/`STEP_INDEX`/`CTA_LABEL` entries for it in `SanaaSetupHome.tsx` (now exactly 3 steps: Configure/Connect/Test), the `ready_to_activate` `CONTENT` entry in `SanaaDashboardCard.tsx`, and `ready_to_activate` from `sanaa.tsx`'s dev-state switcher and Setup-Home routing array. `SanaaLifecycle` itself no longer has a `ready_to_activate` member — a genuinely dead state can't linger in the type.
+
+**`deriveSanaaLifecycle()`**: once `test_call_completed` is true, returns `'live'` directly — the `active`/`activated` check is gone entirely. `active` (agency toggle, client-facing badge — confirmed zero telephony dependents by a full cross-repo trace) was never repurposed for this.
+
+**Connect success experience** (`owner-sanaa/phone.tsx`): new `justConnected` local state (session-only, never re-shown on a later revisit) renders "Congratulations! SANAA is Active" / "Your SANAA number is connected and she's ready to answer calls." + the real number + a direct "Test SANAA" CTA into `/owner-sanaa/test`. Pre-action copy on the Connect button itself now states the real consequence plainly, with no implied later step.
+
+**Test success experience** (`owner-sanaa/test.tsx`): completion copy changed from "…ready for the final activation step" to "SANAA is ready for your customers," CTA from "Continue to Activation" to "Go to SANAA" → `/(owner)/sanaa` directly. P7's own verification architecture untouched.
+
+**REUSED**: nothing new — a removal + copy correction, using the same visual/structural patterns already established for Configure/Connect/Test.
+**REMOVED**: see above — confirmed via grep that zero dead references to `ready_to_activate`/`Activate SANAA`/`/owner-sanaa/activate` remain anywhere in owner-facing code; the only surviving "Activate SANAA" text is the unrelated, pre-existing agency-admin feature, correctly left alone.
+**NOT IMPLEMENTED**: nothing deferred.
+**MIGRATIONS**: none in this repo.
+**REGRESSION RESULTS**: `tsc --noEmit` clean. Verified read-only against Glam Studio's real state: derives `'live'` correctly with zero manual DB change.
+
+### SANAA P8 — LIVE Operations, Calls & Activity (2026-08-22)
+
+No standalone P8 spec existed anywhere — confirmed by a full grep of both MASTER docs before building. Built against an explicit audit + your locked scope. Full backend detail (the new `GET /api/owner/sanaa/calls` route, the RLS/Realtime migration) lives in `booking-app`'s `MASTER.md` §51.
+
+**New**: `lib/api/ownerSanaaCalls.ts` (paginated call list + `?summary=1` metrics client), `lib/sanaa/useSanaaCallsRealtime.ts` (mirrors `useOwnerBookings.ts`'s Realtime `postgres_changes` pattern exactly — per-mount channel nonce, `client_id`-filtered, 800ms-debounced since one call can fire several rapid lifecycle updates). `owner-sanaa/calls.tsx` rewritten from the P0/P1 placeholder shell into a real screen: masked-number-or-resolved-customer-name per row, outcome badges (Booked/Cancelled/Rescheduled/Transferred/No Answer/Info Only/Incomplete), expandable summary/transcript (never dumped inline), loading/empty/error/load-more states, a "View Appointment" deep-link (`router.push('/appointment/${booking_id}')`) reusing the exact existing dynamic route `calendar.tsx` already uses — confirmed trivial, no new navigation/backend needed.
+
+**`SanaaOperationsHome.tsx`** — Results and Recent Activity placeholders replaced with real data (same `useSanaaCallsRealtime` hook keeps both fresh): Results shows Calls Handled/Booked/Transfers over a labeled 30-day window; Recent Activity shows the latest 5 calls with a "View All Calls" CTA into the new Calls screen.
+
+**REUSED**: `useOwnerBookings.ts`'s exact Realtime pattern, `SanaaDestinationShell`'s replaced-not-duplicated slot, the existing dark/gold card visual language throughout — no redesign.
+**NEW**: `ownerSanaaCalls.ts`, `useSanaaCallsRealtime.ts`, real `owner-sanaa/calls.tsx`.
+**EXTENDED**: `SanaaOperationsHome.tsx` (Results + Recent Activity wired to real data).
+**NOT IMPLEMENTED**: recording playback, live-call push notifications, pause/resume, plan upgrade/downgrade CTA (checked — no truthful reuse exists yet, reported not built).
+**REGRESSION RESULTS**: `tsc --noEmit` clean. **Live Glam Studio verification of this screen was explicitly deferred** to the final combined P8-onward testing pass, per instruction.
+
+### SANAA P9 — usage tracking & owner visibility, no automatic charging (2026-08-22)
+
+Full backend/audit detail lives in `booking-app`'s `MASTER.md` §52. This repo's pieces: `lib/api/ownerSanaaUsage.ts` (thin client, `available:false` is a real state, not an error). A compact Usage card added to `SanaaOperationsHome.tsx` between the status card and Results — plan name, `used/included minutes`, a plain two-View progress bar (gold under the limit, red once in overage — no progress-bar library exists in this app, matched the codebase's existing plain-styling convention), remaining-or-overage line, billing-cycle date range, "View Usage & Billing" CTA into Plan & Billing. `owner-sanaa/billing.tsx` extended with the full breakdown: plan + price, minutes/percent, progress bar, plain-language copy exactly as specified ("113 included minutes remaining this billing period." / "You've used 27 additional minutes this billing period."), overage amount labeled **"Estimated additional usage"** (never "amount due" — automatic charging isn't built yet), billing-cycle dates.
+
+**REUSED**: the exact card/section visual pattern already used throughout Setup/Operations/Billing — no new component library, no redesign.
+**NEW**: `ownerSanaaUsage.ts`.
+**EXTENDED**: `SanaaOperationsHome.tsx` (Usage section), `owner-sanaa/billing.tsx` (full usage breakdown).
+**NOT IMPLEMENTED**: any notification delivery at the computed usage thresholds (P10 consumes the state P9 exposes), plan upgrade/downgrade UI (no truthful backend flow exists to route to yet).
+**REGRESSION RESULTS**: `tsc --noEmit` clean. No Stripe charge, no Telnyx mutation, no test call placed.
+
+### SANAA P10 — notifications, reusing the existing Notification Center (2026-08-22)
+
+Full backend/audit detail lives in `booking-app`'s `MASTER.md` §53. Audit confirmed this repo already has a fully mature Notification Center (`owner-notifications.tsx`, `NotificationBell.tsx`, Realtime-backed `notifications` table, unread badge, mark-read/mark-all) — no new notification UI was built for SANAA.
+
+**This repo's only change**: `owner-notifications.tsx`'s `handlePress()` gets `type`-based deep-link routing for the 10 new SANAA notification types — `sanaa_transfer`/`sanaa_live_call` → `/owner-sanaa/calls`; `sanaa_usage_*` and the 4 billing/service types → `/owner-sanaa/billing`; everything else falls through to the existing `booking_id` → `/(owner)/calendar` behavior, unchanged. `lib/api/ownerSanaaUsage.ts`'s `SanaaUsageThresholds` type drops the never-implemented `reached_50` field (dead weight, nothing rendered it).
+
+**REUSED**: the entire existing Notification Center — bell, badge, list, Realtime subscription, mark-read — none of it touched beyond the one routing addition.
+**NEW**: nothing.
+**EXTENDED**: `owner-notifications.tsx` (deep-link switch), `ownerSanaaUsage.ts` (type cleanup).
+**NOT IMPLEMENTED**: everything in the explicit P10 out-of-scope list — no new notification center, no owner SMS, no notification detail screen, no per-category preference UI.
+**REGRESSION RESULTS**: `tsc --noEmit` clean. No push/email sent, no test call placed.

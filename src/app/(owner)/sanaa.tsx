@@ -18,7 +18,7 @@ import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 const ALL_STATES: SanaaLifecycle[] = [
   'non_subscriber', 'setup_not_started', 'setup_partial', 'ready_to_test',
-  'ready_to_activate', 'live', 'paused', 'action_required',
+  'live', 'paused', 'action_required',
 ];
 
 // SANAA-P0/P1-SPEC §8/§26 -- lifecycle router. Tapping the SANAA tab must
@@ -76,10 +76,10 @@ export default function SanaaScreen() {
         // __DEV__ (or once SANAA_DISCOVERY_LIVE flips true) previews the
         // real component; production sees one clean "coming soon" message.
         (__DEV__ || SANAA_DISCOVERY_LIVE) ? <SanaaDiscoveryHome /> : <SanaaComingSoon />
-      ) : ['setup_not_started', 'setup_partial', 'ready_to_test', 'ready_to_activate'].includes(lifecycle) ? (
+      ) : ['setup_not_started', 'setup_partial', 'ready_to_test'].includes(lifecycle) ? (
         <SanaaSetupHome state={lifecycle} />
       ) : (
-        <SanaaOperationsHome state={lifecycle} />
+        <SanaaOperationsHome state={lifecycle} status={devOverride ? null : (data ?? null)} />
       )}
     </View>
   );

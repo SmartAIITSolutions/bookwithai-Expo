@@ -16,31 +16,32 @@ function CardOverlay() {
   );
 }
 
-const STEPS = ['Configure', 'Connect', 'Test', 'Activate'] as const;
+// Three real steps -- Connect IS the technical activation boundary
+// (successful provisioning = SANAA is live and answering calls), so there
+// is no separate owner-facing Activate step. Test verifies the
+// already-active SANAA; it doesn't activate her.
+const STEPS = ['Configure', 'Connect', 'Test'] as const;
 
-// Setup-in-progress states, in step order -- SANAA-P0/P1-SPEC §11/§12/§22.
+// Setup-in-progress states, in step order.
 // Resumes at the correct incomplete step; already-completed steps never
 // have to be repeated.
 const STEP_INDEX: Record<string, number> = {
   setup_not_started: 0,
   setup_partial: 1,
   ready_to_test: 2,
-  ready_to_activate: 3,
 };
 
 const CTA_LABEL: Record<string, string> = {
   setup_not_started: 'Continue Setup',
   setup_partial: 'Continue Setup',
   ready_to_test: 'Test SANAA',
-  ready_to_activate: 'Activate SANAA',
 };
 
 // Real destinations for each step, in the order defined by STEPS/STEP_INDEX.
-// Test (2) and Activate (3) have no built screen yet -- those steps stay
-// unwired on purpose rather than inventing a destination.
 const STEP_ROUTES: Partial<Record<number, string>> = {
   0: '/owner-sanaa/configure',
   1: '/owner-sanaa/phone',
+  2: '/owner-sanaa/test',
 };
 
 interface SanaaSetupHomeProps {

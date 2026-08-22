@@ -58,7 +58,15 @@ export default function OwnerNotificationsScreen() {
       await markNotificationRead(n.id);
       setItems(list => list.map(x => x.id === n.id ? { ...x, read: true } : x));
     }
-    if (n.booking_id) router.push('/(owner)/calendar' as never);
+    // P10.11: SANAA deep links, reusing only existing screens -- no new
+    // navigation architecture for notification routing.
+    if (n.type === 'sanaa_transfer' || n.type === 'sanaa_live_call') {
+      router.push('/owner-sanaa/calls' as never);
+    } else if (n.type.startsWith('sanaa_usage_') || n.type === 'sanaa_payment_failed' || n.type === 'sanaa_suspended' || n.type === 'sanaa_cancel_scheduled' || n.type === 'sanaa_cancelled') {
+      router.push('/owner-sanaa/billing' as never);
+    } else if (n.booking_id) {
+      router.push('/(owner)/calendar' as never);
+    }
   }
 
   async function handleMarkAll() {

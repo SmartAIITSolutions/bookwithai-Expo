@@ -25,7 +25,7 @@ interface CardContent {
   accent: string;
 }
 
-// SANAA-P0/P1-SPEC §6 -- 7 lifecycle-aware content variants (all but
+// SANAA-P0/P1-SPEC §6 -- 6 lifecycle-aware content variants (all but
 // non-subscriber are placeholders until the phases behind them exist, but
 // the card itself must already read correctly for each state so the shell
 // is reviewable end to end).
@@ -49,11 +49,6 @@ const CONTENT: Record<SanaaLifecycle, CardContent> = {
     eyebrow: 'SANAA', title: 'SANAA Is Almost Ready',
     body: 'Complete your test call before going live.',
     cta: 'Test SANAA', accent: '#FFC857',
-  },
-  ready_to_activate: {
-    eyebrow: 'SANAA', title: 'SANAA Is Ready',
-    body: 'Your test call is done -- activate her whenever you are.',
-    cta: 'Activate SANAA', accent: '#4ADE80',
   },
   live: {
     eyebrow: 'SANAA', title: '🟢 LIVE — Answering Calls',

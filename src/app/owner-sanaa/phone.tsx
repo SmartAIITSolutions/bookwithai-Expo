@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +46,12 @@ export default function SanaaPhoneScreen() {
   const [provisioningStatus, setProvisioningStatus] = useState<SanaaProvisioningStatus>('not_started');
   const [transferNumber, setTransferNumber] = useState('');
   const [provisioning, setProvisioning] = useState(false);
+  // True only for the moment Connect completes in *this* session -- not on
+  // a later revisit where isConnected is already true from the initial
+  // load. Connect is the real technical activation boundary (successful
+  // provisioning = SANAA is active and answering calls); this is the one
+  // owner-facing celebration of that, not a separate "Activate" step.
+  const [justConnected, setJustConnected] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,9 +95,11 @@ export default function SanaaPhoneScreen() {
     setTelnyxNumber(result.data.telnyx_number);
     // A successful response here means the backend reached its 'complete'
     // state (assigned to the real Telnyx connection) -- provisionSanaaNumber
-    // never returns success without that.
+    // never returns success without that. This is the real technical
+    // activation boundary -- SANAA is active and answering calls right now,
+    // not pending a separate later step.
     setProvisioningStatus('complete');
-    Alert.alert('Number ready', `SANAA now has a dedicated number: ${formatPhoneDisplay(result.data.telnyx_number)}`);
+    setJustConnected(true);
   }
 
   const isConnected = provisioningStatus === 'complete';
@@ -110,6 +118,48 @@ export default function SanaaPhoneScreen() {
       <View style={styles.centered}>
         <Stack.Screen options={HEADER_OPTIONS} />
         <ErrorState message={loadError} onRetry={load} />
+      </View>
+    );
+  }
+
+  if (justConnected) {
+    return (
+      <View style={styles.container}>
+        <DualBreathingBackground />
+        <Stack.Screen options={HEADER_OPTIONS} />
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.section}>
+            <View style={styles.hero}>
+              <Ionicons name="checkmark-circle" size={48} color="#4ADE80" />
+              <Text style={styles.heroTitle}>Congratulations! SANAA is Active</Text>
+              <Text style={styles.heroBody}>
+                Your SANAA number is connected and she's ready to answer calls.
+              </Text>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Your SANAA Number</Text>
+              <BlurView intensity={90} tint="dark" style={styles.card}>
+                <CardOverlay />
+                <View style={styles.statusRow}>
+                  <Ionicons name="call-outline" size={20} color="#F4D77A" />
+                  <Text style={styles.numberText}>
+                    {telnyxNumber ? formatPhoneDisplay(telnyxNumber) : ''}
+                  </Text>
+                </View>
+              </BlurView>
+            </View>
+
+            <Text style={styles.heroBody}>Let's make a quick test call so you can hear her in action.</Text>
+
+            <TouchableOpacity
+              style={styles.provisionButtonPrimary}
+              onPress={() => router.push('/owner-sanaa/test' as never)}
+            >
+              <Text style={styles.provisionButtonText}>Test SANAA</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -154,7 +204,7 @@ export default function SanaaPhoneScreen() {
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
                 <Text style={styles.optionBody}>
-                  SANAA gets its own phone number, ready to answer calls immediately. Nothing to set up with your phone carrier.
+                  We'll create and connect your SANAA phone number and AI receptionist. Once connection is complete, SANAA will be active and ready to receive calls.
                 </Text>
                 <TouchableOpacity
                   style={[styles.provisionButton, provisioning && styles.provisionButtonDisabled]}
@@ -166,7 +216,7 @@ export default function SanaaPhoneScreen() {
                       ? 'Connecting…'
                       : telnyxNumber
                         ? 'Resume Connection'
-                        : 'Get My SANAA Number'}
+                        : 'Connect SANAA'}
                   </Text>
                 </TouchableOpacity>
               </BlurView>
@@ -219,6 +269,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#040108' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#040108' },
   content: { padding: Spacing.lg, gap: Spacing.xl, paddingBottom: 110 },
+  hero: { alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.md },
+  heroTitle: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize['2xl'], color: '#FFFFFF', marginTop: Spacing.sm, textAlign: 'center' },
+  heroBody: { fontFamily: FontFamily.sora, fontSize: FontSize.base, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
+  numberText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.lg, color: '#FFFFFF' },
+  provisionButtonPrimary: {
+    borderRadius: BorderRadius.full, backgroundColor: '#F4D77A', paddingVertical: 16, alignItems: 'center',
+  },
   section: { gap: Spacing.sm },
   sectionTitle: {
     fontFamily: FontFamily.soraSemiBold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase',

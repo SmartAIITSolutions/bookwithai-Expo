@@ -313,6 +313,7 @@ export default function RootLayout() {
         <Stack.Screen name="owner-sanaa/calls" options={{ headerShown: true }} />
         <Stack.Screen name="owner-sanaa/configure" options={{ headerShown: true }} />
         <Stack.Screen name="owner-sanaa/phone" options={{ headerShown: true }} />
+        <Stack.Screen name="owner-sanaa/test" options={{ headerShown: true }} />
         <Stack.Screen name="owner-sanaa/billing" options={{ headerShown: true }} />
         <Stack.Screen name="owner-sanaa/plans" options={{ headerShown: true }} />
         <Stack.Screen name="reviews" options={{ headerShown: true }} />
