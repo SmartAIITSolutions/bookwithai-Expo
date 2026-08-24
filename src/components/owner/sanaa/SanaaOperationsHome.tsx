@@ -223,15 +223,15 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
         )}
       </BlurView>
 
-      {usage?.available && (
+      {usage?.available ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Usage</Text>
+          <Text style={styles.sectionTitle}>Your SANAA Usage</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             <View style={styles.usageBlock}>
               <Text style={styles.usagePlanName}>{usage.plan_name}</Text>
               <Text style={styles.usageMinutesLine}>
-                {usage.used_minutes} / {usage.included_minutes} minutes
+                {usage.used_minutes} / {usage.included_minutes} minutes · {usage.usage_percent}% used
               </Text>
               <View style={styles.progressTrack}>
                 <View
@@ -256,6 +256,7 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
               )}
               <Text style={styles.usageCycleLabel}>
                 {formatShortDate(usage.current_period_start)} – {formatShortDate(usage.current_period_end)}
+                {usage.renews_at ? `  ·  Renews ${formatShortDate(usage.renews_at)}` : ''}
               </Text>
             </View>
             <TouchableOpacity
@@ -267,7 +268,24 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
             </TouchableOpacity>
           </BlurView>
         </View>
-      )}
+      ) : sanaaStatus?.tenant_role === 'prototype' ? (
+        // Prototype/internal tenant -- never fakes a plan, cycle, or
+        // commercial limit (none exists, by design -- see MASTER.md §70).
+        // Still shows real usage, so the screen isn't just silently empty.
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your SANAA Usage</Text>
+          <BlurView intensity={90} tint="dark" style={styles.card}>
+            <CardOverlay />
+            <View style={styles.usageBlock}>
+              <Text style={styles.usagePlanName}>Prototype / Internal</Text>
+              <Text style={styles.usageMinutesLine}>
+                {summary?.total_minutes_used_window ?? 0} minutes used in the last {summary?.window_days ?? 30} days
+              </Text>
+              <Text style={styles.usageRemainingLine}>No commercial plan or billing cycle applies to this tenant.</Text>
+            </View>
+          </BlurView>
+        </View>
+      ) : null}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Results{summary ? ` — Last ${summary.window_days} Days` : ''}</Text>
@@ -291,6 +309,18 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{summary?.transfers ?? 0}</Text>
                 <Text style={styles.metricLabel}>Transfers</Text>
+              </View>
+            </View>
+            <View style={[styles.metricsRow, styles.rowBorder]}>
+              <View style={styles.metric}>
+                <Text style={styles.metricValue}>{formatMoney(summary?.booking_value_cents ?? 0)}</Text>
+                <Text style={styles.metricLabel}>Booking Value</Text>
+              </View>
+              <View style={styles.metric}>
+                <Text style={styles.metricValue}>
+                  {summary?.booking_conversion_percent != null ? `${summary.booking_conversion_percent}%` : 'N/A'}
+                </Text>
+                <Text style={styles.metricLabel}>Conversion</Text>
               </View>
             </View>
           </BlurView>

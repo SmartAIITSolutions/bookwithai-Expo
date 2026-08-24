@@ -24,6 +24,10 @@ export type SanaaUsage =
       estimated_overage_cents: number;
       current_period_start: string;
       current_period_end: string;
+      /** Same as current_period_end only for a subscription that will
+       *  actually renew (active/experience/past_due) -- null for
+       *  cancel_scheduled, where that date is a stop, not a renewal. */
+      renews_at: string | null;
       usage_percent: number;
       thresholds: SanaaUsageThresholds;
     };

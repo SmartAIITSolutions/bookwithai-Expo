@@ -29,6 +29,17 @@ export interface SanaaCallsSummary {
   calls_handled: number;
   appointments_booked: number;
   transfers: number;
+  /** Sum of bookings.price_cents for SANAA-created (source='voice_ai'),
+   *  non-cancelled bookings in this window -- authoritative service value,
+   *  not a transcript-derived estimate. */
+  booking_value_cents: number;
+  /** appointments_booked / calls_handled * 100, rounded. null when
+   *  calls_handled is 0 -- genuinely undefined, never shown as "0%". */
+  booking_conversion_percent: number | null;
+  /** Real billable minutes used in this window, independent of any
+   *  commercial billing cycle -- the only usage figure available for a
+   *  prototype tenant with no sanaa_subscriptions row. */
+  total_minutes_used_window: number;
 }
 
 // P8: paginated real call history for the owner's own SANAA tenant.
