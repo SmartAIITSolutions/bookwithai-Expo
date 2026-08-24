@@ -45,6 +45,13 @@ export interface SanaaStatus {
   /** ISO date the current paid-through period ends, when applicable
    *  (cancel_scheduled, or informational on an active subscription). */
   current_period_end: string | null;
+  /** 'prototype' marks the agency's own internal/dev tenant (sanaa_tenants
+   *  .tenant_role) -- provisioned and operated directly, never through the
+   *  real commercial checkout flow, so it has no sanaa_subscriptions row by
+   *  design. Used only to distinguish "operationally live, no billing row"
+   *  from "never subscribed" in deriveSanaaLifecycle -- never treated as
+   *  proof of paid status. */
+  tenant_role?: 'standard' | 'prototype';
 }
 
 export function getSanaaStatus() {
@@ -143,7 +150,31 @@ export function deriveSanaaLifecycle(status: SanaaStatus): SanaaLifecycle {
   const commercial = status.commercial_state ?? 'none';
   const neverSubscribed = commercial === 'none' || commercial === 'incomplete';
 
-  if (!status.subscribed && neverSubscribed) return 'non_subscriber';
+  // Prototype tenants (sanaa_tenants.tenant_role='prototype') are the
+  // agency's own internal/dev tenants -- provisioned and operated directly,
+  // never through real commercial checkout, so they never get a real
+  // sanaa_subscriptions row by design. Without this, a fully live, actually-
+  // answering-real-calls prototype tenant falls into the exact same
+  // 'non_subscriber' screen a business that has never touched SANAA sees --
+  // confirmed live as Brows By Tina's bug. `subscribed`/`commercial_state`
+  // are never faked here; this only lets a prototype tenant bypass the
+  // billing gate the same real onboarding/live checks below still apply.
+  const isOperationalPrototype = status.tenant_role === 'prototype' && status.provisioning_status === 'complete';
+
+  if (!status.subscribed && neverSubscribed && !isOperationalPrototype) return 'non_subscriber';
+
+  // A prototype tenant is provisioned directly by the team, never through
+  // the owner onboarding wizard -- Configure/Test are real checkpoints of
+  // that wizard (config_completed_at/test_call_completed_at are explicit-
+  // action timestamps only the wizard sets) and don't mean anything for a
+  // tenant that was never routed through it. provisioning_status='complete'
+  // (real, Telnyx-confirmed) is the only operational-readiness signal that
+  // applies here -- never inferred from wizard-only fields.
+  if (isOperationalPrototype) {
+    if (!status.service_synced) return 'action_required';
+    if (status.service_state === 'paused') return 'paused';
+    return 'live';
+  }
 
   if (status.subscribed) {
     // Configure isn't done until the owner explicitly saves & continues --
