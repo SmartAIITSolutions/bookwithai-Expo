@@ -727,4 +727,15 @@ Full detail in `MASTER.md`. Doppler must have `TELNYX_PUBLIC_KEY`/`SANAA_WEBHOOK
 - ⬜ **Mobile session survives the SecureStore migration** — sign in on a device that already had a session under the old plaintext AsyncStorage format, confirm it migrates cleanly with no forced re-login.
 - ⬜ **Push token cleanup on every logout path** — sign out from the owner tab, staff tab, and via biometric sign-out; confirm the push_tokens row is actually removed each time (not just from the customer tab).
 - ⬜ **Stripe webhook retry recovery** — simulate (or wait for) a webhook handler failure and confirm Stripe's retry actually reprocesses it rather than being silently dropped as a duplicate.
+
+## SANAA prototype-tenant lifecycle fix (2026-08-24, real production data verified server-side, not yet visually verified on device)
+
+Full detail in `MASTER.md` §70 (booking-app). Not shipped via EAS this pass — takes effect on the next normal mobile build/OTA update, per standing instruction not to trigger EAS actions unrequested.
+
+Backend context: a prototype/internal tenant (`sanaa_tenants.tenant_role='prototype'`, provisioned directly by the team rather than through commercial checkout) has no `sanaa_subscriptions` row by design, which was making `deriveSanaaLifecycle` route it into `non_subscriber` — the same "Meet SANAA" Discovery screen a business that's never touched SANAA sees — even though it was fully live and answering real calls. `subscribed`/`commercial_state` are never faked by the fix; a new `isOperationalPrototype` check (real `tenant_role` + real `provisioning_status`, both server-derived) bypasses the billing gate and the Configure/Test onboarding checkpoints for prototype tenants only.
+
+- ⬜ **Prototype tenant shows LIVE, not Meet SANAA** — on a device signed in as the prototype tenant's owner, confirm the SANAA tab now renders the live/Operations state instead of the Discovery/"Meet SANAA" screen.
+- ⬜ **Standard tenant unaffected** — on a device signed in as a real subscribed salon (e.g. Glam Studio), confirm its lifecycle screen is unchanged from before this fix (server-side confirmed unaffected; needs the same visual confirmation on-device).
+- ⬜ **No billing history fabricated** — confirm the prototype tenant's Billing screen still shows no subscription/payment history (this fix never touches or fakes commercial state).
+- ⬜ **SANAA tab remains reachable** — confirm normal navigation to the SANAA tab isn't blocked or altered for either tenant type.
 - ⬜ **P11 mutations now show up in the audit log** — pause, resume, a billing-driven suspend, and a Repair run should each produce a `sanaa_config_audit` row with the correct actor type.
