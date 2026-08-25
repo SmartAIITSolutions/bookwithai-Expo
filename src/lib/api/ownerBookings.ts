@@ -23,7 +23,15 @@ export interface OwnerBooking {
   cancelled_at: string | null;
   cancellation_reason: string | null;
   locked: boolean;
-  customer: { id: string; name: string; email: string | null; phone: string | null; priority?: boolean } | null;
+  customer: {
+    id: string; name: string; email: string | null; phone: string | null; priority?: boolean;
+    // Calendar 2.0 Part 14 — new-vs-returning. total_bookings counts every
+    // booking this customer has ever had at this salon (customers.
+    // total_bookings, maintained server-side); this booking itself is
+    // always included in that count by the time it's fetched, so
+    // "returning" means >1, not >0.
+    total_bookings?: number;
+  } | null;
   service: { id: string; name: string; duration_minutes: number } | null;
   staff: { id: string; name: string } | null;
   // Resolved server-side from either the singular `service` join or
@@ -147,4 +155,37 @@ export function bulkCancelBookings(bookingIds: string[]) {
 
 export function bulkShiftBookings(bookingIds: string[], shiftMinutes: number) {
   return ownerFetch('/api/owner/bookings/bulk', { method: 'POST', body: { booking_ids: bookingIds, action: 'shift', shift_minutes: shiftMinutes } });
+}
+
+// Calendar 2.0 Day View — Block Time. Reuses the exact same bookings-table
+// mechanism the web dashboard already uses (source='time_block', no
+// customer/service, price_cents=0) via a dedicated owner-auth route, since
+// the web dashboard's own POST /api/bookings authenticates by cookie
+// session and can't be called from this app's Bearer-token auth.
+// Calendar 2.0 — the conflict check is a warning the owner can override
+// (override_conflict), not a hard rejection: a block deliberately can
+// overlap real appointments (they're never touched). When the server
+// returns a conflict without override_conflict set, ownerFetch's error
+// branch now carries the route's own extra body fields (conflictCount/
+// conflicts) straight through -- callers read them off the error result
+// (see submitBlockTime in calendar.tsx).
+export interface BlockTimeConflict { starts_at: string; label: string }
+export function blockTime(body: {
+  starts_at: string; block_duration_minutes: number; staff_id?: string | null; notes?: string | null;
+  override_conflict?: boolean;
+}) {
+  return ownerFetch<{ data: { id: string }; conflictCount?: number; conflicts?: BlockTimeConflict[] }>(
+    '/api/owner/bookings/block', { method: 'POST', body },
+  );
+}
+
+// Bottom-edge resize (Calendar 2.0) — a duration-only change. Deliberately
+// sends ONLY ends_at, never starts_at: PATCH /api/owner/bookings/[id]'s own
+// wasRescheduled check is gated on starts_at actually changing, so this
+// never fires the customer "your appointment has been rescheduled"
+// notification -- confirmed by reading that route before relying on it,
+// not assumed. Still goes through the same conflict check and respects
+// `locked`, since ends_at counts toward "movingOrReassigning" there too.
+export function resizeBooking(id: string, newEndsAt: string, overrideConflict?: boolean) {
+  return updateBooking(id, { ends_at: newEndsAt, ...(overrideConflict ? { override_conflict: true } : {}) });
 }

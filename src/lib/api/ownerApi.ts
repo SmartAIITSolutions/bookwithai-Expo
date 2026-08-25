@@ -15,7 +15,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
 export async function ownerFetch<T>(
   path: string,
   options: { method?: string; body?: unknown } = {}
-): Promise<{ ok: true; data: T } | { ok: false; error: string; code?: string }> {
+): Promise<{ ok: true; data: T } | ({ ok: false; error: string; code?: string } & Record<string, unknown>)> {
   // The whole body is wrapped in try/catch so this function always resolves
   // to the documented { ok: true | false } shape, never rejects -- callers
   // across the app assume that contract (e.g. `getX().then(r => { ...;
@@ -32,7 +32,20 @@ export async function ownerFetch<T>(
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: json.error || 'Something went wrong.', code: json.code };
+    // Block Time creation-failure investigation — a response the server
+    // never sent as JSON (e.g. a 404 for a route that exists in code but
+    // hasn't been deployed to whatever host API_BASE points at, or any
+    // other non-JSON error page) used to collapse to a completely
+    // undiagnosable "Something went wrong." with no way to tell that apart
+    // from a real 500 with a genuine json.error. The HTTP status alone is
+    // not sensitive and is exactly what's needed to tell "route missing"
+    // apart from "server rejected the request" from the outside.
+    // Spreading the raw body after the computed fallbacks lets a route's
+    // own extra structured error data (e.g. Block Time's conflicts list)
+    // reach the caller without ownerFetch needing to know about every
+    // route's own error shape -- error/code above are the guaranteed-
+    // present fallbacks; anything else a route sends rides along as-is.
+    if (!res.ok) return { ok: false, error: json.error || `Something went wrong. (${res.status})`, code: json.code, ...json };
     return { ok: true, data: json as T };
   } catch {
     return { ok: false, error: 'Unable to connect. Please check your connection and try again.' };

@@ -5,10 +5,12 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { SanaaMark } from '@/components/SanaaMark';
 import { OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { checkIn, startService, completeService, completeAndReadyForCheckout, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
 import { getAddOnSuggestion, AddOnSuggestion } from '@/lib/api/ownerServices';
 import { bookingStatusColor, nextAction, CheckinFlowMode } from '@/lib/calendar/bookingStatus';
+import { isSampleBooking } from '@/lib/calendar/sampleDayFixture';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
@@ -78,8 +80,21 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     const { color, label } = bookingStatusColor(booking);
     const action = nextAction(booking, flowMode);
 
+    // Correction pass — a sample/demo booking's id doesn't exist in the
+    // real bookings table, so every mutation entry point in this sheet
+    // (check-in/start/complete/cancel/no-show/restore/lock/duplicate/
+    // checkout) needs the same guard move/resize got in TimelineCalendar,
+    // for the same reason: showing a real confirm flow that ends in
+    // "Booking not found" is a misleading error, not a real one.
+    function blockIfSample(): boolean {
+      if (!booking || !isSampleBooking(booking.id)) return false;
+      Alert.alert('Sample Data', 'This is a demo appointment for visual review only. Status actions here aren’t saved.');
+      return true;
+    }
+
     async function runAction(fn: (id: string) => Promise<{ ok: boolean; error?: string }>) {
       if (!booking) return;
+      if (blockIfSample()) return;
       setWorking(true);
       const result = await fn(booking.id);
       setWorking(false);
@@ -89,6 +104,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
 
     async function handleCompleteAndCharge() {
       if (!booking) return;
+      if (blockIfSample()) return;
       setWorking(true);
       const result = await completeAndReadyForCheckout(booking.id);
       setWorking(false);
@@ -103,6 +119,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       else if (action.label === 'MARK SERVICE COMPLETE') runAction(completeService);
       else if (action.label === 'COMPLETE & CHARGE') handleCompleteAndCharge();
       else if (action.label === 'READY FOR CHECKOUT') {
+        if (blockIfSample()) return;
         onReadyForCheckout();
       }
       else if (action.label === 'BOOK NEXT APPOINTMENT') {
@@ -128,6 +145,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     async function handleDuplicate(overrideConflict = false) {
       setMenuOpen(false);
       if (!booking) return;
+      if (blockIfSample()) return;
       const nextWeekStart = new Date(new Date(booking.starts_at).getTime() + 7 * 86400000);
       const nextWeekEnd = new Date(new Date(booking.ends_at).getTime() + 7 * 86400000);
       setWorking(true);
@@ -153,6 +171,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     async function handleToggleLock() {
       setMenuOpen(false);
       if (!booking) return;
+      if (blockIfSample()) return;
       setWorking(true);
       const result = await setBookingLocked(booking.id, !booking.locked);
       setWorking(false);
@@ -233,7 +252,8 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
 
           {booking.source === 'voice_ai' && (
             <View style={styles.sanaaBadge}>
-              <Text style={styles.sanaaBadgeText}>Booked by SANAA AI</Text>
+              <SanaaMark variant="bookingAttribution" />
+              <Text style={styles.sanaaBadgeText}>Booked by SANAA</Text>
             </View>
           )}
 
@@ -321,6 +341,7 @@ const styles = StyleSheet.create({
   meta: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.65)' },
   elapsedText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: '#B794F6' },
   sanaaBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     alignSelf: 'flex-start', backgroundColor: 'rgba(123,63,228,0.15)',
     borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4,
     borderWidth: 1, borderColor: 'rgba(123,63,228,0.3)',

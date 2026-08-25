@@ -66,3 +66,81 @@ export function hourLabels(start: number, end: number, intervalMinutes = 60): { 
 export function snapMinutes(minutes: number, step = 5): number {
   return Math.round(minutes / step) * step;
 }
+
+// ── Salon-timezone-safe variants ─────────────────────────────────────────
+// Calendar 2.0 Part 1 — the backend (src/lib/salon-timezone.ts) has always
+// computed day boundaries in the SALON's own iana_timezone; everything above
+// this line instead reads the DEVICE's local timezone via plain Date
+// getters. That mismatch is real, not hypothetical: an owner whose phone
+// isn't set to the salon's zone (traveling, or a salon simply run from
+// elsewhere) sees the wrong calendar day/time boundary. `business.
+// iana_timezone` is already fetched into the Calendar screen (getBusiness())
+// and was simply never plumbed into this file's date math.
+//
+// No new dependency -- Intl.DateTimeFormat's `timeZone` option already does
+// exactly what date-fns-tz does server-side, natively, with zero added
+// bundle weight. `Date` objects always represent one real UTC instant
+// regardless of the device's own zone; only the *formatting* step below
+// needs to target the salon's zone instead of the device's.
+const zonedPartsCache = new Map<string, Intl.DateTimeFormat>();
+function zonedFormatter(timeZone: string): Intl.DateTimeFormat {
+  let f = zonedPartsCache.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+    });
+    zonedPartsCache.set(timeZone, f);
+  }
+  return f;
+}
+
+interface ZonedParts { year: number; month: number; day: number; hour: number; minute: number }
+
+function zonedParts(instant: Date, timeZone: string): ZonedParts {
+  const parts = zonedFormatter(timeZone).formatToParts(instant);
+  const get = (type: string) => Number(parts.find(p => p.type === type)?.value ?? '0');
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute') };
+}
+
+// Local-calendar-date key (YYYY-MM-DD) in the SALON's timezone, for an
+// arbitrary instant -- e.g. "what salon-local day is `new Date()` (right
+// now) or the currently-selected `date` state on right now."
+export function zonedDateKey(instant: Date, timeZone: string): string {
+  const { year, month, day } = zonedParts(instant, timeZone);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+// Minutes since midnight IN THE SALON'S ZONE for an absolute instant (a
+// booking's starts_at/ends_at, always stored as a real UTC instant) --
+// replaces minutesSinceMidnight() for anything that must position an
+// appointment against the salon's own day, not the device's.
+export function zonedMinutesSinceMidnight(iso: string, timeZone: string): number {
+  const { hour, minute } = zonedParts(new Date(iso), timeZone);
+  return hour * 60 + minute;
+}
+
+// Weekday index (0=Sun..6=Sat) in the salon's zone, for dayScheduleFor()'s
+// DAY_KEYS lookup and for the "Today, Aug 24 / Sunday" header label.
+export function zonedWeekday(instant: Date, timeZone: string): number {
+  const wd = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(instant);
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[wd] ?? instant.getDay();
+}
+
+export function dayScheduleForZoned(weekSchedule: WeekSchedule | null, instant: Date, timeZone: string): DaySchedule {
+  const key = DAY_KEYS[zonedWeekday(instant, timeZone)];
+  return (weekSchedule && weekSchedule[key]) || DEFAULT_SCHEDULE[key];
+}
+
+// "Today, Aug 24" / "Sunday" header pieces, salon-local.
+export function zonedHeaderLabels(instant: Date, timeZone: string): { dateLabel: string; weekdayLabel: string } {
+  const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone, month: 'short', day: 'numeric' }).format(instant);
+  const weekdayLabel = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long' }).format(instant);
+  return { dateLabel, weekdayLabel };
+}
+
+// Salon-local clock label ("9:37 AM") for the current-time badge/line.
+export function zonedClockLabel(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(instant);
+}

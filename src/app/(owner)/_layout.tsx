@@ -3,13 +3,18 @@ import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, CalendarDays, Users, Sparkles, Menu } from 'lucide-react-native';
-import { TabIcon, TAB_ICON_COLORS } from '@/components/TabIcon';
+import { NavIcon } from '@/components/NavIcon';
+import { SanaaNavTabIcon } from '@/components/SanaaNavTabIcon';
+import { IconTheme } from '@/constants/IconTheme';
 import { carouselTransitionSpec, makeArcInterpolator } from '@/lib/navigation/tabTransition';
 import { getSanaaStatus, deriveSanaaLifecycle } from '@/lib/api/ownerSanaa';
 
 const COLORS = {
-  ...TAB_ICON_COLORS,
+  // Label text keeps the app's existing established luxury gold (distinct
+  // from IconTheme.gold, the new icon-accent gold) -- per the locked
+  // direction, only the icon treatment itself is new.
+  gold: '#F4D77A',
+  inactive: IconTheme.inactive,
   border: 'rgba(123,63,228,0.34)',
   background: 'rgba(20,10,34,0.82)',
 };
@@ -81,8 +86,8 @@ export default function OwnerTabsLayout() {
           name="dashboard"
           options={{
             title: 'Dashboard',
-            tabBarIcon: ({ color, size, focused }) => (
-              <TabIcon Icon={Home} color={color} size={size} focused={focused} />
+            tabBarIcon: ({ focused }) => (
+              <NavIcon name={focused ? 'home' : 'home-outline'} focused={focused} />
             ),
           }}
         />
@@ -90,8 +95,8 @@ export default function OwnerTabsLayout() {
           name="calendar"
           options={{
             title: 'Calendar',
-            tabBarIcon: ({ color, size, focused }) => (
-              <TabIcon Icon={CalendarDays} color={color} size={size} focused={focused} />
+            tabBarIcon: ({ focused }) => (
+              <NavIcon name={focused ? 'calendar' : 'calendar-outline'} focused={focused} />
             ),
           }}
         />
@@ -99,8 +104,8 @@ export default function OwnerTabsLayout() {
           name="customers"
           options={{
             title: 'Customers',
-            tabBarIcon: ({ color, size, focused }) => (
-              <TabIcon Icon={Users} color={color} size={size} focused={focused} />
+            tabBarIcon: ({ focused }) => (
+              <NavIcon name={focused ? 'people' : 'people-outline'} focused={focused} />
             ),
           }}
         />
@@ -108,8 +113,8 @@ export default function OwnerTabsLayout() {
           name="sanaa"
           options={{
             title: 'SANAA',
-            tabBarIcon: ({ color, size, focused }) => (
-              <TabIcon Icon={Sparkles} color={color} size={size} focused={focused} badge={sanaaNeedsAttention} />
+            tabBarIcon: ({ focused }) => (
+              <SanaaNavTabIcon focused={focused} badge={sanaaNeedsAttention} />
             ),
           }}
         />
@@ -117,8 +122,8 @@ export default function OwnerTabsLayout() {
           name="more"
           options={{
             title: 'More',
-            tabBarIcon: ({ color, size, focused }) => (
-              <TabIcon Icon={Menu} color={color} size={size} focused={focused} />
+            tabBarIcon: ({ focused }) => (
+              <NavIcon name={focused ? 'grid' : 'grid-outline'} focused={focused} />
             ),
           }}
         />

@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
+import { SanaaMark } from '@/components/SanaaMark';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { getBooking, updateBooking, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { getCustomer, addNote, pinNote, deleteNote, CustomerNote } from '@/lib/api/ownerCustomers';
@@ -204,6 +205,13 @@ export default function AppointmentDetailScreen() {
           </View>
         </View>
 
+        {booking.source === 'voice_ai' && (
+          <View style={styles.sanaaBadge}>
+            <SanaaMark variant="bookingAttribution" />
+            <Text style={styles.sanaaBadgeText}>Booked by SANAA</Text>
+          </View>
+        )}
+
         {/* Quick contact */}
         <View style={styles.contactRow}>
           <ContactAction
@@ -362,6 +370,13 @@ const styles = StyleSheet.create({
   meta: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.65)', marginTop: 2 },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.full },
   statusPillText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: 12 },
+  sanaaBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start', backgroundColor: 'rgba(123,63,228,0.15)',
+    borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4,
+    borderWidth: 1, borderColor: 'rgba(123,63,228,0.3)',
+  },
+  sanaaBadgeText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: '#B794F6' },
 
   contactRow: { flexDirection: 'row', gap: Spacing.sm },
   contactAction: {
