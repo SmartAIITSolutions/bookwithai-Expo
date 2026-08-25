@@ -27,11 +27,24 @@ export interface SanaaCallsResponse {
 export interface SanaaCallsSummary {
   window_days: number;
   calls_handled: number;
+  /** Count of sanaa_call_logs rows with outcome='booked' in this window --
+   *  a CALL-level annotation, written when the call's own outcome field was
+   *  set. Deliberately NOT the same source as booking_value_cents (see
+   *  below) -- a real booking can exist without its originating call ever
+   *  having outcome='booked' written (confirmed live: Glam Studio's one
+   *  voice_ai booking has no call row with outcome='booked' or booking_id
+   *  set, investigated 2026-08-25 -- no mutation-ledger or booking_id
+   *  linkage exists for that pre-P14B call to safely backfill it). Never
+   *  read appointments_booked and booking_value_cents as describing the
+   *  same set of calls. */
   appointments_booked: number;
   transfers: number;
   /** Sum of bookings.price_cents for SANAA-created (source='voice_ai'),
    *  non-cancelled bookings in this window -- authoritative service value,
-   *  not a transcript-derived estimate. */
+   *  not a transcript-derived estimate. Sourced independently from the
+   *  bookings table, NOT from appointments_booked/sanaa_call_logs.outcome
+   *  -- a nonzero value here does not imply appointments_booked counted
+   *  the same booking. */
   booking_value_cents: number;
   /** appointments_booked / calls_handled * 100, rounded. null when
    *  calls_handled is 0 -- genuinely undefined, never shown as "0%". */

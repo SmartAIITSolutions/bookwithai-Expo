@@ -304,7 +304,7 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
               </View>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{summary?.appointments_booked ?? 0}</Text>
-                <Text style={styles.metricLabel}>Booked</Text>
+                <Text style={styles.metricLabel}>Booked Calls</Text>
               </View>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{summary?.transfers ?? 0}</Text>
@@ -314,7 +314,7 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
             <View style={[styles.metricsRow, styles.rowBorder]}>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{formatMoney(summary?.booking_value_cents ?? 0)}</Text>
-                <Text style={styles.metricLabel}>Booking Value</Text>
+                <Text style={styles.metricLabel}>Voice AI Booking Value</Text>
               </View>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>
