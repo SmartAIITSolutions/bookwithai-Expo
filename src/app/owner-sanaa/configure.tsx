@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
@@ -13,6 +14,7 @@ import {
 } from '@/lib/api/ownerSanaaConfig';
 import { updateBusiness } from '@/lib/api/ownerBusiness';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatWeekdayLong } from '@/lib/i18n/format';
 
 function CardOverlay() {
   return (
@@ -23,28 +25,17 @@ function CardOverlay() {
   );
 }
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#0B0712' },
-  headerTintColor: '#F4D77A',
-  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-  title: 'Configure SANAA',
-  headerBackTitle: 'SANAA',
-};
-
-const TONES: { key: SanaaOwnerConfig['tone']; label: string }[] = [
-  { key: 'warm_casual', label: 'Warm & Casual' },
-  { key: 'professional_formal', label: 'Professional' },
-  { key: 'upbeat_energetic', label: 'Upbeat' },
-];
-
-function formatHours(hours: SanaaConfigResponse['business']['business_hours']): string[] {
-  if (!hours) return ['Hours not configured yet.'];
-  const lines: string[] = [];
-  for (const [day, val] of Object.entries(hours)) {
-    if (!val?.open) lines.push(`${day}: Closed`);
-    else if (val.start && val.end) lines.push(`${day}: ${val.start} – ${val.end}`);
-  }
-  return lines.length > 0 ? lines : ['Hours not configured yet.'];
+// business_hours keys are the full English day name ("Sunday".."Saturday"),
+// normalized server-side -- a display concern only here (never re-sent),
+// so mapped to a locale-aware weekday name for rendering.
+const ENGLISH_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const REFERENCE_SUNDAY = new Date(2023, 0, 1);
+function weekdayLongForEnglishName(day: string): string {
+  const index = ENGLISH_DAY_NAMES.indexOf(day);
+  if (index === -1) return day;
+  const d = new Date(REFERENCE_SUNDAY);
+  d.setDate(REFERENCE_SUNDAY.getDate() + index);
+  return formatWeekdayLong(d);
 }
 
 // P5 self-service configuration -- reuses the existing sanaa_tenants/
@@ -53,6 +44,29 @@ function formatHours(hours: SanaaConfigResponse['business']['business_hours']): 
 // web dashboard already edits, not a duplicate). No raw prompt editor, no
 // voice picker -- both explicitly locked out of scope for owners (P5.5/5.11).
 export default function SanaaConfigureScreen() {
+  const { t } = useTranslation(['sanaa']);
+  const HEADER_OPTIONS = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: t('sanaa:configureScreen.headerTitle'),
+    headerBackTitle: t('sanaa:configureScreen.headerBackTitle'),
+  };
+  const TONES: { key: SanaaOwnerConfig['tone']; label: string }[] = [
+    { key: 'warm_casual', label: t('sanaa:configureScreen.toneWarmCasual') },
+    { key: 'professional_formal', label: t('sanaa:configureScreen.toneProfessional') },
+    { key: 'upbeat_energetic', label: t('sanaa:configureScreen.toneUpbeat') },
+  ];
+  function formatHours(hours: SanaaConfigResponse['business']['business_hours']): string[] {
+    if (!hours) return [t('sanaa:configureScreen.hoursNotConfigured')];
+    const lines: string[] = [];
+    for (const [day, val] of Object.entries(hours)) {
+      const dayLabel = weekdayLongForEnglishName(day);
+      if (!val?.open) lines.push(`${dayLabel}: ${t('sanaa:configureScreen.closed')}`);
+      else if (val.start && val.end) lines.push(`${dayLabel}: ${val.start} – ${val.end}`);
+    }
+    return lines.length > 0 ? lines : [t('sanaa:configureScreen.hoursNotConfigured')];
+  }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<SanaaOwnerConfig | null>(null);
@@ -94,7 +108,7 @@ export default function SanaaConfigureScreen() {
     setSaving(true);
     const result = await updateSanaaConfig(patch);
     setSaving(false);
-    if (!result.ok) Alert.alert('Could not save', result.error);
+    if (!result.ok) Alert.alert(t('sanaa:configureScreen.couldNotSaveTitle'), result.error);
   }
 
   async function savePolicies() {
@@ -104,30 +118,30 @@ export default function SanaaConfigureScreen() {
       rescheduling_policy: reschedulingInput,
     });
     setSaving(false);
-    if (!result.ok) Alert.alert('Could not save', result.error);
-    else Alert.alert('Saved', 'Cancellation & rescheduling policy updated.');
+    if (!result.ok) Alert.alert(t('sanaa:configureScreen.couldNotSaveTitle'), result.error);
+    else Alert.alert(t('sanaa:configureScreen.savedTitle'), t('sanaa:configureScreen.cancellationReschedulingSavedMessage'));
   }
 
   async function saveTransferNumber() {
     setSaving(true);
     const result = await updateSanaaConfig({ transfer_number: transferInput });
     setSaving(false);
-    if (!result.ok) Alert.alert('Could not save', result.error);
-    else Alert.alert('Saved', 'Human transfer number updated.');
+    if (!result.ok) Alert.alert(t('sanaa:configureScreen.couldNotSaveTitle'), result.error);
+    else Alert.alert(t('sanaa:configureScreen.savedTitle'), t('sanaa:configureScreen.transferNumberSavedMessage'));
   }
 
   async function saveAndContinue() {
     setSaving(true);
     const result = await completeSanaaConfig();
     setSaving(false);
-    if (!result.ok) { Alert.alert('Could not continue', result.error); return; }
+    if (!result.ok) { Alert.alert(t('sanaa:configureScreen.couldNotContinueTitle'), result.error); return; }
     router.push('/owner-sanaa/phone');
   }
 
   async function addFaq() {
     if (!newQuestion.trim() || !newAnswer.trim()) return;
     const result = await createSanaaFaq({ question: newQuestion.trim(), answer: newAnswer.trim() });
-    if (!result.ok) { Alert.alert('Could not add FAQ', result.error); return; }
+    if (!result.ok) { Alert.alert(t('sanaa:configureScreen.couldNotAddFaqTitle'), result.error); return; }
     setFaqs((prev) => [...prev, result.data.data]);
     setFaqWarning(result.data.warning);
     setNewQuestion('');
@@ -137,17 +151,17 @@ export default function SanaaConfigureScreen() {
 
   async function toggleFaqActive(faq: SanaaFaq) {
     const result = await updateSanaaFaq(faq.id, { active: !faq.active });
-    if (!result.ok) { Alert.alert('Could not update', result.error); return; }
+    if (!result.ok) { Alert.alert(t('sanaa:configureScreen.couldNotUpdateTitle'), result.error); return; }
     setFaqs((prev) => prev.map((f) => (f.id === faq.id ? result.data.data : f)));
   }
 
   async function removeFaq(faq: SanaaFaq) {
-    Alert.alert('Delete this FAQ?', faq.question, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('sanaa:configureScreen.deleteFaqTitle'), faq.question, [
+      { text: t('sanaa:configureScreen.cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive', onPress: async () => {
+        text: t('sanaa:configureScreen.delete'), style: 'destructive', onPress: async () => {
           const result = await deleteSanaaFaq(faq.id);
-          if (!result.ok) { Alert.alert('Could not delete', result.error); return; }
+          if (!result.ok) { Alert.alert(t('sanaa:configureScreen.couldNotDeleteTitle'), result.error); return; }
           setFaqs((prev) => prev.filter((f) => f.id !== faq.id));
         },
       },
@@ -179,66 +193,66 @@ export default function SanaaConfigureScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* What SANAA already knows -- read-only, sourced from the same data SANAA's live calls already use */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What SANAA Already Knows</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:configureScreen.whatSanaaKnows')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             <View style={styles.knownRow}>
-              <Text style={styles.knownLabel}>Business</Text>
+              <Text style={styles.knownLabel}>{t('sanaa:configureScreen.business')}</Text>
               <Text style={styles.knownValue}>{business.business_name ?? '—'}</Text>
             </View>
             <View style={[styles.knownRow, styles.rowBorder]}>
-              <Text style={styles.knownLabel}>Services</Text>
-              <Text style={styles.knownValue}>{business.service_count} active</Text>
+              <Text style={styles.knownLabel}>{t('sanaa:configureScreen.services')}</Text>
+              <Text style={styles.knownValue}>{t('sanaa:configureScreen.activeCount', { count: business.service_count })}</Text>
             </View>
             <View style={[styles.knownRow, styles.rowBorder]}>
-              <Text style={styles.knownLabel}>Staff</Text>
-              <Text style={styles.knownValue}>{business.staff_count} active</Text>
+              <Text style={styles.knownLabel}>{t('sanaa:configureScreen.staff')}</Text>
+              <Text style={styles.knownValue}>{t('sanaa:configureScreen.activeCount', { count: business.staff_count })}</Text>
             </View>
             <View style={[styles.knownHoursBlock, styles.rowBorder]}>
-              <Text style={styles.knownLabel}>Hours</Text>
+              <Text style={styles.knownLabel}>{t('sanaa:configureScreen.hours')}</Text>
               {formatHours(business.business_hours).map((line) => (
                 <Text key={line} style={styles.knownHoursLine}>{line}</Text>
               ))}
             </View>
           </BlurView>
-          <Text style={styles.hint}>This comes straight from your Book With AI setup — nothing to re-enter here.</Text>
+          <Text style={styles.hint}>{t('sanaa:configureScreen.knownHint')}</Text>
         </View>
 
         {/* Tone & behavior */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tone & Behavior</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:configureScreen.toneBehavior')}</Text>
           <View style={styles.toneRow}>
-            {TONES.map((t) => (
+            {TONES.map((tone) => (
               <TouchableOpacity
-                key={t.key}
-                style={[styles.toneChip, config.tone === t.key && styles.toneChipActive]}
-                onPress={() => saveConfig({ tone: t.key })}
+                key={tone.key}
+                style={[styles.toneChip, config.tone === tone.key && styles.toneChipActive]}
+                onPress={() => saveConfig({ tone: tone.key })}
               >
-                <Text style={[styles.toneChipText, config.tone === t.key && styles.toneChipTextActive]}>{t.label}</Text>
+                <Text style={[styles.toneChipText, config.tone === tone.key && styles.toneChipTextActive]}>{tone.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             <SwitchRow
-              label="Answer after hours"
+              label={t('sanaa:configureScreen.answerAfterHours')}
               value={config.after_hours_booking}
               onValueChange={(v) => saveConfig({ after_hours_booking: v })}
             />
             <SwitchRow
-              label="Suggest add-on services"
+              label={t('sanaa:configureScreen.suggestAddOns')}
               value={config.upsell_enabled}
               onValueChange={(v) => saveConfig({ upsell_enabled: v })}
               bordered
             />
             <SwitchRow
-              label="Notify me (push)"
+              label={t('sanaa:configureScreen.notifyPush')}
               value={config.notify_owner_bell}
               onValueChange={(v) => saveConfig({ notify_owner_bell: v })}
               bordered
             />
             <SwitchRow
-              label="Notify me (email)"
+              label={t('sanaa:configureScreen.notifyEmail')}
               value={config.notify_owner_email}
               onValueChange={(v) => saveConfig({ notify_owner_email: v })}
               bordered
@@ -248,61 +262,61 @@ export default function SanaaConfigureScreen() {
 
         {/* Human transfer */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Human Transfer</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:configureScreen.humanTransfer')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             <TextInput
               style={styles.input}
               value={transferInput}
               onChangeText={setTransferInput}
-              placeholder="(555) 555-5555"
+              placeholder={t('sanaa:configureScreen.transferPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.35)"
               keyboardType="phone-pad"
             />
           </BlurView>
-          <Text style={styles.hint}>Where SANAA sends a caller who needs a real person, during business hours.</Text>
+          <Text style={styles.hint}>{t('sanaa:configureScreen.transferHint')}</Text>
           <TouchableOpacity style={styles.saveSmallButton} onPress={saveTransferNumber} disabled={saving}>
-            <Text style={styles.saveSmallButtonText}>Save Transfer Number</Text>
+            <Text style={styles.saveSmallButtonText}>{t('sanaa:configureScreen.saveTransferNumber')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Policies -- same shared field as owner-settings/business.tsx, not a duplicate */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cancellation & Rescheduling Policy</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:configureScreen.cancellationReschedulingPolicy')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
-            <Text style={styles.fieldLabel}>Cancellation Policy</Text>
+            <Text style={styles.fieldLabel}>{t('sanaa:configureScreen.cancellationPolicyLabel')}</Text>
             <TextInput
               style={[styles.input, styles.multiline]}
               value={cancellationInput}
               onChangeText={setCancellationInput}
               multiline
-              placeholder="What SANAA tells callers about cancelling"
+              placeholder={t('sanaa:configureScreen.cancellationPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.35)"
             />
-            <Text style={[styles.fieldLabel, styles.rowBorder]}>Rescheduling Policy</Text>
+            <Text style={[styles.fieldLabel, styles.rowBorder]}>{t('sanaa:configureScreen.reschedulingPolicyLabel')}</Text>
             <TextInput
               style={[styles.input, styles.multiline]}
               value={reschedulingInput}
               onChangeText={setReschedulingInput}
               multiline
-              placeholder="What SANAA tells callers about rescheduling"
+              placeholder={t('sanaa:configureScreen.reschedulingPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.35)"
             />
           </BlurView>
-          <Text style={styles.hint}>Also shown in Settings → Business Setup — this is the same field, not a separate copy.</Text>
+          <Text style={styles.hint}>{t('sanaa:configureScreen.policyHint')}</Text>
           <TouchableOpacity style={styles.saveSmallButton} onPress={savePolicies} disabled={saving}>
-            <Text style={styles.saveSmallButtonText}>Save Policies</Text>
+            <Text style={styles.saveSmallButtonText}>{t('sanaa:configureScreen.savePolicies')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* FAQs */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>FAQs</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:configureScreen.faqs')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             {faqs.length === 0 && !addingFaq && (
-              <Text style={styles.emptyText}>No FAQs yet. Add one below.</Text>
+              <Text style={styles.emptyText}>{t('sanaa:configureScreen.noFaqsYet')}</Text>
             )}
             {faqs.map((faq, i) => (
               <View key={faq.id} style={[styles.faqRow, i > 0 && styles.rowBorder]}>
@@ -336,14 +350,14 @@ export default function SanaaConfigureScreen() {
                 style={styles.input}
                 value={newQuestion}
                 onChangeText={setNewQuestion}
-                placeholder="Question (e.g. Do you have parking?)"
+                placeholder={t('sanaa:configureScreen.questionPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
               />
               <TextInput
                 style={[styles.input, styles.multiline, styles.rowBorder]}
                 value={newAnswer}
                 onChangeText={setNewAnswer}
-                placeholder="Answer SANAA should give (300 characters max)"
+                placeholder={t('sanaa:configureScreen.answerPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 multiline
                 maxLength={300}
@@ -351,23 +365,23 @@ export default function SanaaConfigureScreen() {
               <Text style={styles.charCount}>{newAnswer.length}/300</Text>
               <View style={styles.faqAddActions}>
                 <TouchableOpacity style={styles.cancelButton} onPress={() => setAddingFaq(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={styles.cancelButtonText}>{t('sanaa:configureScreen.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveSmallButton} onPress={addFaq}>
-                  <Text style={styles.saveSmallButtonText}>Add FAQ</Text>
+                  <Text style={styles.saveSmallButtonText}>{t('sanaa:configureScreen.addFaq')}</Text>
                 </TouchableOpacity>
               </View>
             </BlurView>
           ) : (
             <TouchableOpacity style={styles.addFaqButton} onPress={() => { setAddingFaq(true); setFaqWarning(null); }}>
               <Ionicons name="add" size={16} color="#FFC857" />
-              <Text style={styles.addFaqButtonText}>Add FAQ</Text>
+              <Text style={styles.addFaqButtonText}>{t('sanaa:configureScreen.addFaq')}</Text>
             </TouchableOpacity>
           )}
         </View>
 
         <TouchableOpacity style={styles.continueButton} onPress={saveAndContinue} disabled={saving}>
-          <Text style={styles.continueButtonText}>Save & Continue to Connect</Text>
+          <Text style={styles.continueButtonText}>{t('sanaa:configureScreen.saveAndContinue')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

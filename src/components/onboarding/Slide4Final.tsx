@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/Theme';
 import { GoldSparkles } from './GoldSparkle';
 
@@ -19,6 +20,7 @@ interface Slide4FinalProps {
 }
 
 export function Slide4Final({ onGetStarted, onSignIn }: Slide4FinalProps) {
+  const { t } = useTranslation(['onboarding']);
   const glowScale = useSharedValue(1);
 
   useEffect(() => {
@@ -54,19 +56,19 @@ export function Slide4Final({ onGetStarted, onSignIn }: Slide4FinalProps) {
 
       {/* Text */}
       <Animated.View entering={FadeIn.duration(700).delay(200)} style={styles.textBlock}>
-        <Text style={styles.headline}>Your Beauty Journey{'\n'}Starts Here.</Text>
+        <Text style={styles.headline}>{t('onboarding:customer.slide4.headline')}</Text>
         <Text style={styles.subtext}>
-          Create your free account and start booking with confidence.
+          {t('onboarding:customer.slide4.subtext')}
         </Text>
       </Animated.View>
 
       {/* Buttons */}
       <Animated.View entering={FadeIn.duration(700).delay(400)} style={styles.buttons}>
         <Text style={styles.primaryButton} onPress={onGetStarted}>
-          Get Started
+          {t('onboarding:customer.slide4.getStarted')}
         </Text>
         <Text style={styles.secondaryButton} onPress={onSignIn}>
-          Sign In
+          {t('onboarding:customer.slide4.signIn')}
         </Text>
       </Animated.View>
     </View>

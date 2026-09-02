@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SanaaWordmark } from './SanaaWordmark';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
@@ -8,12 +9,13 @@ import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 // ownerSanaa.ts. Dev builds skip this entirely and preview the full
 // SanaaDiscoveryHome instead.
 export function SanaaComingSoon() {
+  const { t } = useTranslation(['sanaa']);
   return (
     <View style={styles.container}>
       <SanaaWordmark width={200} height={70} />
-      <Text style={styles.title}>SANAA is on the way</Text>
+      <Text style={styles.title}>{t('sanaa:comingSoon.title')}</Text>
       <Text style={styles.body}>
-        Your AI receptionist is almost ready. We'll let you know the moment she's available to set up.
+        {t('sanaa:comingSoon.body')}
       </Text>
     </View>
   );

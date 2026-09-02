@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
@@ -19,14 +20,6 @@ function CardOverlay() {
   );
 }
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#0B0712' },
-  headerTintColor: '#F4D77A',
-  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-  title: 'Phone & Connectivity',
-  headerBackTitle: 'SANAA',
-};
-
 function formatPhoneDisplay(number: string): string {
   const digits = number.replace(/\D/g, '');
   const local = digits.length === 11 ? digits.slice(1) : digits;
@@ -39,6 +32,14 @@ function formatPhoneDisplay(number: string): string {
 // duplicating that fetch. Deliberately no live test-call button here --
 // that's P7, not this slice.
 export default function SanaaPhoneScreen() {
+  const { t } = useTranslation(['sanaa']);
+  const HEADER_OPTIONS = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: t('sanaa:phoneScreen.headerTitle'),
+    headerBackTitle: t('sanaa:phoneScreen.headerBackTitle'),
+  };
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasAgent, setHasAgent] = useState(false);
@@ -80,7 +81,7 @@ export default function SanaaPhoneScreen() {
       const agentResult = await provisionSanaaAgent();
       if (!agentResult.ok) {
         setProvisioning(false);
-        Alert.alert('Could not set up SANAA', agentResult.error);
+        Alert.alert(t('sanaa:phoneScreen.couldNotSetUpTitle'), agentResult.error);
         return;
       }
       setHasAgent(true);
@@ -89,7 +90,7 @@ export default function SanaaPhoneScreen() {
     const result = await provisionSanaaNumber();
     setProvisioning(false);
     if (!result.ok) {
-      Alert.alert('Could not get a number', result.error);
+      Alert.alert(t('sanaa:phoneScreen.couldNotGetNumberTitle'), result.error);
       return;
     }
     setTelnyxNumber(result.data.telnyx_number);
@@ -131,14 +132,14 @@ export default function SanaaPhoneScreen() {
           <View style={styles.section}>
             <View style={styles.hero}>
               <Ionicons name="checkmark-circle" size={48} color="#4ADE80" />
-              <Text style={styles.heroTitle}>Congratulations! SANAA is Active</Text>
+              <Text style={styles.heroTitle}>{t('sanaa:phoneScreen.congratsTitle')}</Text>
               <Text style={styles.heroBody}>
-                Your SANAA number is connected and she's ready to answer calls.
+                {t('sanaa:phoneScreen.congratsBody')}
               </Text>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Your SANAA Number</Text>
+              <Text style={styles.sectionTitle}>{t('sanaa:phoneScreen.yourSanaaNumber')}</Text>
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
                 <View style={styles.statusRow}>
@@ -150,13 +151,13 @@ export default function SanaaPhoneScreen() {
               </BlurView>
             </View>
 
-            <Text style={styles.heroBody}>Let's make a quick test call so you can hear her in action.</Text>
+            <Text style={styles.heroBody}>{t('sanaa:phoneScreen.quickTestCallHint')}</Text>
 
             <TouchableOpacity
               style={styles.provisionButtonPrimary}
               onPress={() => router.push('/owner-sanaa/test' as never)}
             >
-              <Text style={styles.provisionButtonText}>Test SANAA</Text>
+              <Text style={styles.provisionButtonText}>{t('sanaa:phoneScreen.testSanaa')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -170,14 +171,14 @@ export default function SanaaPhoneScreen() {
       <Stack.Screen options={HEADER_OPTIONS} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Connection Status</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:phoneScreen.connectionStatus')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             {isConnected ? (
               <View style={styles.statusRow}>
                 <View style={styles.statusDotConnected} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.statusTitle}>Connected</Text>
+                  <Text style={styles.statusTitle}>{t('sanaa:phoneScreen.connected')}</Text>
                   <Text style={styles.statusValue}>{telnyxNumber ? formatPhoneDisplay(telnyxNumber) : ''}</Text>
                 </View>
               </View>
@@ -185,11 +186,11 @@ export default function SanaaPhoneScreen() {
               <View style={styles.statusRow}>
                 <View style={styles.statusDotPending} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.statusTitle}>{telnyxNumber ? 'Almost connected' : 'Not connected yet'}</Text>
+                  <Text style={styles.statusTitle}>{telnyxNumber ? t('sanaa:phoneScreen.almostConnected') : t('sanaa:phoneScreen.notConnectedYet')}</Text>
                   <Text style={styles.statusValue}>
                     {telnyxNumber
-                      ? 'Your number is purchased but not finished connecting — resume below.'
-                      : 'Choose an option below to give SANAA a number to answer.'}
+                      ? t('sanaa:phoneScreen.almostConnectedBody')
+                      : t('sanaa:phoneScreen.notConnectedBody')}
                   </Text>
                 </View>
               </View>
@@ -200,11 +201,11 @@ export default function SanaaPhoneScreen() {
         {!isConnected && (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Get a Dedicated SANAA Number</Text>
+              <Text style={styles.sectionTitle}>{t('sanaa:phoneScreen.getDedicatedNumber')}</Text>
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
                 <Text style={styles.optionBody}>
-                  We'll create and connect your SANAA phone number and AI receptionist. Once connection is complete, SANAA will be active and ready to receive calls.
+                  {t('sanaa:phoneScreen.dedicatedNumberBody')}
                 </Text>
                 <TouchableOpacity
                   style={[styles.provisionButton, provisioning && styles.provisionButtonDisabled]}
@@ -213,30 +214,29 @@ export default function SanaaPhoneScreen() {
                 >
                   <Text style={styles.provisionButtonText}>
                     {provisioning
-                      ? 'Connecting…'
+                      ? t('sanaa:phoneScreen.connecting')
                       : telnyxNumber
-                        ? 'Resume Connection'
-                        : 'Connect SANAA'}
+                        ? t('sanaa:phoneScreen.resumeConnection')
+                        : t('sanaa:phoneScreen.connectSanaa')}
                   </Text>
                 </TouchableOpacity>
               </BlurView>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Keep Your Existing Number</Text>
+              <Text style={styles.sectionTitle}>{t('sanaa:phoneScreen.keepExistingNumber')}</Text>
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
                 <Text style={styles.optionBody}>
-                  Forward your current business line to SANAA instead. Most phone carriers let you turn call forwarding on
-                  from your phone's settings or by dialing a short code — check with your carrier for the exact steps.
+                  {t('sanaa:phoneScreen.keepExistingBody')}
                 </Text>
                 {transferNumber ? (
                   <Text style={styles.optionHint}>
-                    Calls SANAA can't handle will still be sent to your transfer number: {formatPhoneDisplay(transferNumber)}
+                    {t('sanaa:phoneScreen.transferNumberSetHint', { number: formatPhoneDisplay(transferNumber) })}
                   </Text>
                 ) : (
                   <Text style={styles.optionHint}>
-                    Set a human transfer number in Configure SANAA so callers can always reach a person.
+                    {t('sanaa:phoneScreen.transferNumberNotSetHint')}
                   </Text>
                 )}
               </BlurView>
@@ -246,15 +246,15 @@ export default function SanaaPhoneScreen() {
 
         {telnyxNumber && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Human Transfer</Text>
+            <Text style={styles.sectionTitle}>{t('sanaa:phoneScreen.humanTransfer')}</Text>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               <View style={styles.statusRow}>
                 <Ionicons name="call-outline" size={18} color="#F4D77A" />
                 <Text style={styles.optionBody}>
                   {transferNumber
-                    ? `Calls SANAA can't handle are sent to ${formatPhoneDisplay(transferNumber)}.`
-                    : "No transfer number set yet — add one in Configure SANAA so callers can always reach a person."}
+                    ? t('sanaa:phoneScreen.transferSetBody', { number: formatPhoneDisplay(transferNumber) })
+                    : t('sanaa:phoneScreen.transferNotSetBody')}
                 </Text>
               </View>
             </BlurView>

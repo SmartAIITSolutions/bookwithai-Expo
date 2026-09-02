@@ -10,6 +10,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { hasPin, setPin, clearPin } from '@/lib/auth/pin';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -22,6 +23,7 @@ function CardOverlay() {
 }
 
 export default function AccountSecurityScreen() {
+  const { t } = useTranslation(['auth', 'errors', 'common']);
   const { user, signOut } = useAuth();
   const [newEmail, setNewEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
@@ -46,23 +48,23 @@ export default function AccountSecurityScreen() {
 
   async function handleSaveEmail() {
     if (!newEmail.trim() || !newEmail.includes('@')) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      Alert.alert(t('errors:auth.invalidEmailTitle'), t('errors:auth.enterValidEmailAddress'));
       return;
     }
     setSavingEmail(true);
     const { error } = await supabase.auth.updateUser({ email: newEmail.trim() });
     setSavingEmail(false);
     if (error) {
-      Alert.alert('Could not update email', error.message);
+      Alert.alert(t('errors:auth.couldNotUpdateEmailTitle'), error.message);
       return;
     }
     setNewEmail('');
-    Alert.alert('Check your inbox', 'Confirm the change from the link sent to your new email address.');
+    Alert.alert(t('errors:auth.checkInboxTitle'), t('errors:auth.confirmEmailChangeMessage'));
   }
 
   async function handleSavePassword() {
     if (newPassword.length < 8) {
-      Alert.alert('Password too short', 'Use at least 8 characters.');
+      Alert.alert(t('errors:auth.passwordTooShortTitle'), t('errors:auth.useAtLeast8Chars'));
       return;
     }
     setSavingPassword(true);
@@ -74,27 +76,27 @@ export default function AccountSecurityScreen() {
     });
     if (reauthError) {
       setSavingPassword(false);
-      Alert.alert('Current password incorrect', 'Please re-enter your current password.');
+      Alert.alert(t('errors:auth.currentPasswordIncorrectTitle'), t('errors:auth.reenterCurrentPassword'));
       return;
     }
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setSavingPassword(false);
     if (error) {
-      Alert.alert('Could not update password', error.message);
+      Alert.alert(t('errors:auth.couldNotUpdatePasswordTitle'), error.message);
       return;
     }
     setCurrentPassword('');
     setNewPassword('');
-    Alert.alert('Password updated', 'Your password has been changed.');
+    Alert.alert(t('errors:auth.passwordUpdatedTitle'), t('errors:auth.passwordChangedMessage'));
   }
 
   async function handleSavePin() {
     if (pinDraft.length !== 4 || !/^\d{4}$/.test(pinDraft)) {
-      Alert.alert('Invalid PIN', 'Enter a 4-digit PIN.');
+      Alert.alert(t('errors:auth.invalidPinTitle'), t('errors:auth.enter4DigitPin'));
       return;
     }
     if (pinDraft !== pinConfirm) {
-      Alert.alert("PINs don't match", 'Please re-enter to confirm.');
+      Alert.alert(t('errors:auth.pinsDontMatchTitle'), t('errors:auth.reenterToConfirm'));
       return;
     }
     setSavingPin(true);
@@ -104,14 +106,14 @@ export default function AccountSecurityScreen() {
     setPinConfirm('');
     setSettingPin(false);
     setPinSet(true);
-    Alert.alert('PIN saved', 'You can now use your PIN as a fallback for biometric login.');
+    Alert.alert(t('errors:auth.pinSavedTitle'), t('errors:auth.pinSavedMessage'));
   }
 
   async function handleRemovePin() {
-    Alert.alert('Remove PIN?', 'You will no longer be able to use a PIN as a biometric fallback.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('errors:auth.removePinTitle'), t('errors:auth.removePinMessage'), [
+      { text: t('common:cancel'), style: 'cancel' },
       {
-        text: 'Remove',
+        text: t('auth:accountSecurity.removeButton'),
         style: 'destructive',
         onPress: async () => {
           await clearPin();
@@ -123,12 +125,12 @@ export default function AccountSecurityScreen() {
 
   function handleSignOutAllDevices() {
     Alert.alert(
-      'Log out of all devices?',
-      "You'll be signed out everywhere, including this device.",
+      t('errors:auth.logOutAllTitle'),
+      t('errors:auth.logOutAllMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:cancel'), style: 'cancel' },
         {
-          text: 'Log Out Everywhere',
+          text: t('auth:accountSecurity.logOutEverywhereButton'),
           style: 'destructive',
           onPress: async () => {
             setSigningOutAll(true);
@@ -148,8 +150,8 @@ export default function AccountSecurityScreen() {
       <SafeAreaView style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Account Security',
-          headerBackTitle: 'Account',
+          title: t('auth:accountSecurity.headerTitle'),
+          headerBackTitle: t('auth:accountSecurity.headerBackTitle'),
           headerStyle: { backgroundColor: '#09000F' },
           headerTintColor: '#F4D77A',
           headerTitleStyle: { color: '#FFFFFF' },
@@ -161,11 +163,11 @@ export default function AccountSecurityScreen() {
           {/* Change email */}
           <BlurView intensity={90} tint="dark" style={styles.section}>
             <CardOverlay />
-            <Text style={styles.sectionTitle}>Change Email</Text>
-            <Text style={styles.sectionDesc}>Current: {user?.email}</Text>
+            <Text style={styles.sectionTitle}>{t('auth:accountSecurity.changeEmailTitle')}</Text>
+            <Text style={styles.sectionDesc}>{t('auth:accountSecurity.currentEmail', { email: user?.email })}</Text>
             <TextInput
               style={styles.input}
-              placeholder="New email address"
+              placeholder={t('auth:accountSecurity.newEmailPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={newEmail}
               onChangeText={setNewEmail}
@@ -173,17 +175,17 @@ export default function AccountSecurityScreen() {
               keyboardType="email-address"
             />
             <Pressable style={styles.primaryBtn} onPress={handleSaveEmail} disabled={savingEmail}>
-              {savingEmail ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Update Email</Text>}
+              {savingEmail ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>{t('auth:accountSecurity.updateEmailButton')}</Text>}
             </Pressable>
           </BlurView>
 
           {/* Change password */}
           <BlurView intensity={90} tint="dark" style={styles.section}>
             <CardOverlay />
-            <Text style={styles.sectionTitle}>Change Password</Text>
+            <Text style={styles.sectionTitle}>{t('auth:accountSecurity.changePasswordTitle')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Current password"
+              placeholder={t('auth:accountSecurity.currentPasswordPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={currentPassword}
               onChangeText={setCurrentPassword}
@@ -191,33 +193,33 @@ export default function AccountSecurityScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="New password (min 8 characters)"
+              placeholder={t('auth:accountSecurity.newPasswordPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
             />
             <Pressable style={styles.primaryBtn} onPress={handleSavePassword} disabled={savingPassword}>
-              {savingPassword ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Update Password</Text>}
+              {savingPassword ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>{t('auth:accountSecurity.updatePasswordButton')}</Text>}
             </Pressable>
           </BlurView>
 
           {/* PIN fallback */}
           <BlurView intensity={90} tint="dark" style={styles.section}>
             <CardOverlay />
-            <Text style={styles.sectionTitle}>PIN Fallback</Text>
+            <Text style={styles.sectionTitle}>{t('auth:accountSecurity.pinFallbackTitle')}</Text>
             <Text style={styles.sectionDesc}>
-              A 4-digit PIN you can use to unlock the app if biometrics fail.
+              {t('auth:accountSecurity.pinFallbackDesc')}
             </Text>
 
             {settingPin ? (
               <>
                 <TextInput
                   style={styles.input}
-                  placeholder="New 4-digit PIN"
+                  placeholder={t('auth:accountSecurity.newPinPlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   value={pinDraft}
-                  onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, 4))}
+                  onChangeText={(v) => setPinDraft(v.replace(/\D/g, '').slice(0, 4))}
                   onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                   keyboardType="number-pad"
                   secureTextEntry
@@ -225,10 +227,10 @@ export default function AccountSecurityScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Confirm PIN"
+                  placeholder={t('auth:accountSecurity.confirmPinPlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   value={pinConfirm}
-                  onChangeText={(t) => setPinConfirm(t.replace(/\D/g, '').slice(0, 4))}
+                  onChangeText={(v) => setPinConfirm(v.replace(/\D/g, '').slice(0, 4))}
                   onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
                   keyboardType="number-pad"
                   secureTextEntry
@@ -236,21 +238,21 @@ export default function AccountSecurityScreen() {
                 />
                 <View style={styles.inlineActions}>
                   <Pressable onPress={() => { setSettingPin(false); setPinDraft(''); setPinConfirm(''); }}>
-                    <Text style={styles.cancelText}>Cancel</Text>
+                    <Text style={styles.cancelText}>{t('auth:accountSecurity.cancel')}</Text>
                   </Pressable>
                   <Pressable style={styles.primaryBtnSmall} onPress={handleSavePin} disabled={savingPin}>
-                    {savingPin ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Save PIN</Text>}
+                    {savingPin ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>{t('auth:accountSecurity.savePinButton')}</Text>}
                   </Pressable>
                 </View>
               </>
             ) : (
               <View style={styles.inlineActions}>
                 <Pressable style={styles.secondaryBtn} onPress={() => setSettingPin(true)}>
-                  <Text style={styles.secondaryBtnText}>{pinSet ? 'Change PIN' : 'Set a PIN'}</Text>
+                  <Text style={styles.secondaryBtnText}>{pinSet ? t('auth:accountSecurity.changePinButton') : t('auth:accountSecurity.setPinButton')}</Text>
                 </Pressable>
                 {pinSet && (
                   <Pressable style={styles.dangerBtn} onPress={handleRemovePin}>
-                    <Text style={styles.dangerBtnText}>Remove</Text>
+                    <Text style={styles.dangerBtnText}>{t('auth:accountSecurity.removeButton')}</Text>
                   </Pressable>
                 )}
               </View>
@@ -260,13 +262,13 @@ export default function AccountSecurityScreen() {
           {/* Sign out everywhere */}
           <BlurView intensity={90} tint="dark" style={styles.section}>
             <CardOverlay />
-            <Text style={styles.sectionTitle}>Sessions</Text>
+            <Text style={styles.sectionTitle}>{t('auth:accountSecurity.sessionsTitle')}</Text>
             <Pressable style={styles.dangerBtnFull} onPress={handleSignOutAllDevices} disabled={signingOutAll}>
               <Ionicons name="log-out-outline" size={18} color="#F09595" />
               {signingOutAll ? (
                 <BreathingHeart size={18} color="#F09595" />
               ) : (
-                <Text style={styles.dangerBtnFullText}>Log Out of All Devices</Text>
+                <Text style={styles.dangerBtnFullText}>{t('auth:accountSecurity.logOutAllDevicesButton')}</Text>
               )}
             </Pressable>
           </BlurView>

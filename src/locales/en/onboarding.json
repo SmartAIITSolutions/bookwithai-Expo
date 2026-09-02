@@ -1,0 +1,119 @@
+{
+  "getStarted": "Get Started",
+  "customer": {
+    "skip": "Skip",
+    "next": "Next",
+    "heroFallback": "Hero image coming soon",
+    "slide1": {
+      "headline": "Beauty Booking.\nMade Beautiful.",
+      "subtext": "Discover trusted salons, barbers, nail studios, spas, and beauty professionals—all in one place."
+    },
+    "slide2": {
+      "headline": "Book Anytime.\nAnywhere.",
+      "subtext": "View services, choose your favorite professional, and book your appointment in just a few taps."
+    },
+    "slide3": {
+      "headline": "Stay Organized.",
+      "subtext": "Get confirmations, reminders, and manage all your appointments in one place."
+    },
+    "slide4": {
+      "headline": "Your Beauty Journey\nStarts Here.",
+      "subtext": "Create your free account and start booking with confidence.",
+      "getStarted": "Get Started",
+      "signIn": "Sign In"
+    }
+  },
+  "owner": {
+    "headerTitle": "Set Up Your Business",
+    "step1": {
+      "label": "Step 1 of 4 — Your Business",
+      "businessNameLabel": "Business name *",
+      "businessNamePlaceholder": "Glamour Studio",
+      "ownerNameLabel": "Your full name *",
+      "ownerNamePlaceholder": "Sarah Johnson",
+      "emailLabel": "Email *",
+      "emailPlaceholder": "you@salon.com",
+      "phoneLabel": "Phone *",
+      "phonePlaceholder": "(901) 555-0100",
+      "passwordLabel": "Password *",
+      "passwordPlaceholder": "Min. 8 characters",
+      "addressSectionTitle": "Business Address",
+      "streetLabel": "Street address *",
+      "streetPlaceholder": "123 Main St",
+      "suiteLabel": "Suite / unit (optional)",
+      "suitePlaceholder": "Suite 200",
+      "cityLabel": "City *",
+      "cityPlaceholder": "Memphis",
+      "stateLabel": "State *",
+      "statePlaceholder": "TN",
+      "zipLabel": "ZIP *",
+      "zipPlaceholder": "38103",
+      "verifyAddressButton": "Verify address",
+      "verifyingButton": "Verifying…",
+      "addressVerified": "Address verified",
+      "viewOnMap": "View on map",
+      "addressNotVerified": "Couldn't verify this address — please double-check it.",
+      "continueButton": "Continue →"
+    },
+    "step2": {
+      "label": "Step 2 of 4 — Your Setup",
+      "businessTypeLabel": "Business type *",
+      "businessTypeOptions": {
+        "Salon": "Salon",
+        "Spa": "Spa",
+        "Barbershop": "Barbershop",
+        "Other": "Other"
+      },
+      "teamSizeLabel": "Team size *",
+      "teamSizeOptions": {
+        "Just me": "Just me",
+        "2–3": "2–3",
+        "4–6": "4–6",
+        "7+": "7+"
+      },
+      "howHeardLabel": "How did you hear about us? *",
+      "howHeardOptions": {
+        "Facebook": "Facebook",
+        "Instagram": "Instagram",
+        "Google": "Google",
+        "Other": "Other",
+        "referral": "Friend referral"
+      },
+      "friendNameLabel": "Friend's name *",
+      "friendNamePlaceholder": "Full name",
+      "friendBusinessLabel": "Friend's business name *",
+      "friendBusinessPlaceholder": "Salon or business they run",
+      "continueButton": "Continue →"
+    },
+    "step3": {
+      "label": "Step 3 of 4 — Your Booking Page",
+      "bookingLinkLabel": "Your booking link",
+      "bookingLinkHint": "Customize this after signing up from your dashboard.",
+      "businessHoursLabel": "Business hours *",
+      "closedLabel": "Closed",
+      "toLabel": "to",
+      "createAccountButton": "Create Account →",
+      "days": {
+        "Mon": "Mon", "Tue": "Tue", "Wed": "Wed", "Thu": "Thu",
+        "Fri": "Fri", "Sat": "Sat", "Sun": "Sun"
+      }
+    },
+    "step4": {
+      "label": "Step 4 of 4 — One Last Thing",
+      "subtitle": "You can set these up anytime from your dashboard.",
+      "stripeTitle": "Stripe Connect",
+      "stripeSubtitle": "Payouts go directly to your bank",
+      "connectedBadge": "✓ Connected",
+      "stripeDesc": "Securely connect your bank account to start collecting payments automatically. A 1% platform fee applies per transaction.",
+      "checkingStripeStatus": "Checking Stripe status…",
+      "continueStripeSetup": "Continue Stripe setup →",
+      "connectWithStripe": "Connect with Stripe →",
+      "cardTitle": "Add a card on file",
+      "cardSavedBadge": "✓ Saved",
+      "cardDesc": "Used for unlocking features and add-ons. Not charged today.",
+      "saveCardButton": "Save card",
+      "finishButton": "Finish setup →",
+      "skipButton": "Set up from dashboard later"
+    }
+  }
+}

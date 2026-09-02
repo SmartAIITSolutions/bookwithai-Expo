@@ -1,4 +1,5 @@
 import Svg, { Defs, LinearGradient, Stop, Rect, Path, Line, Text as SvgText } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 
 // Direct port of booking-app/public/logo-sanaa-white.svg (the one SANAA
 // brand asset that actually exists) into react-native-svg primitives --
@@ -10,6 +11,7 @@ interface SanaaWordmarkProps {
 }
 
 export function SanaaWordmark({ width = 160, height = 56, showTagline = true }: SanaaWordmarkProps) {
+  const { t } = useTranslation(['sanaa']);
   return (
     <Svg width={width} height={height} viewBox="0 0 200 70">
       <Defs>
@@ -32,7 +34,7 @@ export function SanaaWordmark({ width = 160, height = 56, showTagline = true }: 
       <SvgText x="74" y="28" fontFamily="Sora_700Bold" fontSize="22" fill="url(#snw1)">SANAA</SvgText>
       {showTagline && (
         <SvgText x="74" y="43" fontFamily="Sora_400Regular" fontSize="9" letterSpacing={2} fill="rgba(255,255,255,0.45)">
-          AI RECEPTIONIST
+          {t('sanaa:wordmark.tagline')}
         </SvgText>
       )}
     </Svg>

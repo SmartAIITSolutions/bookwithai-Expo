@@ -1,3 +1,5 @@
+import { formatTimeShort, formatHourOnly, locale } from '@/lib/i18n/format';
+
 export interface DaySchedule { open: boolean; start: number; end: number }
 export type WeekSchedule = Record<string, DaySchedule>;
 
@@ -42,12 +44,16 @@ export function minutesSinceMidnight(iso: string): number {
   return d.getHours() * 60 + d.getMinutes();
 }
 
+// i18n foundation (L5B) -- presentation only, same conditional
+// show-minutes-only-when-nonzero behavior as before, now locale-aware for
+// the hour/AM-PM formatting itself. The `totalMinutes` value this is built
+// from (and everything geometry/position-related that consumes it
+// elsewhere) is completely untouched -- only this label string changes.
 function formatClockLabel(totalMinutes: number): string {
   const h24 = Math.floor(totalMinutes / 60) % 24;
   const mins = totalMinutes % 60;
-  const period = h24 < 12 ? 'AM' : 'PM';
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return mins === 0 ? `${h12} ${period}` : `${h12}:${String(mins).padStart(2, '0')} ${period}`;
+  const d = new Date(2024, 0, 1, h24, mins);
+  return mins === 0 ? formatHourOnly(d) : formatTimeShort(d);
 }
 
 // Gridline/label ticks across [start, end] at every `intervalMinutes` --
@@ -135,12 +141,12 @@ export function dayScheduleForZoned(weekSchedule: WeekSchedule | null, instant: 
 
 // "Today, Aug 24" / "Sunday" header pieces, salon-local.
 export function zonedHeaderLabels(instant: Date, timeZone: string): { dateLabel: string; weekdayLabel: string } {
-  const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone, month: 'short', day: 'numeric' }).format(instant);
-  const weekdayLabel = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long' }).format(instant);
+  const dateLabel = new Intl.DateTimeFormat(locale(), { timeZone, month: 'short', day: 'numeric' }).format(instant);
+  const weekdayLabel = new Intl.DateTimeFormat(locale(), { timeZone, weekday: 'long' }).format(instant);
   return { dateLabel, weekdayLabel };
 }
 
 // Salon-local clock label ("9:37 AM") for the current-time badge/line.
 export function zonedClockLabel(instant: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(instant);
+  return new Intl.DateTimeFormat(locale(), { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(instant);
 }

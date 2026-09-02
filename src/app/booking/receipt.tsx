@@ -3,26 +3,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { formatCentsUSD, formatFullDateTime } from '@/lib/i18n/format';
+import { useTranslation } from 'react-i18next';
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const formatPrice = formatCentsUSD;
 
 function formatLongDateTime(isoStr: string) {
-  const d = new Date(isoStr);
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} at ${h}:${m} ${ampm}`;
+  return formatFullDateTime(new Date(isoStr));
 }
 
 export default function ReceiptScreen() {
+  const { t } = useTranslation(['booking']);
   const { salonName, startsAt, serviceName, staffName, priceCents, taxCents, tipCents, totalCents } =
     useLocalSearchParams<{
       salonName: string; startsAt: string; serviceName: string; staffName: string;
@@ -36,15 +27,15 @@ export default function ReceiptScreen() {
 
   async function handleShare() {
     const lines = [
-      `Receipt — ${salonName}`,
+      t('booking:receiptScreen.receiptFor', { salonName }),
       startsAt ? formatLongDateTime(startsAt) : '',
       serviceName,
-      staffName ? `with ${staffName}` : null,
+      staffName ? t('booking:receiptScreen.with', { name: staffName }) : null,
       '',
-      `Service: ${formatPrice(price)}`,
-      tax > 0 ? `Tax: ${formatPrice(tax)}` : null,
-      tip > 0 ? `Tip: ${formatPrice(tip)}` : null,
-      `Total: ${formatPrice(total)}`,
+      t('booking:receiptScreen.serviceLine', { amount: formatPrice(price) }),
+      tax > 0 ? t('booking:receiptScreen.taxLine', { amount: formatPrice(tax) }) : null,
+      tip > 0 ? t('booking:receiptScreen.tipLine', { amount: formatPrice(tip) }) : null,
+      t('booking:receiptScreen.totalLine', { amount: formatPrice(total) }),
     ].filter(Boolean);
     try {
       await Share.share({ message: lines.join('\n') });
@@ -60,7 +51,7 @@ export default function ReceiptScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Receipt</Text>
+          <Text style={styles.headerTitle}>{t('booking:receiptScreen.title')}</Text>
         </View>
         <Pressable onPress={handleShare} style={styles.backBtn}>
           <Ionicons name="share-outline" size={22} color={Colors.textPrimary} />
@@ -75,24 +66,24 @@ export default function ReceiptScreen() {
           <View style={styles.divider} />
 
           <View style={styles.lineRow}>
-            <Text style={styles.lineLabel}>{serviceName || 'Service'}</Text>
+            <Text style={styles.lineLabel}>{serviceName || t('booking:receiptScreen.service')}</Text>
             <Text style={styles.lineValue}>{formatPrice(price)}</Text>
           </View>
           {staffName ? (
-            <Text style={styles.staffText}>with {staffName}</Text>
+            <Text style={styles.staffText}>{t('booking:receiptScreen.with', { name: staffName })}</Text>
           ) : null}
 
           <View style={styles.divider} />
 
           {tax > 0 && (
             <View style={styles.lineRow}>
-              <Text style={styles.lineLabelSub}>Tax</Text>
+              <Text style={styles.lineLabelSub}>{t('booking:receiptScreen.tax')}</Text>
               <Text style={styles.lineValueSub}>{formatPrice(tax)}</Text>
             </View>
           )}
           {tip > 0 && (
             <View style={styles.lineRow}>
-              <Text style={styles.lineLabelSub}>Tip</Text>
+              <Text style={styles.lineLabelSub}>{t('booking:receiptScreen.tip')}</Text>
               <Text style={styles.lineValueSub}>{formatPrice(tip)}</Text>
             </View>
           )}
@@ -100,7 +91,7 @@ export default function ReceiptScreen() {
           <View style={styles.divider} />
 
           <View style={styles.lineRow}>
-            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalLabel}>{t('booking:receiptScreen.total')}</Text>
             <Text style={styles.totalValue}>{formatPrice(total)}</Text>
           </View>
         </View>

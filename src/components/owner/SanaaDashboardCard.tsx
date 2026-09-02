@@ -5,7 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getSanaaStatus, deriveSanaaLifecycle, isSanaaCardDismissed, dismissSanaaCard, SanaaLifecycle } from '@/lib/api/ownerSanaa';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -29,52 +31,55 @@ interface CardContent {
 // non-subscriber are placeholders until the phases behind them exist, but
 // the card itself must already read correctly for each state so the shell
 // is reviewable end to end).
-const CONTENT: Record<SanaaLifecycle, CardContent> = {
-  non_subscriber: {
-    eyebrow: 'SANAA', title: 'Your AI Receptionist',
-    body: 'She answers every call so you never miss a booking.',
-    cta: 'Meet SANAA', accent: '#FFC857',
-  },
-  setup_not_started: {
-    eyebrow: 'SANAA', title: 'Finish Setting Up SANAA',
-    body: "You're subscribed -- a few steps left before she can answer calls.",
-    cta: 'Continue Setup', accent: '#FFC857',
-  },
-  setup_partial: {
-    eyebrow: 'SANAA', title: 'Finish Setting Up SANAA',
-    body: 'Setup is in progress -- pick up where you left off.',
-    cta: 'Continue Setup', accent: '#FFC857',
-  },
-  ready_to_test: {
-    eyebrow: 'SANAA', title: 'SANAA Is Almost Ready',
-    body: 'Complete your test call before going live.',
-    cta: 'Test SANAA', accent: '#FFC857',
-  },
-  live: {
-    eyebrow: 'SANAA', title: '🟢 LIVE — Answering Calls',
-    body: "She's on the line whenever you can't be.",
-    cta: "View Today's Activity", accent: '#4ADE80',
-  },
-  paused: {
-    eyebrow: 'SANAA', title: 'SANAA Is Paused',
-    body: 'SANAA is currently not answering customer calls.',
-    cta: 'Resume SANAA', accent: 'rgba(255,255,255,0.6)',
-  },
-  action_required: {
-    eyebrow: 'SANAA', title: 'SANAA Needs Attention',
-    body: 'Something needs fixing before she can keep answering calls.',
-    cta: 'Fix Now', accent: '#EF4444',
-  },
-};
+function buildContent(t: ReturnType<typeof useTranslation<['sanaa']>>['t']): Record<SanaaLifecycle, CardContent> {
+  return {
+    non_subscriber: {
+      eyebrow: 'SANAA', title: t('sanaa:dashboardCard.nonSubscriberTitle'),
+      body: t('sanaa:dashboardCard.nonSubscriberBody'),
+      cta: t('sanaa:dashboardCard.nonSubscriberCta'), accent: '#FFC857',
+    },
+    setup_not_started: {
+      eyebrow: 'SANAA', title: t('sanaa:dashboardCard.setupNotStartedTitle'),
+      body: t('sanaa:dashboardCard.setupNotStartedBody'),
+      cta: t('sanaa:dashboardCard.continueSetupCta'), accent: '#FFC857',
+    },
+    setup_partial: {
+      eyebrow: 'SANAA', title: t('sanaa:dashboardCard.setupNotStartedTitle'),
+      body: t('sanaa:dashboardCard.setupPartialBody'),
+      cta: t('sanaa:dashboardCard.continueSetupCta'), accent: '#FFC857',
+    },
+    ready_to_test: {
+      eyebrow: 'SANAA', title: t('sanaa:dashboardCard.readyToTestTitle'),
+      body: t('sanaa:dashboardCard.readyToTestBody'),
+      cta: t('sanaa:dashboardCard.testSanaaCta'), accent: '#FFC857',
+    },
+    live: {
+      eyebrow: 'SANAA', title: t('sanaa:dashboardCard.liveTitle'),
+      body: t('sanaa:dashboardCard.liveBody'),
+      cta: t('sanaa:dashboardCard.liveCta'), accent: '#4ADE80',
+    },
+    paused: {
+      eyebrow: 'SANAA', title: t('sanaa:dashboardCard.pausedTitle'),
+      body: t('sanaa:dashboardCard.pausedBody'),
+      cta: t('sanaa:dashboardCard.resumeCta'), accent: 'rgba(255,255,255,0.6)',
+    },
+    action_required: {
+      eyebrow: 'SANAA', title: t('sanaa:dashboardCard.actionRequiredTitle'),
+      body: t('sanaa:dashboardCard.actionRequiredBody'),
+      cta: t('sanaa:dashboardCard.fixNowCta'), accent: '#EF4444',
+    },
+  };
+}
 
 export function SanaaDashboardCard() {
+  const { t } = useTranslation(['sanaa']);
   const [dismissed, setDismissed] = useState<boolean | null>(null);
 
   useEffect(() => {
     isSanaaCardDismissed().then(setDismissed);
   }, []);
 
-  const { data } = useQuery({
+  const { data, refetch } = useQuery({
     queryKey: ['owner-sanaa-status'],
     queryFn: async () => {
       const r = await getSanaaStatus();
@@ -82,6 +87,13 @@ export function SanaaDashboardCard() {
       return r.data;
     },
   });
+  // Audit finding — the Dashboard tab stays mounted (not unmounted/remounted)
+  // when the owner switches away and back, per useRefetchOnFocus's own
+  // comment, so this card's own query only ever fired once per app session
+  // with no other trigger to catch it up -- e.g. after resuming SANAA from
+  // the SANAA tab and switching back here. Re-validates every time the
+  // Dashboard actually regains focus, same as the SANAA screen already does.
+  useRefetchOnFocus(refetch);
 
   if (!data || dismissed === null) return null;
   const lifecycle = deriveSanaaLifecycle(data);
@@ -90,7 +102,7 @@ export function SanaaDashboardCard() {
   // nudge -- the permanent SANAA tab is never hidden (§7).
   if (lifecycle === 'non_subscriber' && dismissed) return null;
 
-  const content = CONTENT[lifecycle];
+  const content = buildContent(t)[lifecycle];
 
   async function handleDismiss() {
     await dismissSanaaCard();

@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
@@ -11,6 +12,7 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { getSanaaCalls, SanaaCall } from '@/lib/api/ownerSanaaCalls';
 import { useSanaaCallsRealtime } from '@/lib/sanaa/useSanaaCallsRealtime';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatMonthDay, formatTimeShort } from '@/lib/i18n/format';
 
 function CardOverlay() {
   return (
@@ -21,32 +23,8 @@ function CardOverlay() {
   );
 }
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#0B0712' },
-  headerTintColor: '#F4D77A',
-  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-  title: 'Calls & Activity',
-  headerBackTitle: 'SANAA',
-};
-
-const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
-  booked: { label: 'Booked', color: '#4ADE80' },
-  cancelled: { label: 'Cancelled', color: '#F87171' },
-  rescheduled: { label: 'Rescheduled', color: '#C4B5FD' },
-  transferred: { label: 'Transferred', color: '#FFC857' },
-  no_answer: { label: 'No Answer', color: 'rgba(255,255,255,0.4)' },
-  info_only: { label: 'Info Only', color: 'rgba(255,255,255,0.4)' },
-  no_action: { label: 'Info / Question', color: 'rgba(255,255,255,0.4)' },
-};
-
-function outcomeFor(call: SanaaCall): { label: string; color: string } {
-  if (call.outcome && OUTCOME_LABELS[call.outcome]) return OUTCOME_LABELS[call.outcome];
-  if (call.status === 'initiated') return { label: 'Incomplete', color: 'rgba(255,255,255,0.35)' };
-  return { label: call.outcome ?? '—', color: 'rgba(255,255,255,0.4)' };
-}
-
-function maskPhone(phone: string | null): string {
-  if (!phone) return 'Unknown number';
+function maskPhone(phone: string | null, unknownLabel: string): string {
+  if (!phone) return unknownLabel;
   const digits = phone.replace(/\D/g, '');
   if (digits.length >= 4) return `***-***-${digits.slice(-4)}`;
   return phone;
@@ -61,16 +39,30 @@ function formatDuration(secs: number | null): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
-  });
+  const d = new Date(iso);
+  return `${formatMonthDay(d)}, ${formatTimeShort(d)}`;
 }
 
 function CallRow({ call }: { call: SanaaCall }) {
+  const { t } = useTranslation(['sanaa']);
+  const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
+    booked: { label: t('sanaa:callsScreen.outcomeBooked'), color: '#4ADE80' },
+    cancelled: { label: t('sanaa:callsScreen.outcomeCancelled'), color: '#F87171' },
+    rescheduled: { label: t('sanaa:callsScreen.outcomeRescheduled'), color: '#C4B5FD' },
+    transferred: { label: t('sanaa:callsScreen.outcomeTransferred'), color: '#FFC857' },
+    no_answer: { label: t('sanaa:callsScreen.outcomeNoAnswer'), color: 'rgba(255,255,255,0.4)' },
+    info_only: { label: t('sanaa:callsScreen.outcomeInfoOnly'), color: 'rgba(255,255,255,0.4)' },
+    no_action: { label: t('sanaa:callsScreen.outcomeInfoQuestion'), color: 'rgba(255,255,255,0.4)' },
+  };
+  function outcomeFor(c: SanaaCall): { label: string; color: string } {
+    if (c.outcome && OUTCOME_LABELS[c.outcome]) return OUTCOME_LABELS[c.outcome];
+    if (c.status === 'initiated') return { label: t('sanaa:callsScreen.outcomeIncomplete'), color: 'rgba(255,255,255,0.35)' };
+    return { label: c.outcome ?? '—', color: 'rgba(255,255,255,0.4)' };
+  }
   const [expanded, setExpanded] = useState(false);
   const outcome = outcomeFor(call);
   const hasDetail = !!(call.summary || call.transcript_text);
-  const who = call.customer_name ?? maskPhone(call.from_number);
+  const who = call.customer_name ?? maskPhone(call.from_number, t('sanaa:callsScreen.unknownNumber'));
 
   return (
     <View style={[styles.card, styles.callCard]}>
@@ -100,13 +92,13 @@ function CallRow({ call }: { call: SanaaCall }) {
         <View style={styles.detailBlock}>
           {call.summary && (
             <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Summary</Text>
+              <Text style={styles.detailLabel}>{t('sanaa:callsScreen.summary')}</Text>
               <Text style={styles.detailBody}>{call.summary}</Text>
             </View>
           )}
           {call.transcript_text && (
             <View style={styles.detailSection}>
-              <Text style={styles.detailLabel}>Transcript</Text>
+              <Text style={styles.detailLabel}>{t('sanaa:callsScreen.transcript')}</Text>
               <Text style={styles.transcriptBody}>{call.transcript_text}</Text>
             </View>
           )}
@@ -116,7 +108,7 @@ function CallRow({ call }: { call: SanaaCall }) {
               onPress={() => router.push(`/appointment/${call.booking_id}` as never)}
             >
               <Ionicons name="calendar-outline" size={14} color="#F4D77A" />
-              <Text style={styles.viewAppointmentText}>View Appointment</Text>
+              <Text style={styles.viewAppointmentText}>{t('sanaa:callsScreen.viewAppointment')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -129,6 +121,14 @@ function CallRow({ call }: { call: SanaaCall }) {
 // customer_name (resolved server-side when customer_id matches a real
 // customer) takes priority over a masked caller number -- never both.
 export default function SanaaCallsScreen() {
+  const { t } = useTranslation(['sanaa']);
+  const HEADER_OPTIONS = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: t('sanaa:callsScreen.headerTitle'),
+    headerBackTitle: t('sanaa:callsScreen.headerBackTitle'),
+  };
   const { clientId } = useAuth();
   const [calls, setCalls] = useState<SanaaCall[]>([]);
   const [page, setPage] = useState(0);
@@ -197,14 +197,14 @@ export default function SanaaCallsScreen() {
           <View style={[styles.card, styles.emptyCard]}>
             <CardOverlay />
             <Ionicons name="call-outline" size={28} color="rgba(255,200,87,0.5)" />
-            <Text style={styles.emptyText}>No calls yet. Once SANAA answers a call, it'll show up here.</Text>
+            <Text style={styles.emptyText}>{t('sanaa:callsScreen.noCallsYet')}</Text>
           </View>
         ) : (
           <>
             {calls.map((call) => <CallRow key={call.id} call={call} />)}
             {hasMore && (
               <TouchableOpacity style={styles.loadMoreBtn} onPress={loadMore} disabled={loadingMore}>
-                <Text style={styles.loadMoreText}>{loadingMore ? 'Loading…' : 'Load More'}</Text>
+                <Text style={styles.loadMoreText}>{loadingMore ? t('sanaa:callsScreen.loading') : t('sanaa:callsScreen.loadMore')}</Text>
               </TouchableOpacity>
             )}
           </>

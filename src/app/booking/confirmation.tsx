@@ -16,6 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurMask, Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
 import { notificationSuccess } from '@/hooks/usePressHaptic';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
+import { formatCentsUSD, formatFullDateTime } from '@/lib/i18n/format';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -27,22 +29,10 @@ function CardOverlay() {
   );
 }
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const formatPrice = formatCentsUSD;
 
 function formatLongDateTime(isoStr: string) {
-  const d = new Date(isoStr);
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} at ${h}:${m} ${ampm}`;
+  return formatFullDateTime(new Date(isoStr));
 }
 
 async function getDefaultCalendarId(): Promise<string | null> {
@@ -52,6 +42,7 @@ async function getDefaultCalendarId(): Promise<string | null> {
 }
 
 export default function ConfirmationScreen() {
+  const { t } = useTranslation(['booking']);
   const {
     salonId, salonSlug, salonName,
     serviceNames, totalCents,
@@ -87,13 +78,13 @@ export default function ConfirmationScreen() {
     try {
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Calendar access is needed to add this appointment.');
+        Alert.alert(t('booking:confirmationScreen.permissionNeededTitle'), t('booking:confirmationScreen.calendarPermissionMessage'));
         return;
       }
 
       const calId = await getDefaultCalendarId();
       if (!calId) {
-        Alert.alert('Error', 'No calendar found on this device.');
+        Alert.alert(t('booking:confirmationScreen.errorTitle'), t('booking:confirmationScreen.noCalendarFound'));
         return;
       }
 
@@ -101,18 +92,18 @@ export default function ConfirmationScreen() {
       const end = endsAt ? new Date(endsAt) : new Date(start.getTime() + 60 * 60 * 1000);
 
       await Calendar.createEventAsync(calId, {
-        title: `${services.join(', ')} at ${salonName}`,
+        title: t('booking:confirmationScreen.eventTitle', { services: services.join(', '), salonName }),
         startDate: start,
         endDate: end,
-        notes: staffName ? `with ${staffName}` : undefined,
+        notes: staffName ? t('booking:confirmationScreen.eventNotesWith', { name: staffName }) : undefined,
         alarms: [{ relativeOffset: -60 }], // 1-hour reminder
       });
 
       setCalAdded(true);
       notificationSuccess();
-      Alert.alert('Added!', 'Appointment added to your calendar.');
+      Alert.alert(t('booking:confirmationScreen.addedTitle'), t('booking:confirmationScreen.addedMessage'));
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not add to calendar.');
+      Alert.alert(t('booking:confirmationScreen.errorTitle'), e.message || t('booking:confirmationScreen.couldNotAddToCalendar'));
     }
   }
 
@@ -135,10 +126,10 @@ export default function ConfirmationScreen() {
   async function handleShare() {
     const when = startsAt ? formatLongDateTime(startsAt) : '';
     const lines = [
-      `${salonName || 'My appointment'}`,
+      `${salonName || t('booking:confirmationScreen.shareDefaultTitle')}`,
       when,
       services.join(', '),
-      staffName ? `with ${staffName}` : null,
+      staffName ? t('booking:confirmationScreen.shareWith', { name: staffName }) : null,
     ].filter(Boolean);
     try {
       await Share.share({ message: lines.join('\n') });
@@ -173,14 +164,14 @@ export default function ConfirmationScreen() {
           </View>
         </View>
 
-        <Text style={styles.headline}>You're all booked!</Text>
+        <Text style={styles.headline}>{t('booking:confirmationScreen.headline')}</Text>
         <Text style={styles.subheadline}>
-          Your appointment has been confirmed. We'll see you soon.
+          {t('booking:confirmationScreen.subheadline')}
         </Text>
 
         {/* Booking ref */}
         {bookingId ? (
-          <Text style={styles.bookingRef}>Booking ref: #{bookingId.slice(0, 8).toUpperCase()}</Text>
+          <Text style={styles.bookingRef}>{t('booking:confirmationScreen.bookingRef', { ref: bookingId.slice(0, 8).toUpperCase() })}</Text>
         ) : null}
 
         {/* Details card */}
@@ -195,7 +186,7 @@ export default function ConfirmationScreen() {
 
           <View style={styles.detailRow}>
             <Ionicons name="person-outline" size={18} color="#F4D77A" />
-            <Text style={styles.detailText}>{staffName || 'Any Available'}</Text>
+            <Text style={styles.detailText}>{staffName || t('booking:staffScreen.anyAvailable')}</Text>
           </View>
 
           {services.map((s, i) => (
@@ -209,7 +200,7 @@ export default function ConfirmationScreen() {
             <>
               <View style={styles.divider} />
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>{wasPaid ? 'Paid' : 'Due at Salon'}</Text>
+                <Text style={styles.priceLabel}>{wasPaid ? t('booking:confirmationScreen.paid') : t('booking:confirmationScreen.dueAtSalon')}</Text>
                 <Text style={styles.priceValue}>
                   {formatPrice(cents)}
                 </Text>
@@ -230,24 +221,24 @@ export default function ConfirmationScreen() {
               color={calAdded ? '#7ED9A0' : '#F4D77A'}
             />
             <Text style={[styles.actionBtnText, calAdded && styles.actionBtnTextDone]}>
-              {calAdded ? 'Added to Calendar' : 'Add to Calendar'}
+              {calAdded ? t('booking:confirmationScreen.addedToCalendar') : t('booking:confirmationScreen.addToCalendar')}
             </Text>
           </Pressable>
 
           <Pressable style={styles.actionBtn} onPress={handleGetDirections}>
             <Ionicons name="navigate-outline" size={20} color="#F4D77A" />
-            <Text style={styles.actionBtnText}>Get Directions</Text>
+            <Text style={styles.actionBtnText}>{t('booking:confirmationScreen.getDirections')}</Text>
           </Pressable>
 
           <Pressable style={styles.actionBtn} onPress={handleShare}>
             <Ionicons name="share-outline" size={20} color="#F4D77A" />
-            <Text style={styles.actionBtnText}>Share</Text>
+            <Text style={styles.actionBtnText}>{t('booking:confirmationScreen.share')}</Text>
           </Pressable>
         </View>
 
         {/* Done button */}
         <Pressable style={styles.doneBtn} onPress={handleDone}>
-          <Text style={styles.doneBtnText}>Done</Text>
+          <Text style={styles.doneBtnText}>{t('booking:confirmationScreen.done')}</Text>
         </Pressable>
 
         <View style={{ height: 40 }} />

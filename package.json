@@ -36,6 +36,7 @@
     "expo-linear-gradient": "~57.0.1",
     "expo-linking": "~57.0.4",
     "expo-local-authentication": "~57.0.2",
+    "expo-localization": "~57.0.1",
     "expo-location": "~57.0.6",
     "expo-notifications": "~57.0.7",
     "expo-router": "~57.0.8",
@@ -47,9 +48,11 @@
     "expo-system-ui": "~57.0.1",
     "expo-updates": "~57.0.12",
     "expo-web-browser": "~57.0.2",
+    "i18next": "^26.4.0",
     "lucide-react-native": "^1.25.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-i18next": "^17.0.12",
     "react-native": "0.86.0",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-get-random-values": "~1.11.0",
@@ -72,7 +75,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "validate-translations": "node ./scripts/validate-translations.js",
+    "check-hardcoded-strings": "node ./scripts/check-hardcoded-strings.js"
   },
   "private": true
 }

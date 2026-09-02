@@ -1,0 +1,119 @@
+{
+  "getStarted": "Comenzar",
+  "customer": {
+    "skip": "Omitir",
+    "next": "Siguiente",
+    "heroFallback": "Imagen próximamente",
+    "slide1": {
+      "headline": "Reservas de belleza.\nHechas hermosas.",
+      "subtext": "Descubre salones, barberías, estudios de uñas, spas y profesionales de belleza de confianza, todo en un solo lugar."
+    },
+    "slide2": {
+      "headline": "Reserva cuando\nquieras.",
+      "subtext": "Consulta los servicios, elige a tu profesional favorito y reserva tu cita en solo unos toques."
+    },
+    "slide3": {
+      "headline": "Mantente organizada.",
+      "subtext": "Recibe confirmaciones, recordatorios y administra todas tus citas en un solo lugar."
+    },
+    "slide4": {
+      "headline": "Tu viaje de belleza\ncomienza aquí.",
+      "subtext": "Crea tu cuenta gratuita y empieza a reservar con confianza.",
+      "getStarted": "Comenzar",
+      "signIn": "Iniciar sesión"
+    }
+  },
+  "owner": {
+    "headerTitle": "Configura tu Negocio",
+    "step1": {
+      "label": "Paso 1 de 4 — Tu Negocio",
+      "businessNameLabel": "Nombre del negocio *",
+      "businessNamePlaceholder": "Glamour Studio",
+      "ownerNameLabel": "Tu nombre completo *",
+      "ownerNamePlaceholder": "Sarah Johnson",
+      "emailLabel": "Correo electrónico *",
+      "emailPlaceholder": "you@salon.com",
+      "phoneLabel": "Teléfono *",
+      "phonePlaceholder": "(901) 555-0100",
+      "passwordLabel": "Contraseña *",
+      "passwordPlaceholder": "Mín. 8 caracteres",
+      "addressSectionTitle": "Dirección del Negocio",
+      "streetLabel": "Dirección *",
+      "streetPlaceholder": "123 Main St",
+      "suiteLabel": "Suite / unidad (opcional)",
+      "suitePlaceholder": "Suite 200",
+      "cityLabel": "Ciudad *",
+      "cityPlaceholder": "Memphis",
+      "stateLabel": "Estado *",
+      "statePlaceholder": "TN",
+      "zipLabel": "Código Postal *",
+      "zipPlaceholder": "38103",
+      "verifyAddressButton": "Verificar dirección",
+      "verifyingButton": "Verificando…",
+      "addressVerified": "Dirección verificada",
+      "viewOnMap": "Ver en el mapa",
+      "addressNotVerified": "No se pudo verificar esta dirección — por favor verifícala de nuevo.",
+      "continueButton": "Continuar →"
+    },
+    "step2": {
+      "label": "Paso 2 de 4 — Tu Configuración",
+      "businessTypeLabel": "Tipo de negocio *",
+      "businessTypeOptions": {
+        "Salon": "Salón",
+        "Spa": "Spa",
+        "Barbershop": "Barbería",
+        "Other": "Otro"
+      },
+      "teamSizeLabel": "Tamaño del equipo *",
+      "teamSizeOptions": {
+        "Just me": "Solo yo",
+        "2–3": "2–3",
+        "4–6": "4–6",
+        "7+": "7+"
+      },
+      "howHeardLabel": "¿Cómo te enteraste de nosotros? *",
+      "howHeardOptions": {
+        "Facebook": "Facebook",
+        "Instagram": "Instagram",
+        "Google": "Google",
+        "Other": "Otro",
+        "referral": "Recomendación de un amigo"
+      },
+      "friendNameLabel": "Nombre de tu amigo/a *",
+      "friendNamePlaceholder": "Nombre completo",
+      "friendBusinessLabel": "Nombre del negocio de tu amigo/a *",
+      "friendBusinessPlaceholder": "Salón o negocio que administra",
+      "continueButton": "Continuar →"
+    },
+    "step3": {
+      "label": "Paso 3 de 4 — Tu Página de Reservas",
+      "bookingLinkLabel": "Tu enlace de reservas",
+      "bookingLinkHint": "Personalízalo después de registrarte desde tu panel.",
+      "businessHoursLabel": "Horario de atención *",
+      "closedLabel": "Cerrado",
+      "toLabel": "a",
+      "createAccountButton": "Crear Cuenta →",
+      "days": {
+        "Mon": "Lun", "Tue": "Mar", "Wed": "Mié", "Thu": "Jue",
+        "Fri": "Vie", "Sat": "Sáb", "Sun": "Dom"
+      }
+    },
+    "step4": {
+      "label": "Paso 4 de 4 — Un Último Paso",
+      "subtitle": "Puedes configurar esto en cualquier momento desde tu panel.",
+      "stripeTitle": "Stripe Connect",
+      "stripeSubtitle": "Los pagos van directamente a tu banco",
+      "connectedBadge": "✓ Conectado",
+      "stripeDesc": "Conecta tu cuenta bancaria de forma segura para empezar a cobrar pagos automáticamente. Se aplica una comisión de plataforma del 1% por transacción.",
+      "checkingStripeStatus": "Verificando el estado de Stripe…",
+      "continueStripeSetup": "Continuar configuración de Stripe →",
+      "connectWithStripe": "Conectar con Stripe →",
+      "cardTitle": "Agregar una tarjeta guardada",
+      "cardSavedBadge": "✓ Guardada",
+      "cardDesc": "Se usa para desbloquear funciones y complementos. No se te cobrará hoy.",
+      "saveCardButton": "Guardar tarjeta",
+      "finishButton": "Finalizar configuración →",
+      "skipButton": "Configurar desde el panel más tarde"
+    }
+  }
+}

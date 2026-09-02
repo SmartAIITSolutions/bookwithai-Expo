@@ -11,9 +11,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { verifyPin } from '@/lib/auth/pin';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { notificationError, notificationSuccess } from '@/hooks/usePressHaptic';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 export default function PinEntryScreen() {
+  const { t } = useTranslation(['auth', 'errors']);
   const { role } = useAuth();
   const [pin, setPin] = useState('');
   const [checking, setChecking] = useState(false);
@@ -43,7 +45,7 @@ export default function PinEntryScreen() {
       } else {
         notificationError();
         setPin('');
-        Alert.alert('Incorrect PIN', 'Please try again.');
+        Alert.alert(t('errors:auth.incorrectPinTitle'), t('errors:tryAgain'));
       }
     }
   }
@@ -55,7 +57,7 @@ export default function PinEntryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Enter your PIN</Text>
+        <Text style={styles.title}>{t('auth:pinEntry.title')}</Text>
 
         <View style={styles.dotsRow}>
           {[0, 1, 2, 3].map((i) => (
@@ -79,7 +81,7 @@ export default function PinEntryScreen() {
         </View>
 
         <Pressable style={styles.linkBtn} onPress={() => router.replace('/auth/sign-in')}>
-          <Text style={styles.linkBtnText}>Use Password Instead</Text>
+          <Text style={styles.linkBtnText}>{t('auth:pinEntry.usePasswordInstead')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

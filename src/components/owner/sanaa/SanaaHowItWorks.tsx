@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
-import { SANAA_HOW_IT_WORKS_STEPS } from '@/lib/sanaa/discoveryContent';
+import { getSanaaHowItWorksSteps } from '@/lib/sanaa/discoveryContent';
 
 function CardOverlay() {
   return (
@@ -16,12 +17,13 @@ function CardOverlay() {
 // SANAA-P2-SPEC §20/§21 -- call mechanics only, in plain business language.
 // No LLM/model/API/Telnyx/webhook/architecture terms anywhere here.
 export function SanaaHowItWorks() {
+  const { t } = useTranslation(['sanaa']);
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>How SANAA Works</Text>
+      <Text style={styles.sectionTitle}>{t('sanaa:howItWorks.sectionTitle')}</Text>
       <BlurView intensity={90} tint="dark" style={styles.card}>
         <CardOverlay />
-        {SANAA_HOW_IT_WORKS_STEPS.map((s, i) => (
+        {getSanaaHowItWorksSteps().map((s, i) => (
           <View key={s.step} style={[styles.stepRow, i > 0 && styles.rowBorder]}>
             <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>{s.step}</Text></View>
             <Text style={styles.stepLabel}>{s.label}</Text>

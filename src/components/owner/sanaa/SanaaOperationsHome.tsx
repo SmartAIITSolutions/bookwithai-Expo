@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import { useTranslation } from 'react-i18next';
 import { SanaaLifecycle, SanaaStatus, pauseSanaa, resumeSanaa, repairSanaaConnection, openSanaaBillingPortal } from '@/lib/api/ownerSanaa';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { getSanaaCalls, getSanaaCallsSummary, SanaaCall, SanaaCallsSummary } from '@/lib/api/ownerSanaaCalls';
 import { getSanaaUsage, SanaaUsage } from '@/lib/api/ownerSanaaUsage';
 import { useSanaaCallsRealtime } from '@/lib/sanaa/useSanaaCallsRealtime';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatMonthDay, formatTimeShort, formatMonthDayLong, formatCentsUSD } from '@/lib/i18n/format';
 
 function CardOverlay() {
   return (
@@ -21,30 +24,8 @@ function CardOverlay() {
   );
 }
 
-const STATUS_COPY: Record<string, { label: string; color: string; dot: string }> = {
-  live: { label: 'LIVE — Answering Calls', color: '#4ADE80', dot: '🟢' },
-  paused: { label: 'PAUSED — Not Answering Calls', color: 'rgba(255,255,255,0.6)', dot: '⏸️' },
-  action_required: { label: 'ACTION REQUIRED', color: '#EF4444', dot: '⚠️' },
-};
-
-const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
-  booked: { label: 'Booked', color: '#4ADE80' },
-  cancelled: { label: 'Cancelled', color: '#F87171' },
-  rescheduled: { label: 'Rescheduled', color: '#C4B5FD' },
-  transferred: { label: 'Transferred', color: '#FFC857' },
-  no_answer: { label: 'No Answer', color: 'rgba(255,255,255,0.4)' },
-  info_only: { label: 'Info Only', color: 'rgba(255,255,255,0.4)' },
-  no_action: { label: 'Info / Question', color: 'rgba(255,255,255,0.4)' },
-};
-
-function outcomeFor(call: SanaaCall): { label: string; color: string } {
-  if (call.outcome && OUTCOME_LABELS[call.outcome]) return OUTCOME_LABELS[call.outcome];
-  if (call.status === 'initiated') return { label: 'Incomplete', color: 'rgba(255,255,255,0.35)' };
-  return { label: call.outcome ?? '—', color: 'rgba(255,255,255,0.4)' };
-}
-
-function maskPhone(phone: string | null): string {
-  if (!phone) return 'Unknown number';
+function maskPhone(phone: string | null, unknownLabel: string): string {
+  if (!phone) return unknownLabel;
   const digits = phone.replace(/\D/g, '');
   if (digits.length >= 4) return `***-***-${digits.slice(-4)}`;
   return phone;
@@ -52,33 +33,27 @@ function maskPhone(phone: string | null): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  const d = new Date(iso);
+  return `${formatMonthDay(d)}, ${formatTimeShort(d)}`;
 }
 
 function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatMonthDay(new Date(iso));
 }
 
 function formatMoney(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatCentsUSD(cents);
 }
 
-const MANAGEMENT_ROWS = [
-  { icon: 'call-outline' as const, label: 'Calls & Activity', route: '/owner-sanaa/calls' },
-  { icon: 'settings-outline' as const, label: 'Configure SANAA', route: '/owner-sanaa/configure' },
-  { icon: 'phone-portrait-outline' as const, label: 'Phone & Connectivity', route: '/owner-sanaa/phone' },
-  { icon: 'card-outline' as const, label: 'Plan & Billing', route: '/owner-sanaa/billing' },
-];
+function formatFullDate(dateIso: string): string {
+  return formatMonthDayLong(new Date(dateIso));
+}
 
 interface SanaaOperationsHomeProps {
   state: SanaaLifecycle;
   /** Raw status payload -- null only in the __DEV__ state-switcher preview,
    *  where there's no real backend state to read banner reasons from. */
   status: SanaaStatus | null;
-}
-
-function formatFullDate(dateIso: string): string {
-  return new Date(dateIso).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 }
 
 // Live/paused/action-required experience -- SANAA-P0/P1-SPEC §13/§14.
@@ -90,8 +65,35 @@ function formatFullDate(dateIso: string): string {
 // fresh by the same tenant-scoped Realtime subscription the Calls screen
 // itself uses.
 export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperationsHomeProps) {
+  const { t } = useTranslation(['sanaa']);
+  const STATUS_COPY: Record<string, { label: string; color: string; dot: string }> = {
+    live: { label: t('sanaa:operationsHome.statusLive'), color: '#4ADE80', dot: '🟢' },
+    paused: { label: t('sanaa:operationsHome.statusPaused'), color: 'rgba(255,255,255,0.6)', dot: '⏸️' },
+    action_required: { label: t('sanaa:operationsHome.statusActionRequired'), color: '#EF4444', dot: '⚠️' },
+  };
+  const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
+    booked: { label: t('sanaa:operationsHome.outcomeBooked'), color: '#4ADE80' },
+    cancelled: { label: t('sanaa:operationsHome.outcomeCancelled'), color: '#F87171' },
+    rescheduled: { label: t('sanaa:operationsHome.outcomeRescheduled'), color: '#C4B5FD' },
+    transferred: { label: t('sanaa:operationsHome.outcomeTransferred'), color: '#FFC857' },
+    no_answer: { label: t('sanaa:operationsHome.outcomeNoAnswer'), color: 'rgba(255,255,255,0.4)' },
+    info_only: { label: t('sanaa:operationsHome.outcomeInfoOnly'), color: 'rgba(255,255,255,0.4)' },
+    no_action: { label: t('sanaa:operationsHome.outcomeInfoQuestion'), color: 'rgba(255,255,255,0.4)' },
+  };
+  function outcomeFor(call: SanaaCall): { label: string; color: string } {
+    if (call.outcome && OUTCOME_LABELS[call.outcome]) return OUTCOME_LABELS[call.outcome];
+    if (call.status === 'initiated') return { label: t('sanaa:operationsHome.outcomeIncomplete'), color: 'rgba(255,255,255,0.35)' };
+    return { label: call.outcome ?? '—', color: 'rgba(255,255,255,0.4)' };
+  }
+  const MANAGEMENT_ROWS = [
+    { icon: 'call-outline' as const, label: t('sanaa:operationsHome.manageCallsActivity'), route: '/owner-sanaa/calls' },
+    { icon: 'settings-outline' as const, label: t('sanaa:operationsHome.manageConfigureSanaa'), route: '/owner-sanaa/configure' },
+    { icon: 'phone-portrait-outline' as const, label: t('sanaa:operationsHome.managePhoneConnectivity'), route: '/owner-sanaa/phone' },
+    { icon: 'card-outline' as const, label: t('sanaa:operationsHome.managePlanBilling'), route: '/owner-sanaa/billing' },
+  ];
   const statusCopy = STATUS_COPY[state] ?? STATUS_COPY.paused;
   const { clientId } = useAuth();
+  const queryClient = useQueryClient();
 
   const [summary, setSummary] = useState<SanaaCallsSummary | null>(null);
   const [recentCalls, setRecentCalls] = useState<SanaaCall[]>([]);
@@ -116,9 +118,24 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
     const result = await resumeSanaa();
     setActionPending(false);
     if (!result.ok) {
-      if (result.code === 'billing_required') router.push('/owner-sanaa/billing' as never);
+      if (result.code === 'billing_required') { router.push('/owner-sanaa/billing' as never); return; }
+      // Audit finding — every other failure (most importantly code:'not_paused',
+      // returned when the server already thinks service_state is 'active') used
+      // to be silently swallowed here: no error shown, no state change, the
+      // screen just kept showing stale "Paused" forever. The server is always
+      // authoritative (never flip local UI state to "active" ourselves) -- the
+      // fix is just to invalidate the shared status query so this screen (and
+      // the Dashboard card, same query key) refetch and re-render from whatever
+      // is actually true right now, instead of staying stuck on the state that
+      // was on screen before the tap.
+      await queryClient.invalidateQueries({ queryKey: ['owner-sanaa-status'] });
       return;
     }
+    // Success path already invalidates via the query key below, so the
+    // Dashboard card (which never unmounts on tab switches, per
+    // useRefetchOnFocus's own comment) picks up the change even though it
+    // isn't the screen being navigated to here.
+    await queryClient.invalidateQueries({ queryKey: ['owner-sanaa-status'] });
     router.replace('/(owner)/sanaa' as never);
   }
 
@@ -170,68 +187,68 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
 
         {actionReason === 'suspended' && (
           <>
-            <Text style={styles.statusReason}>SANAA is unavailable due to a billing issue.</Text>
+            <Text style={styles.statusReason}>{t('sanaa:operationsHome.suspendedReason')}</Text>
             <TouchableOpacity style={styles.resumeBtn} onPress={handleUpdateBilling} disabled={actionPending}>
-              <Text style={styles.resumeBtnText}>Update Billing</Text>
+              <Text style={styles.resumeBtnText}>{t('sanaa:operationsHome.updateBilling')}</Text>
             </TouchableOpacity>
           </>
         )}
         {actionReason === 'cancelled' && (
           <>
-            <Text style={styles.statusReason}>Your SANAA subscription has ended.</Text>
+            <Text style={styles.statusReason}>{t('sanaa:operationsHome.cancelledReason')}</Text>
             <TouchableOpacity style={styles.resumeBtn} onPress={() => router.push('/owner-sanaa/plans' as never)}>
-              <Text style={styles.resumeBtnText}>Restart SANAA</Text>
+              <Text style={styles.resumeBtnText}>{t('sanaa:operationsHome.restartSanaa')}</Text>
             </TouchableOpacity>
           </>
         )}
         {actionReason === 'billing_other' && (
           <>
-            <Text style={styles.statusReason}>There's a billing issue with your SANAA subscription.</Text>
+            <Text style={styles.statusReason}>{t('sanaa:operationsHome.billingOtherReason')}</Text>
             <TouchableOpacity style={styles.resumeBtn} onPress={handleUpdateBilling} disabled={actionPending}>
-              <Text style={styles.resumeBtnText}>Update Billing</Text>
+              <Text style={styles.resumeBtnText}>{t('sanaa:operationsHome.updateBilling')}</Text>
             </TouchableOpacity>
           </>
         )}
         {actionReason === 'sync' && (
           <>
-            <Text style={styles.statusReason}>SANAA needs attention -- we couldn't confirm her phone service is up to date.</Text>
+            <Text style={styles.statusReason}>{t('sanaa:operationsHome.syncReason')}</Text>
             <TouchableOpacity style={styles.resumeBtn} onPress={handleRepair} disabled={actionPending}>
-              <Text style={styles.resumeBtnText}>{actionPending ? 'Repairing…' : 'Repair Connection'}</Text>
+              <Text style={styles.resumeBtnText}>{actionPending ? t('sanaa:operationsHome.repairing') : t('sanaa:operationsHome.repairConnection')}</Text>
             </TouchableOpacity>
           </>
         )}
         {state === 'paused' && (
           <TouchableOpacity style={styles.resumeBtn} onPress={handleResume} disabled={actionPending}>
-            <Text style={styles.resumeBtnText}>{actionPending ? 'Resuming…' : 'Resume SANAA'}</Text>
+            <Text style={styles.resumeBtnText}>{actionPending ? t('sanaa:operationsHome.resuming') : t('sanaa:operationsHome.resumeSanaa')}</Text>
           </TouchableOpacity>
         )}
         {state === 'live' && commercial === 'past_due' && (
           <>
-            <Text style={styles.statusReason}>Payment issue -- update your billing method to avoid interruption.</Text>
+            <Text style={styles.statusReason}>{t('sanaa:operationsHome.pastDueReason')}</Text>
             <TouchableOpacity style={styles.resumeBtn} onPress={handleUpdateBilling}>
-              <Text style={styles.resumeBtnText}>Update Billing</Text>
+              <Text style={styles.resumeBtnText}>{t('sanaa:operationsHome.updateBilling')}</Text>
             </TouchableOpacity>
           </>
         )}
         {state === 'live' && commercial === 'cancel_scheduled' && sanaaStatus?.current_period_end && (
-          <Text style={styles.statusReason}>SANAA will remain active until {formatFullDate(sanaaStatus.current_period_end)}.</Text>
+          <Text style={styles.statusReason}>{t('sanaa:operationsHome.remainsActiveUntil', { date: formatFullDate(sanaaStatus.current_period_end) })}</Text>
         )}
         {state === 'live' && (
           <TouchableOpacity style={styles.pauseLink} onPress={handlePause} disabled={actionPending}>
-            <Text style={styles.pauseLinkText}>{actionPending ? 'Pausing…' : 'Pause SANAA'}</Text>
+            <Text style={styles.pauseLinkText}>{actionPending ? t('sanaa:operationsHome.pausing') : t('sanaa:operationsHome.pauseSanaa')}</Text>
           </TouchableOpacity>
         )}
       </BlurView>
 
       {usage?.available ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your SANAA Usage</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:operationsHome.yourSanaaUsage')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             <View style={styles.usageBlock}>
               <Text style={styles.usagePlanName}>{usage.plan_name}</Text>
               <Text style={styles.usageMinutesLine}>
-                {usage.used_minutes} / {usage.included_minutes} minutes · {usage.usage_percent}% used
+                {t('sanaa:operationsHome.minutesUsedOf', { used: usage.used_minutes, included: usage.included_minutes, percent: usage.usage_percent })}
               </Text>
               <View style={styles.progressTrack}>
                 <View
@@ -246,24 +263,24 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
               </View>
               {usage.overage_minutes > 0 ? (
                 <>
-                  <Text style={styles.usageOverageLine}>{usage.overage_minutes} additional minutes</Text>
+                  <Text style={styles.usageOverageLine}>{t('sanaa:operationsHome.additionalMinutes', { count: usage.overage_minutes })}</Text>
                   <Text style={styles.usageEstimate}>
-                    Estimated additional usage: {formatMoney(usage.estimated_overage_cents)}
+                    {t('sanaa:operationsHome.estimatedAdditionalUsage', { amount: formatMoney(usage.estimated_overage_cents) })}
                   </Text>
                 </>
               ) : (
-                <Text style={styles.usageRemainingLine}>{usage.remaining_minutes} minutes included remaining</Text>
+                <Text style={styles.usageRemainingLine}>{t('sanaa:operationsHome.minutesRemaining', { count: usage.remaining_minutes })}</Text>
               )}
               <Text style={styles.usageCycleLabel}>
                 {formatShortDate(usage.current_period_start)} – {formatShortDate(usage.current_period_end)}
-                {usage.renews_at ? `  ·  Renews ${formatShortDate(usage.renews_at)}` : ''}
+                {usage.renews_at ? t('sanaa:operationsHome.renewsOn', { date: formatShortDate(usage.renews_at) }) : ''}
               </Text>
             </View>
             <TouchableOpacity
               style={[styles.row, styles.rowBorder]}
               onPress={() => router.push('/owner-sanaa/billing' as never)}
             >
-              <Text style={styles.rowLabel}>View Usage & Billing</Text>
+              <Text style={styles.rowLabel}>{t('sanaa:operationsHome.viewUsageBilling')}</Text>
               <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
             </TouchableOpacity>
           </BlurView>
@@ -273,26 +290,26 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
         // commercial limit (none exists, by design -- see MASTER.md §70).
         // Still shows real usage, so the screen isn't just silently empty.
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your SANAA Usage</Text>
+          <Text style={styles.sectionTitle}>{t('sanaa:operationsHome.yourSanaaUsage')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             <View style={styles.usageBlock}>
-              <Text style={styles.usagePlanName}>Prototype / Internal</Text>
+              <Text style={styles.usagePlanName}>{t('sanaa:operationsHome.prototypeInternal')}</Text>
               <Text style={styles.usageMinutesLine}>
-                {summary?.total_minutes_used_window ?? 0} minutes used in the last {summary?.window_days ?? 30} days
+                {t('sanaa:operationsHome.prototypeMinutesUsed', { count: summary?.total_minutes_used_window ?? 0, days: summary?.window_days ?? 30 })}
               </Text>
-              <Text style={styles.usageRemainingLine}>No commercial plan or billing cycle applies to this tenant.</Text>
+              <Text style={styles.usageRemainingLine}>{t('sanaa:operationsHome.prototypeNoCycle')}</Text>
             </View>
           </BlurView>
         </View>
       ) : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Results{summary ? ` — Last ${summary.window_days} Days` : ''}</Text>
+        <Text style={styles.sectionTitle}>{summary ? t('sanaa:operationsHome.resultsLastDays', { days: summary.window_days }) : t('sanaa:operationsHome.results')}</Text>
         {loadingActivity && !summary ? (
           <View style={styles.placeholderCard}>
             <Ionicons name="stats-chart-outline" size={22} color="rgba(255,200,87,0.6)" />
-            <Text style={styles.placeholderText}>Loading…</Text>
+            <Text style={styles.placeholderText}>{t('sanaa:operationsHome.loading')}</Text>
           </View>
         ) : (
           <BlurView intensity={90} tint="dark" style={styles.card}>
@@ -300,27 +317,27 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
             <View style={styles.metricsRow}>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{summary?.calls_handled ?? 0}</Text>
-                <Text style={styles.metricLabel}>Calls Handled</Text>
+                <Text style={styles.metricLabel}>{t('sanaa:operationsHome.callsHandled')}</Text>
               </View>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{summary?.appointments_booked ?? 0}</Text>
-                <Text style={styles.metricLabel}>Booked Calls</Text>
+                <Text style={styles.metricLabel}>{t('sanaa:operationsHome.bookedCalls')}</Text>
               </View>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{summary?.transfers ?? 0}</Text>
-                <Text style={styles.metricLabel}>Transfers</Text>
+                <Text style={styles.metricLabel}>{t('sanaa:operationsHome.transfers')}</Text>
               </View>
             </View>
             <View style={[styles.metricsRow, styles.rowBorder]}>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>{formatMoney(summary?.booking_value_cents ?? 0)}</Text>
-                <Text style={styles.metricLabel}>Voice AI Booking Value</Text>
+                <Text style={styles.metricLabel}>{t('sanaa:operationsHome.voiceAiBookingValue')}</Text>
               </View>
               <View style={styles.metric}>
                 <Text style={styles.metricValue}>
-                  {summary?.booking_conversion_percent != null ? `${summary.booking_conversion_percent}%` : 'N/A'}
+                  {summary?.booking_conversion_percent != null ? `${summary.booking_conversion_percent}%` : t('sanaa:operationsHome.notAvailable')}
                 </Text>
-                <Text style={styles.metricLabel}>Conversion</Text>
+                <Text style={styles.metricLabel}>{t('sanaa:operationsHome.conversion')}</Text>
               </View>
             </View>
           </BlurView>
@@ -328,23 +345,23 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        <Text style={styles.sectionTitle}>{t('sanaa:operationsHome.recentActivity')}</Text>
         {loadingActivity && recentCalls.length === 0 ? (
           <View style={styles.placeholderCard}>
             <Ionicons name="time-outline" size={22} color="rgba(255,200,87,0.6)" />
-            <Text style={styles.placeholderText}>Loading…</Text>
+            <Text style={styles.placeholderText}>{t('sanaa:operationsHome.loading')}</Text>
           </View>
         ) : recentCalls.length === 0 ? (
           <View style={styles.placeholderCard}>
             <Ionicons name="time-outline" size={22} color="rgba(255,200,87,0.6)" />
-            <Text style={styles.placeholderText}>Recent calls will show up here.</Text>
+            <Text style={styles.placeholderText}>{t('sanaa:operationsHome.recentCallsWillShowHere')}</Text>
           </View>
         ) : (
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             {recentCalls.map((call, i) => {
               const outcome = outcomeFor(call);
-              const who = call.customer_name ?? maskPhone(call.from_number);
+              const who = call.customer_name ?? maskPhone(call.from_number, t('sanaa:operationsHome.unknownNumber'));
               return (
                 <View key={call.id} style={[styles.activityRow, i > 0 && styles.rowBorder]}>
                   <View style={{ flex: 1 }}>
@@ -365,18 +382,18 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
           </BlurView>
         )}
         <TouchableOpacity style={styles.viewAllBtn} onPress={() => router.push('/owner-sanaa/calls' as never)}>
-          <Text style={styles.viewAllText}>View All Calls</Text>
+          <Text style={styles.viewAllText}>{t('sanaa:operationsHome.viewAllCalls')}</Text>
           <Ionicons name="chevron-forward" size={14} color="#F4D77A" />
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Manage</Text>
+        <Text style={styles.sectionTitle}>{t('sanaa:operationsHome.manage')}</Text>
         <BlurView intensity={90} tint="dark" style={styles.card}>
           <CardOverlay />
           {MANAGEMENT_ROWS.map((row, i) => (
             <TouchableOpacity
-              key={row.label}
+              key={i}
               style={[styles.row, i > 0 && styles.rowBorder]}
               onPress={() => router.push(row.route as never)}
             >

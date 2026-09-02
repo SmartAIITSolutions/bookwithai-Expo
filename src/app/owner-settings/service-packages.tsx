@@ -5,12 +5,15 @@ import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { listServicePackages, createServicePackage, updateServicePackage, ServicePackage } from '@/lib/api/ownerPackages';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
+import { formatCentsUSD } from '@/lib/i18n/format';
 
 export default function ServicePackagesScreen() {
+  const { t } = useTranslation(['owner']);
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<ServicePackage[]>([]);
   const [adding, setAdding] = useState(false);
@@ -32,7 +35,7 @@ export default function ServicePackagesScreen() {
     const priceNum = parseFloat(price);
     const visitsNum = parseInt(includedVisits, 10);
     if (!name.trim() || !priceNum || priceNum <= 0 || !visitsNum || visitsNum < 1) {
-      Alert.alert('Missing info', 'Name, price, and included visits are all required.');
+      Alert.alert(t('owner:servicePackagesScreen.missingInfoTitle'), t('owner:servicePackagesScreen.missingInfoMessage'));
       return;
     }
     setSaving(true);
@@ -47,34 +50,34 @@ export default function ServicePackagesScreen() {
       setName(''); setPrice(''); setIncludedVisits(''); setExpiresAfterDays(''); setAdding(false);
       load();
     } else {
-      Alert.alert('Could not create package', result.error);
+      Alert.alert(t('owner:servicePackagesScreen.couldNotCreateTitle'), result.error);
     }
   }
 
   async function handleArchive(id: string) {
     const result = await updateServicePackage(id, { active: false });
     if (result.ok) setPackages(p => p.filter(x => x.id !== id));
-    else Alert.alert('Could not remove', result.error);
+    else Alert.alert(t('owner:servicePackagesScreen.couldNotRemoveTitle'), result.error);
   }
 
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Packages', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:servicePackagesScreen.headerTitle'), headerBackTitle: t('owner:servicePackagesScreen.headerBackTitle') }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {packages.length === 0 && !adding && (
-            <Text style={styles.emptyHint}>No packages yet — sell a prepaid bundle of visits.</Text>
+            <Text style={styles.emptyHint}>{t('owner:servicePackagesScreen.emptyHint')}</Text>
           )}
           {packages.map(p => (
             <View key={p.id} style={styles.card}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.pkgName}>{p.name}</Text>
                 <Text style={styles.pkgMeta}>
-                  ${(p.price_cents / 100).toFixed(2)} · {p.included_visits} visits
-                  {p.expires_after_days ? ` · expires in ${p.expires_after_days}d` : ''}
+                  {t('owner:servicePackagesScreen.priceVisits', { price: formatCentsUSD(p.price_cents), visits: p.included_visits })}
+                  {p.expires_after_days ? t('owner:servicePackagesScreen.expiresInDays', { days: p.expires_after_days }) : ''}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => handleArchive(p.id)} hitSlop={8}>
@@ -85,21 +88,21 @@ export default function ServicePackagesScreen() {
 
           {adding ? (
             <View style={styles.addCard}>
-              <TextInput style={styles.input} placeholder="Package name" placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
-              <TextInput style={styles.input} placeholder="Price ($)" placeholderTextColor={Colors.textDisabled} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
-              <TextInput style={styles.input} placeholder="Included visits" placeholderTextColor={Colors.textDisabled} value={includedVisits} onChangeText={setIncludedVisits} keyboardType="number-pad" />
-              <TextInput style={styles.input} placeholder="Expires after (days, optional)" placeholderTextColor={Colors.textDisabled} value={expiresAfterDays} onChangeText={setExpiresAfterDays} keyboardType="number-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:servicePackagesScreen.namePlaceholder')} placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder={t('owner:servicePackagesScreen.pricePlaceholder')} placeholderTextColor={Colors.textDisabled} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:servicePackagesScreen.includedVisitsPlaceholder')} placeholderTextColor={Colors.textDisabled} value={includedVisits} onChangeText={setIncludedVisits} keyboardType="number-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:servicePackagesScreen.expiresAfterPlaceholder')} placeholderTextColor={Colors.textDisabled} value={expiresAfterDays} onChangeText={setExpiresAfterDays} keyboardType="number-pad" />
               <View style={styles.inlineFormActions}>
-                <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>{t('owner:servicePackagesScreen.cancel')}</Text></TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>{t('owner:servicePackagesScreen.save')}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
               <Ionicons name="add" size={18} color={Colors.primary} />
-              <Text style={styles.addRowText}>Add package</Text>
+              <Text style={styles.addRowText}>{t('owner:servicePackagesScreen.addPackage')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>

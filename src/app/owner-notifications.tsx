@@ -8,15 +8,18 @@ import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { listNotifications, markNotificationRead, markAllNotificationsRead, OwnerNotification } from '@/lib/api/ownerNotifications';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
+// Standalone-instance pattern -- plain utility function, not a hook/component.
 function timeAgo(iso: string) {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return i18n.t('owner:ownerNotificationsScreen.justNow');
+  if (mins < 60) return i18n.t('owner:ownerNotificationsScreen.minutesAgo', { count: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return i18n.t('owner:ownerNotificationsScreen.hoursAgo', { count: hours });
+  return i18n.t('owner:ownerNotificationsScreen.daysAgo', { count: Math.round(hours / 24) });
 }
 
 function CardOverlay() {
@@ -32,6 +35,7 @@ function CardOverlay() {
 // (same pattern as Sprint 2's calendar) so a new booking/cancellation
 // appears here instantly, on top of the actual push notification.
 export default function OwnerNotificationsScreen() {
+  const { t } = useTranslation(['owner']);
   const { clientId } = useAuth();
   const [items, setItems] = useState<OwnerNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,12 +82,12 @@ export default function OwnerNotificationsScreen() {
     <View style={styles.container}>
       <DualBreathingBackground />
       <Stack.Screen options={{
-        title: 'Notifications',
+        title: t('owner:ownerNotificationsScreen.title'),
         headerStyle: { backgroundColor: '#0B0712' },
         headerTintColor: '#F4D77A',
         headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
         headerRight: () => (
-          <TouchableOpacity onPress={handleMarkAll}><Text style={styles.markAllText}>Mark all read</Text></TouchableOpacity>
+          <TouchableOpacity onPress={handleMarkAll}><Text style={styles.markAllText}>{t('owner:ownerNotificationsScreen.markAllRead')}</Text></TouchableOpacity>
         ),
       }} />
       {loading ? (
@@ -93,7 +97,7 @@ export default function OwnerNotificationsScreen() {
           data={items}
           keyExtractor={n => n.id}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.emptyHint}>You're all caught up.</Text>}
+          ListEmptyComponent={<Text style={styles.emptyHint}>{t('owner:ownerNotificationsScreen.allCaughtUp')}</Text>}
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => handlePress(item)}>
               <BlurView intensity={90} tint="dark" style={[styles.row, !item.read && styles.rowUnread]}>

@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
-import { SANAA_COMPARISON_ROWS, SANAA_COMPARISON_APPROVED } from '@/lib/sanaa/discoveryContent';
+import { getSanaaComparisonRows, SANAA_COMPARISON_APPROVED } from '@/lib/sanaa/discoveryContent';
 
 function CardOverlay() {
   return (
@@ -19,6 +20,7 @@ function CardOverlay() {
 // from SANAA_DISCOVERY_LIVE. __DEV__ always previews it for review; a real
 // production release additionally requires SANAA_COMPARISON_APPROVED.
 export function SanaaComparisonSection() {
+  const { t } = useTranslation(['sanaa']);
   if (!__DEV__ && !SANAA_COMPARISON_APPROVED) return null;
 
   return (
@@ -28,10 +30,10 @@ export function SanaaComparisonSection() {
           <Text style={styles.devBannerText}>DEV PREVIEW — claims not yet approved for production</Text>
         </View>
       )}
-      <Text style={styles.sectionTitle}>SANAA vs. a Front Desk</Text>
+      <Text style={styles.sectionTitle}>{t('sanaa:comparisonSection.sectionTitle')}</Text>
       <BlurView intensity={90} tint="dark" style={styles.card}>
         <CardOverlay />
-        {SANAA_COMPARISON_ROWS.map((row, i) => (
+        {getSanaaComparisonRows().map((row, i) => (
           <View key={row.dimension} style={[styles.row, i > 0 && styles.rowBorder]}>
             <Text style={styles.dimension}>{row.dimension}</Text>
             <View style={styles.values}>

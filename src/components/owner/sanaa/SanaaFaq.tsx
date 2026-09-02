@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
-import { SANAA_FAQ_GROUPS } from '@/lib/sanaa/discoveryContent';
+import { getSanaaFaqGroups } from '@/lib/sanaa/discoveryContent';
 import { SanaaFaqAccordion } from './SanaaFaqAccordion';
 import { trackSanaaEvent } from '@/lib/analytics/sanaaEvents';
 
@@ -20,10 +21,11 @@ function CardOverlay() {
 // rule isn't locked yet) render __DEV__-only, via SanaaFaqAccordion's own
 // visible marker, so they can never be mistaken for approved copy.
 export function SanaaFaq() {
+  const { t } = useTranslation(['sanaa']);
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-      {SANAA_FAQ_GROUPS.map((group) => {
+      <Text style={styles.sectionTitle}>{t('sanaa:faq.sectionTitle')}</Text>
+      {getSanaaFaqGroups().map((group) => {
         const items = group.items.filter((item) => __DEV__ || item.status === 'approved');
         if (items.length === 0) return null;
         return (

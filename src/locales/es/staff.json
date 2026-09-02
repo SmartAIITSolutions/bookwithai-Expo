@@ -1,0 +1,46 @@
+{
+  "schedule": {
+    "title": "Mi Horario",
+    "clockIn": "Marcar Entrada",
+    "clockOut": "Marcar Salida",
+    "couldNotClockTitle": "No se pudo registrar la entrada/salida",
+    "nothingOnBooks": "No hay nada agendado",
+    "noAppointmentsSalon": "No hay citas próximas para el salón.",
+    "noAppointmentsOwn": "No tienes citas próximas."
+  },
+  "earnings": {
+    "title": "Ganancias",
+    "totalCommissionEarned": "Comisión total ganada",
+    "noCommissionYet": "Aún no hay comisión ganada.",
+    "ratePct": "tasa de {{pct}}%"
+  },
+  "timeOff": {
+    "title": "Tiempo Libre",
+    "startDatePlaceholder": "Fecha de inicio (AAAA-MM-DD)",
+    "endDatePlaceholder": "Fecha de fin (AAAA-MM-DD)",
+    "reasonPlaceholder": "Motivo (opcional)",
+    "cancel": "Cancelar",
+    "submitRequest": "Enviar solicitud",
+    "requestTimeOff": "Solicitar tiempo libre",
+    "noTimeOffYet": "Aún no se ha solicitado tiempo libre.",
+    "missingDatesTitle": "Faltan fechas",
+    "missingDatesMessage": "Ingresa una fecha de inicio y fin.",
+    "couldNotSubmitTitle": "No se pudo enviar la solicitud",
+    "statusApproved": "Aprobado",
+    "statusDenied": "Denegado",
+    "statusPending": "Pendiente"
+  },
+  "account": {
+    "title": "Cuenta",
+    "legal": "Legal",
+    "privacyPolicy": "Política de Privacidad",
+    "termsOfService": "Términos de Servicio",
+    "support": "Soporte",
+    "deleteMyAccount": "Eliminar Mi Cuenta",
+    "language": "Idioma",
+    "signOutTitle": "¿Cerrar sesión?",
+    "signOutMessage": "Necesitarás iniciar sesión de nuevo.",
+    "cancel": "Cancelar",
+    "signOut": "Cerrar Sesión"
+  }
+}

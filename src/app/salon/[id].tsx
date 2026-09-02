@@ -32,6 +32,8 @@ import { fetchSalonBySlug, formatHours, type SalonInfo } from '@/lib/api/salon';
 import { fetchCustomerSummary, type CustomerSummary } from '@/lib/api/customer';
 import { useFavorites } from '@/lib/favorites/FavoritesContext';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { formatMonthDayYear, formatCentsUSDWhole } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { ErrorState } from '@/components/ErrorState';
 
@@ -50,6 +52,7 @@ function usePolicyBreatheStyle(cycle: SharedValue<number>, index: number) {
 const AnimatedLinearGradient = Reanimated.createAnimatedComponent(LinearGradient);
 
 function BookNowButton({ onPress }: { onPress: () => void }) {
+  const { t } = useTranslation(['booking']);
   const angle = useSharedValue(0);
   const breatheVal = useSharedValue(0);
   const textSpin = useSharedValue(0);
@@ -98,7 +101,7 @@ function BookNowButton({ onPress }: { onPress: () => void }) {
             colors={['#F4D77A', '#D4AF37', '#F4D77A']}
             animatedProps={animatedProps}
             style={styles.bookBtn}>
-            <Reanimated.Text style={[styles.bookBtnText, textSpinStyle]}>Book Now</Reanimated.Text>
+            <Reanimated.Text style={[styles.bookBtnText, textSpinStyle]}>{t('booking:salonDetail.bookNow')}</Reanimated.Text>
           </AnimatedLinearGradient>
         </Reanimated.View>
       )}
@@ -115,18 +118,13 @@ function CardOverlay() {
   );
 }
 
-function formatCentsShort(cents: number) {
-  return `$${(cents / 100).toFixed(0)}`;
-}
-
 function formatLastVisit(iso: string | null) {
   if (!iso) return null;
-  const d = new Date(iso);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return formatMonthDayYear(new Date(iso));
 }
 
 export default function SalonScreen() {
+  const { t } = useTranslation(['common', 'booking', 'errors']);
   const { id: slug } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { width, height } = useWindowDimensions();
@@ -189,7 +187,7 @@ export default function SalonScreen() {
         await addFavorite(salon.id);
       }
     } catch {
-      Alert.alert('Could not update', 'Please try again.');
+      Alert.alert(t('booking:salonDetail.couldNotUpdateTitle'), t('errors:tryAgain'));
     } finally {
       setFavoriteBusy(false);
     }
@@ -204,7 +202,7 @@ export default function SalonScreen() {
       .filter(Boolean)
       .join(', ');
     if (!addr) {
-      Alert.alert('Address not available', 'Please check with the salon directly for their location.');
+      Alert.alert(t('booking:salonDetail.addressNotAvailableTitle'), t('booking:salonDetail.addressNotAvailableMessage'));
       return;
     }
     const encoded = encodeURIComponent(addr);
@@ -231,7 +229,7 @@ export default function SalonScreen() {
         <SafeAreaView style={styles.centered}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common:a11y.goBack')}
             onPress={() => router.back()}
             style={({ pressed }) => [styles.backIconBtn, pressed && { opacity: 0.7 }]}
             hitSlop={10}>
@@ -251,13 +249,13 @@ export default function SalonScreen() {
         <SafeAreaView style={styles.centered}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common:a11y.goBack')}
             onPress={() => router.back()}
             style={({ pressed }) => [styles.backIconBtn, pressed && { opacity: 0.7 }]}
             hitSlop={10}>
             <Ionicons name="chevron-back" size={24} color="#F4D77A" />
           </Pressable>
-          <ErrorState message="Unable to load this salon. Please check your connection and try again." onRetry={load} />
+          <ErrorState message={t('booking:salonDetail.loadErrorMessage')} onRetry={load} />
         </SafeAreaView>
       </View>
     );
@@ -270,12 +268,12 @@ export default function SalonScreen() {
         <DualBreathingBackground />
         <SafeAreaView style={styles.centered}>
           <Ionicons name="alert-circle-outline" size={48} color="rgba(255,255,255,0.5)" />
-          <Text style={styles.notFoundTitle}>Salon not found</Text>
+          <Text style={styles.notFoundTitle}>{t('booking:salonDetail.notFoundTitle')}</Text>
           <Text style={styles.notFoundSub}>
-            This link may be invalid or the salon is no longer available.
+            {t('booking:salonDetail.notFoundSubtitle')}
           </Text>
           <Pressable style={styles.backBtn} onPress={() => router.replace('/book')}>
-            <Text style={styles.backBtnText}>Go Back</Text>
+            <Text style={styles.backBtnText}>{t('booking:salonDetail.goBack')}</Text>
           </Pressable>
         </SafeAreaView>
       </View>
@@ -305,11 +303,11 @@ export default function SalonScreen() {
             </View>
           )}
           <Text style={styles.salonName}>{salon.business_name}</Text>
-          <Text style={styles.poweredBy}>Powered by Book With AI</Text>
+          <Text style={styles.poweredBy}>{t('booking:salonDetail.poweredBy')}</Text>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add this salon to favorites'}
+            accessibilityLabel={isFavorite ? t('common:a11y.removeFromFavorites') : t('common:a11y.addSalonToFavorites')}
             onPress={handleToggleFavorite}
             disabled={favoriteBusy}
             style={({ pressed }) => [styles.favoriteBtn, isFavorite && styles.favoriteBtnActive, pressed && { opacity: 0.85 }]}>
@@ -319,7 +317,7 @@ export default function SalonScreen() {
               color={isFavorite ? '#09000F' : '#F4D77A'}
             />
             <Text style={[styles.favoriteBtnText, isFavorite && styles.favoriteBtnTextActive]}>
-              {isFavorite ? 'Saved to Favorites' : 'Add this salon to favorites'}
+              {isFavorite ? t('booking:salonDetail.savedToFavorites') : t('booking:salonDetail.addToFavorites')}
             </Text>
           </Pressable>
         </View>
@@ -329,12 +327,12 @@ export default function SalonScreen() {
           {salon.owner_phone && (
             <Pressable style={styles.actionBtn} onPress={handleCall}>
               <Ionicons name="call-outline" size={20} color="#F4D77A" />
-              <Text style={styles.actionBtnText}>Call</Text>
+              <Text style={styles.actionBtnText}>{t('booking:salonDetail.call')}</Text>
             </Pressable>
           )}
           <Pressable style={styles.actionBtn} onPress={handleDirections}>
             <Ionicons name="navigate-outline" size={20} color="#F4D77A" />
-            <Text style={styles.actionBtnText}>Directions</Text>
+            <Text style={styles.actionBtnText}>{t('booking:salonDetail.directions')}</Text>
           </Pressable>
         </View>
 
@@ -344,37 +342,35 @@ export default function SalonScreen() {
             <CardOverlay />
             <View style={styles.summaryHeaderRow}>
               <Ionicons name="sparkles-outline" size={18} color="#F4D77A" />
-              <Text style={styles.cardTitle}>Welcome back!</Text>
+              <Text style={styles.cardTitle}>{t('booking:salonDetail.welcomeBack')}</Text>
             </View>
             <View style={styles.summaryStatsRow}>
               <View style={styles.summaryStat}>
                 <Text style={styles.summaryStatValue}>{summary.total_bookings}</Text>
-                <Text style={styles.summaryStatLabel}>Visits</Text>
+                <Text style={styles.summaryStatLabel}>{t('booking:salonDetail.visits')}</Text>
               </View>
               <View style={styles.summaryStat}>
-                <Text style={styles.summaryStatValue}>{formatCentsShort(summary.total_spent_cents)}</Text>
-                <Text style={styles.summaryStatLabel}>Total Spent</Text>
+                <Text style={styles.summaryStatValue}>{formatCentsUSDWhole(summary.total_spent_cents)}</Text>
+                <Text style={styles.summaryStatLabel}>{t('booking:salonDetail.totalSpent')}</Text>
               </View>
               {summary.last_visit && (
                 <View style={styles.summaryStat}>
                   <Text style={styles.summaryStatValue}>{formatLastVisit(summary.last_visit)}</Text>
-                  <Text style={styles.summaryStatLabel}>Last Visit</Text>
+                  <Text style={styles.summaryStatLabel}>{t('booking:salonDetail.lastVisit')}</Text>
                 </View>
               )}
             </View>
             {summary.birthday_this_week && (
               <View style={styles.summaryBanner}>
                 <Ionicons name="gift-outline" size={16} color="#F4D77A" />
-                <Text style={styles.summaryBannerText}>Happy birthday week! Ask about a special treat.</Text>
+                <Text style={styles.summaryBannerText}>{t('booking:salonDetail.birthdayBanner')}</Text>
               </View>
             )}
             {summary.available_rewards.length > 0 && (
               <View style={styles.summaryBanner}>
                 <Ionicons name="pricetag-outline" size={16} color="#F4D77A" />
                 <Text style={styles.summaryBannerText}>
-                  {summary.available_rewards.length === 1
-                    ? 'You have a reward available at checkout.'
-                    : `You have ${summary.available_rewards.length} rewards available at checkout.`}
+                  {t('booking:salonDetail.rewardsAvailable', { count: summary.available_rewards.length })}
                 </Text>
               </View>
             )}
@@ -388,7 +384,7 @@ export default function SalonScreen() {
             <Pressable
               style={styles.hoursHeaderRow}
               onPress={() => setHoursExpanded((v) => !v)}>
-              <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Store Hours</Text>
+              <Text style={[styles.cardTitle, { marginBottom: 0 }]}>{t('booking:salonDetail.storeHours')}</Text>
               <Ionicons
                 name={hoursExpanded ? 'chevron-up' : 'chevron-down'}
                 size={18}
@@ -397,13 +393,13 @@ export default function SalonScreen() {
             </Pressable>
             {hoursExpanded && (
               <View style={styles.hoursRowsWrap}>
-                {hours.map(({ day, label }) => (
-                  <View key={day} style={styles.hoursRow}>
+                {hours.map(({ day, label, closed }, idx) => (
+                  <View key={idx} style={styles.hoursRow}>
                     <Text style={styles.hoursDay}>{day}</Text>
                     <Text
                       style={[
                         styles.hoursLabel,
-                        label === 'Closed' && styles.hoursClosed,
+                        closed && styles.hoursClosed,
                       ]}>
                       {label}
                     </Text>
@@ -419,7 +415,7 @@ export default function SalonScreen() {
           <Reanimated.View entering={SlideInRight.duration(1000).delay(0)}>
             <Reanimated.View style={[styles.card, cancellationBreathe]}>
               <CardOverlay />
-              <Text style={styles.cardTitle}>Cancellation Policy</Text>
+              <Text style={styles.cardTitle}>{t('booking:salonDetail.cancellationPolicy')}</Text>
               <Text style={styles.policyText}>{salon.cancellation_policy}</Text>
             </Reanimated.View>
           </Reanimated.View>
@@ -428,7 +424,7 @@ export default function SalonScreen() {
           <Reanimated.View entering={SlideInLeft.duration(1000).delay(400)}>
             <Reanimated.View style={[styles.card, reschedulingBreathe]}>
               <CardOverlay />
-              <Text style={styles.cardTitle}>Rescheduling Policy</Text>
+              <Text style={styles.cardTitle}>{t('booking:salonDetail.reschedulingPolicy')}</Text>
               <Text style={styles.policyText}>{salon.rescheduling_policy}</Text>
             </Reanimated.View>
           </Reanimated.View>
@@ -437,7 +433,7 @@ export default function SalonScreen() {
           <Reanimated.View entering={SlideInRight.duration(1000).delay(800)}>
             <Reanimated.View style={[styles.card, storeBreathe]}>
               <CardOverlay />
-              <Text style={styles.cardTitle}>Store Policy</Text>
+              <Text style={styles.cardTitle}>{t('booking:salonDetail.storePolicy')}</Text>
               <Text style={styles.policyText}>{salon.store_policy}</Text>
             </Reanimated.View>
           </Reanimated.View>
@@ -453,7 +449,7 @@ export default function SalonScreen() {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Go back"
+        accessibilityLabel={t('common:a11y.goBack')}
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backIconBtn, pressed && { opacity: 0.7 }]}
         hitSlop={10}>

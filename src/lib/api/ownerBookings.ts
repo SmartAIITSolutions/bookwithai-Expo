@@ -1,4 +1,5 @@
 import { ownerFetch } from './ownerApi';
+import i18n from '@/lib/i18n';
 
 export interface OwnerBooking {
   id: string;
@@ -41,13 +42,28 @@ export interface OwnerBooking {
   service_names?: string[];
 }
 
+// i18n foundation (L2) — 'Service'/'Customer' below are app-owned FALLBACK
+// copy (shown only when there's no real service/customer data), not
+// user-generated content -- safe and correct to translate, unlike
+// b.service?.name/b.customer?.name themselves (salon-entered data, never
+// machine-translated). Uses the standalone i18next instance directly since
+// these are plain utility functions called from many components' render
+// bodies, not components/hooks themselves.
 export function serviceDisplayName(b: Pick<OwnerBooking, 'service' | 'service_names'>): string {
   if (b.service_names && b.service_names.length > 0) return b.service_names.join(' + ');
-  return b.service?.name ?? 'Service';
+  return b.service?.name ?? i18n.t('common:serviceFallback');
 }
 
 export function customerDisplayName(b: Pick<OwnerBooking, 'customer' | 'walk_in_label'>): string {
-  return b.customer?.name ?? b.walk_in_label ?? 'Customer';
+  if (b.customer?.name) return b.customer.name;
+  // Presentation-only translation: 'Walk-in' is the literal default
+  // WalkInSheet persists to walk_in_label when the owner didn't type a
+  // custom label (see its own comment on that field) -- it's the generic
+  // filler value, not a business-authored name, so it's safe to translate
+  // for display. The stored bookings.walk_in_label value itself is never
+  // touched; a genuinely custom label the owner typed passes through as-is.
+  if (b.walk_in_label === 'Walk-in') return i18n.t('calendar:screen.walkIn');
+  return b.walk_in_label ?? i18n.t('common:customerFallback');
 }
 
 export async function listBookingsForDate(date: string) {

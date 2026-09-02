@@ -1,0 +1,48 @@
+{
+  "timeAgo": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "screen": {
+    "title": "Notifications",
+    "noNotificationsYet": "No notifications yet",
+    "today": "Today",
+    "earlier": "Earlier"
+  },
+  "heroCards": {
+    "bookingConfirmedTitle": "You're Booked! 🎉",
+    "bookingConfirmedSubtitle": "You're all set! Your appointment is confirmed for",
+    "rescheduledTitle": "Plans Updated ✨",
+    "rescheduledSubtitle": "Your appointment has been rescheduled to",
+    "reminder2hTitle": "Your Appointment Is Coming Up ✨",
+    "reminder24hTitle": "See You Tomorrow 💜",
+    "receiptTitle": "Payment Complete ✅",
+    "rebookNudgeTitle": "Time to Rebook? 💕",
+    "rebookButtonLabel": "Rebook",
+    "appUpdateTitle": "Update Available ✨",
+    "appUpdateButtonLabel": "Update Now",
+    "checkinReadyTitle": "Are You Here? 📍",
+    "reviewNudgeTitle": "How Was Your Visit? ⭐",
+    "balanceDueTitle": "You're Almost Booked! 🎉",
+    "balanceDueSubtitle": "Complete your payment to confirm your appointment on",
+    "payNowButtonLabel": "Pay Now",
+    "cancelledBody": "Your appointment has been cancelled.",
+    "rescheduledFromTo": "Your appointment {{fromDateTime}} has been rescheduled to"
+  },
+  "checkin": {
+    "here": "Here",
+    "almost": "Almost",
+    "runningLate": "Running Late",
+    "cancel": "Cancel",
+    "checkedIn": "You're checked in",
+    "notifiedAlmost": "Salon notified — almost there",
+    "notifiedRunningLate": "Salon notified — running late",
+    "cancelTitle": "Cancel this appointment?",
+    "cancelMessage": "This will let the salon know you're not coming.",
+    "keepAppointment": "Keep appointment",
+    "cancelAppointment": "Cancel appointment",
+    "cancelledStatus": "Cancelled"
+  }
+}

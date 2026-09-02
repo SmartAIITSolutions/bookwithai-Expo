@@ -4,6 +4,7 @@ import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullT
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { fetchStaffTimeOff, requestStaffTimeOff, StaffTimeOffEntry } from '@/lib/api/staffApi';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
@@ -14,6 +15,12 @@ function statusColor(status: StaffTimeOffEntry['status']) {
 }
 
 export default function StaffTimeOffScreen() {
+  const { t } = useTranslation(['staff']);
+  const STATUS_LABELS: Record<StaffTimeOffEntry['status'], string> = {
+    approved: t('staff:timeOff.statusApproved'),
+    denied: t('staff:timeOff.statusDenied'),
+    pending: t('staff:timeOff.statusPending'),
+  };
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [entries, setEntries] = useState<StaffTimeOffEntry[]>([]);
@@ -39,7 +46,7 @@ export default function StaffTimeOffScreen() {
 
   async function handleSubmit() {
     if (!startDate.trim() || !endDate.trim()) {
-      Alert.alert('Missing dates', 'Enter a start and end date.');
+      Alert.alert(t('staff:timeOff.missingDatesTitle'), t('staff:timeOff.missingDatesMessage'));
       return;
     }
     setSaving(true);
@@ -49,14 +56,14 @@ export default function StaffTimeOffScreen() {
       setRequesting(false); setStartDate(''); setEndDate(''); setReason('');
       load();
     } else {
-      Alert.alert('Could not submit request', result.error);
+      Alert.alert(t('staff:timeOff.couldNotSubmitTitle'), result.error);
     }
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Time Off</Text>
+        <Text style={styles.title}>{t('staff:timeOff.title')}</Text>
       </View>
 
       {loading ? (
@@ -73,31 +80,31 @@ export default function StaffTimeOffScreen() {
           ListHeaderComponent={
             requesting ? (
               <View style={styles.requestCard}>
-                <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={startDate} onChangeText={setStartDate} />
-                <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor={Colors.textDisabled} value={endDate} onChangeText={setEndDate} />
-                <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={Colors.textDisabled} value={reason} onChangeText={setReason} />
+                <TextInput style={styles.input} placeholder={t('staff:timeOff.startDatePlaceholder')} placeholderTextColor={Colors.textDisabled} value={startDate} onChangeText={setStartDate} />
+                <TextInput style={styles.input} placeholder={t('staff:timeOff.endDatePlaceholder')} placeholderTextColor={Colors.textDisabled} value={endDate} onChangeText={setEndDate} />
+                <TextInput style={styles.input} placeholder={t('staff:timeOff.reasonPlaceholder')} placeholderTextColor={Colors.textDisabled} value={reason} onChangeText={setReason} />
                 <View style={styles.requestActions}>
-                  <Pressable onPress={() => setRequesting(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+                  <Pressable onPress={() => setRequesting(false)}><Text style={styles.cancelText}>{t('staff:timeOff.cancel')}</Text></Pressable>
                   <Pressable onPress={handleSubmit} disabled={saving}>
-                    {saving ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.addRowText}>Submit request</Text>}
+                    {saving ? <ActivityIndicator color={Colors.primary} /> : <Text style={styles.addRowText}>{t('staff:timeOff.submitRequest')}</Text>}
                   </Pressable>
                 </View>
               </View>
             ) : (
               <Pressable style={styles.addRow} onPress={() => setRequesting(true)}>
                 <Ionicons name="add" size={18} color={Colors.primary} />
-                <Text style={styles.addRowText}>Request time off</Text>
+                <Text style={styles.addRowText}>{t('staff:timeOff.requestTimeOff')}</Text>
               </Pressable>
             )
           }
-          ListEmptyComponent={<Text style={styles.emptyHint}>No time off requested yet.</Text>}
+          ListEmptyComponent={<Text style={styles.emptyHint}>{t('staff:timeOff.noTimeOffYet')}</Text>}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardTop}>
                 <Text style={styles.dateRange}>{item.start_date} – {item.end_date}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '20' }]}>
                   <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
-                    {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    {STATUS_LABELS[item.status]}
                   </Text>
                 </View>
               </View>

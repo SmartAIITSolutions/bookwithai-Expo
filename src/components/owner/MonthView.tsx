@@ -12,9 +12,20 @@ import { WeekSchedule, dayScheduleFor, localDateKey } from '@/lib/calendar/timeG
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { useTranslation } from 'react-i18next';
+import { formatWeekdayShort, formatWeekdayMonthDayLong, formatTimeShort } from '@/lib/i18n/format';
 
 const PULL_THRESHOLD = 60;
 const PULL_MAX = 90;
+
+// 2023-01-01 was a real Sunday -- stable reference date so Intl can produce a
+// locale-correct short weekday name for the month-grid header.
+const REFERENCE_SUNDAY = new Date(2023, 0, 1);
+function weekdayShortUpperForIndex(index: number): string {
+  const d = new Date(REFERENCE_SUNDAY);
+  d.setDate(REFERENCE_SUNDAY.getDate() + index);
+  return formatWeekdayShort(d).toUpperCase();
+}
 
 interface MonthViewProps {
   month: Date; // any date within the target month
@@ -26,7 +37,7 @@ interface MonthViewProps {
   onSwipeDate?: (direction: 'prev' | 'next') => void;
 }
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6].map(weekdayShortUpperForIndex);
 
 // One of Phase 0.3's six calendar modes — "for planning only, never the
 // default, never used for daily operations." Tapping a day jumps straight
@@ -34,6 +45,7 @@ const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 // reflects whichever date was tapped most recently (or today, on first
 // load) as an at-a-glance preview.
 export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, onSwipeDate }: MonthViewProps) {
+  const { t } = useTranslation(['calendar']);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [dayBookings, setDayBookings] = useState<OwnerBooking[]>([]);
@@ -130,7 +142,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, o
     )}
     <View style={styles.container}>
       <View style={styles.weekdayRow}>
-        {WEEKDAYS.map((d) => <Text key={d} style={styles.weekdayLabel}>{d}</Text>)}
+        {WEEKDAYS.map((d, i) => <Text key={i} style={styles.weekdayLabel}>{d}</Text>)}
       </View>
       <View style={styles.grid}>
         {cells.map((d, i) => {
@@ -154,11 +166,11 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, o
 
       <View style={styles.summaryCard}>
         <Text style={styles.summaryDate}>
-          {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          {formatWeekdayMonthDayLong(selectedDate)}
         </Text>
         <Text style={styles.summaryMeta}>
-          {sortedBookings.length} appointment{sortedBookings.length === 1 ? '' : 's'}
-          {gaps.length > 0 ? `  ·  ${gaps.length} open slot${gaps.length === 1 ? '' : 's'}` : ''}
+          {t('calendar:monthView.appointments', { count: sortedBookings.length })}
+          {gaps.length > 0 ? `  ·  ${t('calendar:monthView.openSlots', { count: gaps.length })}` : ''}
         </Text>
 
         {sortedBookings.slice(0, 2).map((b) => {
@@ -167,7 +179,7 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, o
           return (
             <Pressable key={b.id} style={styles.summaryRow} onPress={() => onOpenBooking(b)}>
               <Text style={styles.summaryTime}>
-                {new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {formatTimeShort(new Date(b.starts_at))}
               </Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.summaryCustomer} numberOfLines={1}>{customerDisplayName(b)}</Text>
@@ -181,15 +193,15 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, o
         })}
 
         {sortedBookings.length === 0 && gaps.length === 0 && !loadingDay && (
-          <Text style={styles.emptyHint}>Nothing on the books for this day.</Text>
+          <Text style={styles.emptyHint}>{t('calendar:monthView.nothingOnBooks')}</Text>
         )}
 
         {(sortedBookings.length > 2 || gaps.length > 0) && (
           <Pressable style={styles.viewDayBtn} onPress={() => onViewFullDay(selectedDate)}>
             <Text style={styles.viewDayBtnText}>
               {gaps.length > 0
-                ? `${gaps.length} Open Slot${gaps.length === 1 ? '' : 's'} — tap to view`
-                : 'View full day →'}
+                ? t('calendar:monthView.openSlotsTapToView', { count: gaps.length })
+                : t('calendar:monthView.viewFullDay')}
             </Text>
           </Pressable>
         )}

@@ -1,0 +1,75 @@
+{
+  "save": "Save",
+  "cancel": "Cancel",
+  "continue": "Continue",
+  "done": "Done",
+  "back": "Back",
+  "delete": "Delete",
+  "confirm": "Confirm",
+  "ok": "OK",
+  "loading": "Loading…",
+  "retry": "Try Again",
+  "later": "Later",
+  "customerFallback": "Customer",
+  "serviceFallback": "Service",
+  "minutes_one": "{{count}} minute",
+  "minutes_other": "{{count}} minutes",
+  "status": {
+    "cancelled": "Cancelled",
+    "noShow": "No Show",
+    "completed": "Completed",
+    "paid": "Paid",
+    "paymentPending": "Payment Pending",
+    "inService": "In Service",
+    "checkedIn": "Checked In",
+    "late": "Late",
+    "arrivingSoon": "Arriving Soon",
+    "confirmed": "Confirmed",
+    "pending": "Pending"
+  },
+  "actions": {
+    "checkIn": "CHECK IN",
+    "startService": "START SERVICE",
+    "markComplete": "MARK SERVICE COMPLETE",
+    "completeAndCharge": "COMPLETE & CHARGE",
+    "readyForCheckout": "READY FOR CHECKOUT",
+    "bookNextAppointment": "BOOK NEXT APPOINTMENT"
+  },
+  "tabs": {
+    "discover": "Discover",
+    "mySalons": "My Salons",
+    "myBooking": "My Booking",
+    "account": "Account",
+    "dashboard": "Dashboard",
+    "calendar": "Calendar",
+    "customers": "Customers",
+    "more": "More",
+    "schedule": "Schedule",
+    "timeOff": "Time Off",
+    "earnings": "Earnings"
+  },
+  "a11y": {
+    "goBack": "Go back",
+    "listView": "List view",
+    "mapView": "Map view",
+    "openQrScanner": "Open QR code scanner",
+    "addSalon": "Add a salon",
+    "addFavorite": "Add favorite",
+    "removeFavorite": "Remove favorite",
+    "addSalonToFavorites": "Add this salon to favorites",
+    "removeFromFavorites": "Remove from favorites"
+  },
+  "update": {
+    "available": "A new version is available",
+    "updateNow": "Update Now",
+    "defaultSubtitle": "Update to the latest version for the newest fixes and features."
+  },
+  "qrScanner": {
+    "cameraAccessNeeded": "Camera Access Needed",
+    "cameraAccessBody": "To scan a salon QR code, Book With AI needs access to your camera.",
+    "allowCamera": "Allow Camera",
+    "cameraAccessDenied": "Camera access was denied. Go to Settings → Book With AI → Camera to enable it.",
+    "cancel": "Cancel",
+    "hint": "Point at a salon's Book With AI QR code"
+  }
+}

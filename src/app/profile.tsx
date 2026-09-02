@@ -15,6 +15,7 @@ import {
   type CustomerProfile,
 } from '@/lib/api/customerProfile';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { useTranslation } from 'react-i18next';
 
 function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -23,7 +24,7 @@ function isValidPhone(v: string) {
   return v.replace(/\D/g, '').length >= 10;
 }
 
-const PRONOUN_OPTIONS = ['She/Her', 'He/Him', 'They/Them', 'Prefer not to say'];
+const PRONOUN_OPTIONS = ['She/Her', 'He/Him', 'They/Them', 'Prefer not to say'] as const;
 
 function formatDob(iso: string | null) {
   if (!iso) return '';
@@ -55,6 +56,15 @@ function parseDob(input: string): string | null {
 }
 
 export default function ProfileScreen() {
+  const { t } = useTranslation(['booking', 'errors']);
+  // Display-only translated labels for the canonical pronouns option values
+  // (see NOTE at the pronoun chip row below).
+  const PRONOUN_LABELS: Record<typeof PRONOUN_OPTIONS[number], string> = {
+    'She/Her': t('booking:profileScreen.pronounsOptions.She/Her'),
+    'He/Him': t('booking:profileScreen.pronounsOptions.He/Him'),
+    'They/Them': t('booking:profileScreen.pronounsOptions.They/Them'),
+    'Prefer not to say': t('booking:profileScreen.pronounsOptions.Prefer not to say'),
+  };
   const { user, signOut } = useAuth();
   const { required } = useLocalSearchParams<{ required?: string }>();
   const isRequired = required === 'true';
@@ -93,7 +103,7 @@ export default function ProfileScreen() {
     if (!user) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Photo library access is required to set a profile photo.');
+      Alert.alert(t('booking:profileScreen.permissionNeededTitle'), t('booking:profileScreen.photoPermissionMessage'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -110,7 +120,7 @@ export default function ProfileScreen() {
       await upsertCustomerProfile(user.id, { photo_url: url });
       setPhotoUrl(url);
     } catch (e: any) {
-      Alert.alert('Could not upload photo', e.message || 'Please try again.');
+      Alert.alert(t('booking:profileScreen.couldNotUploadPhotoTitle'), e.message || t('errors:tryAgain'));
     } finally {
       setUploadingPhoto(false);
     }
@@ -119,18 +129,18 @@ export default function ProfileScreen() {
   async function handleSave() {
     if (!user) return;
     if (!isValidPhone(phone)) {
-      Alert.alert('Phone required', 'Enter a valid phone number.');
+      Alert.alert(t('booking:profileScreen.phoneRequiredTitle'), t('booking:profileScreen.enterValidPhone'));
       return;
     }
     if (!isValidEmail(email)) {
-      Alert.alert('Email required', 'Enter a valid email address.');
+      Alert.alert(t('booking:profileScreen.emailRequiredTitle'), t('booking:profileScreen.enterValidEmail'));
       return;
     }
     let dob: string | null = null;
     if (dobInput.trim()) {
       dob = parseDob(dobInput.trim());
       if (!dob) {
-        Alert.alert('Invalid date', 'Enter your birthday as MM/DD/YYYY.');
+        Alert.alert(t('booking:profileScreen.invalidDateTitle'), t('booking:profileScreen.invalidDateMessage'));
         return;
       }
     }
@@ -156,14 +166,14 @@ export default function ProfileScreen() {
       // of leaving them stuck on an empty one with no explanation.
       if (linkResult.existing_account_detected) {
         Alert.alert(
-          'You may already have an account',
-          "This phone or email is linked to another account of yours. If your bookings or favorites are missing, try signing out and signing back in the same way you did the first time (for example, Sign in with Apple)."
+          t('booking:profileScreen.existingAccountTitle'),
+          t('booking:profileScreen.existingAccountMessage')
         );
       } else if (!isRequired) {
-        Alert.alert('Saved', 'Your profile has been updated.');
+        Alert.alert(t('booking:profileScreen.savedTitle'), t('booking:profileScreen.savedMessage'));
       }
     } catch (e: any) {
-      Alert.alert('Could not save', e.message || 'Please try again.');
+      Alert.alert(t('booking:profileScreen.couldNotSaveTitle'), e.message || t('errors:tryAgain'));
     } finally {
       setSaving(false);
     }
@@ -173,8 +183,8 @@ export default function ProfileScreen() {
     headerStyle: { backgroundColor: '#0B0712' },
     headerTintColor: '#F4D77A',
     headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-    title: 'Profile',
-    headerBackTitle: 'Account',
+    title: t('booking:profileScreen.title'),
+    headerBackTitle: t('booking:profileScreen.headerBackTitle'),
     headerBackVisible: !isRequired,
     gestureEnabled: !isRequired,
   };
@@ -202,7 +212,7 @@ export default function ProfileScreen() {
             {isRequired && (
               <View style={styles.requiredBanner}>
                 <Text style={styles.requiredBannerText}>
-                  Phone and email are required to book appointments. Add them below to continue.
+                  {t('booking:profileScreen.requiredBanner')}
                 </Text>
               </View>
             )}
@@ -227,10 +237,10 @@ export default function ProfileScreen() {
             </Pressable>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Phone</Text>
+              <Text style={styles.label}>{t('booking:profileScreen.phoneLabel')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="(555) 123-4567"
+                placeholder={t('booking:profileScreen.phonePlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 value={phone}
                 onChangeText={setPhone}
@@ -240,10 +250,10 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>{t('booking:profileScreen.emailLabel')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="you@example.com"
+                placeholder={t('booking:profileScreen.emailPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 value={email}
                 onChangeText={setEmail}
@@ -254,45 +264,50 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Birthday</Text>
+              <Text style={styles.label}>{t('booking:profileScreen.birthdayLabel')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="MM/DD/YYYY"
+                placeholder={t('booking:profileScreen.birthdayPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 value={dobInput}
-                onChangeText={(t) => setDobInput(formatDobInput(t))}
+                onChangeText={(v) => setDobInput(formatDobInput(v))}
                 keyboardType="number-pad"
                 maxLength={10}
               />
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Pronouns</Text>
+              {/* NOTE (L4 Section F, revisited L10 Section U): PRONOUN_OPTIONS canonical
+                  values are stored directly as customer_profiles.pronouns -- the same
+                  DB-value-as-display-label risk as owner-signup's business type selector
+                  (L3). The stored value stays the fixed English canonical string; only the
+                  displayed chip text is translated via pronounsOptions. */}
+              <Text style={styles.label}>{t('booking:profileScreen.pronounsLabel')}</Text>
               <View style={styles.chipRow}>
                 {PRONOUN_OPTIONS.map((opt) => (
                   <Pressable
                     key={opt}
                     style={[styles.chip, pronouns === opt && styles.chipSelected]}
                     onPress={() => setPronouns(pronouns === opt ? null : opt)}>
-                    <Text style={[styles.chipText, pronouns === opt && styles.chipTextSelected]}>{opt}</Text>
+                    <Text style={[styles.chipText, pronouns === opt && styles.chipTextSelected]}>{PRONOUN_LABELS[opt]}</Text>
                   </Pressable>
                 ))}
               </View>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Timezone</Text>
+              <Text style={styles.label}>{t('booking:profileScreen.timezoneLabel')}</Text>
               <Text style={styles.timezoneValue}>{timezone}</Text>
-              <Text style={styles.timezoneHint}>Detected automatically from your device.</Text>
+              <Text style={styles.timezoneHint}>{t('booking:profileScreen.timezoneHint')}</Text>
             </View>
 
             <Pressable style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-              {saving ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.saveBtnText}>Save</Text>}
+              {saving ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.saveBtnText}>{t('booking:profileScreen.save')}</Text>}
             </Pressable>
 
             {isRequired && (
               <Pressable onPress={() => signOut()}>
-                <Text style={styles.signOutLink}>Sign out instead</Text>
+                <Text style={styles.signOutLink}>{t('booking:profileScreen.signOutInstead')}</Text>
               </Pressable>
             )}
 

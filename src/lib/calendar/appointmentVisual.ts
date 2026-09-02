@@ -1,5 +1,6 @@
 import { OwnerBooking } from '@/lib/api/ownerBookings';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
+import i18n from '@/lib/i18n';
 
 export type BookingSource = 'sanaa' | 'online' | 'walk_in' | 'manual' | 'block' | 'other';
 
@@ -62,9 +63,14 @@ export function paymentBadge(b: Pick<OwnerBooking, 'price_cents' | 'total_charge
 export const PAYMENT_COLOR: Record<Exclude<PaymentBadge, null>, string> = {
   paid: P.success, unpaid: P.warning, deposit: P.darkGold,
 };
-export const PAYMENT_LABEL: Record<Exclude<PaymentBadge, null>, string> = {
-  paid: 'PAID', unpaid: 'UNPAID', deposit: 'DEPOSIT',
-};
+// i18n foundation (L5B) -- same standalone-i18next pattern as
+// bookingStatus.ts's statusLabel()/actionLabel() (a plain utility function,
+// not a component/hook). Kept as a function (not a Record) so the label
+// resolves fresh against the current language on every call.
+export function paymentLabel(badge: Exclude<PaymentBadge, null>): string {
+  const K = { paid: 'calendar:timeline.paidPill', unpaid: 'calendar:timeline.unpaidPill', deposit: 'calendar:timeline.depositPill' } as const;
+  return i18n.t(K[badge]);
+}
 
 // The single top-right status pill (Part 10) — a cancelled/no-show booking
 // shows its terminal operational status there instead of a payment state

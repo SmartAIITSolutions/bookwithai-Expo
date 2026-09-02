@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { isValidEmail, isValidPhone, getPasswordError } from '@/lib/validation';
 import { API_BASE } from '@/lib/config';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
@@ -88,8 +89,31 @@ function Pill({ label, selected, onPress }: { label: string; selected: boolean; 
 }
 
 function OwnerSignupInner() {
+  const { t } = useTranslation(['onboarding', 'errors']);
   const { refreshProfile } = useAuth();
   const stripe = useStripe();
+
+  // Display-only translated labels for the canonical business_type/staff_count/
+  // how_they_heard option values (see NOTE at the Step 2 pill rows below).
+  const BUSINESS_TYPE_LABELS: Record<'Salon' | 'Spa' | 'Barbershop' | 'Other', string> = {
+    Salon: t('onboarding:owner.step2.businessTypeOptions.Salon'),
+    Spa: t('onboarding:owner.step2.businessTypeOptions.Spa'),
+    Barbershop: t('onboarding:owner.step2.businessTypeOptions.Barbershop'),
+    Other: t('onboarding:owner.step2.businessTypeOptions.Other'),
+  };
+  const TEAM_SIZE_LABELS: Record<'Just me' | '2–3' | '4–6' | '7+', string> = {
+    'Just me': t('onboarding:owner.step2.teamSizeOptions.Just me'),
+    '2–3': t('onboarding:owner.step2.teamSizeOptions.2–3'),
+    '4–6': t('onboarding:owner.step2.teamSizeOptions.4–6'),
+    '7+': t('onboarding:owner.step2.teamSizeOptions.7+'),
+  };
+  const HOW_HEARD_LABELS: Record<'Facebook' | 'Instagram' | 'Google' | 'Other' | 'referral', string> = {
+    Facebook: t('onboarding:owner.step2.howHeardOptions.Facebook'),
+    Instagram: t('onboarding:owner.step2.howHeardOptions.Instagram'),
+    Google: t('onboarding:owner.step2.howHeardOptions.Google'),
+    Other: t('onboarding:owner.step2.howHeardOptions.Other'),
+    referral: t('onboarding:owner.step2.howHeardOptions.referral'),
+  };
 
   const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
@@ -167,23 +191,23 @@ function OwnerSignupInner() {
   }
 
   function validateStep1(): string | null {
-    if (!businessName.trim()) return 'Business name is required.';
-    if (!ownerName.trim())    return 'Your name is required.';
-    if (!isValidEmail(email)) return 'A valid email is required.';
-    if (!isValidPhone(phone)) return 'A valid phone number is required.';
+    if (!businessName.trim()) return t('errors:ownerSignup.businessNameRequired');
+    if (!ownerName.trim())    return t('errors:ownerSignup.ownerNameRequired');
+    if (!isValidEmail(email)) return t('errors:ownerSignup.validEmailRequired');
+    if (!isValidPhone(phone)) return t('errors:ownerSignup.validPhoneRequired');
     const pwError = getPasswordError(password);
     if (pwError) return pwError;
-    if (!addressLine1.trim()) return 'Street address is required.';
-    if (!city.trim())         return 'City is required.';
-    if (!stateVal.trim())     return 'State is required.';
-    if (!postalCode.trim())   return 'ZIP code is required.';
-    if (geoStatus !== 'verified') return 'Please verify your address before continuing.';
+    if (!addressLine1.trim()) return t('errors:ownerSignup.streetAddressRequired');
+    if (!city.trim())         return t('errors:ownerSignup.cityRequired');
+    if (!stateVal.trim())     return t('errors:ownerSignup.stateRequired');
+    if (!postalCode.trim())   return t('errors:ownerSignup.zipRequired');
+    if (geoStatus !== 'verified') return t('errors:ownerSignup.verifyAddressBeforeContinuing');
     return null;
   }
 
   async function handleVerifyAddress() {
     if (!addressLine1.trim() || !city.trim() || !stateVal.trim() || !postalCode.trim()) {
-      setError('Fill in the address fields before verifying.');
+      setError(t('errors:ownerSignup.fillAddressBeforeVerifying'));
       return;
     }
     setError('');
@@ -195,7 +219,7 @@ function OwnerSignupInner() {
       // permission gap.
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setError('Location permission is needed to verify your address. Please allow it and try again.');
+        setError(t('errors:ownerSignup.locationPermissionNeeded'));
         setGeoStatus('failed');
         return;
       }
@@ -230,14 +254,14 @@ function OwnerSignupInner() {
         body:    JSON.stringify({ email: email.trim(), phone }),
       });
       const json = await res.json() as { duplicate?: boolean; error?: string };
-      if (!res.ok) { setError(json.error ?? 'Could not verify — try again.'); setDupChecking(false); return; }
+      if (!res.ok) { setError(json.error ?? t('errors:ownerSignup.couldNotVerifyTryAgain')); setDupChecking(false); return; }
       if (json.duplicate) {
-        setError('An account may already exist for this email or phone. Please sign in instead.');
+        setError(t('errors:ownerSignup.accountMayExist'));
         setDupChecking(false);
         return;
       }
     } catch {
-      setError('Could not verify — check your connection and try again.');
+      setError(t('errors:ownerSignup.couldNotVerifyCheckConnection'));
       setDupChecking(false);
       return;
     }
@@ -246,12 +270,12 @@ function OwnerSignupInner() {
   }
 
   function validateStep2(): string | null {
-    if (!bizType)    return 'Please select your business type.';
-    if (!staffCount) return 'Please select your team size.';
-    if (!howHeard)   return 'Please tell us how you heard about us.';
+    if (!bizType)    return t('errors:ownerSignup.selectBusinessType');
+    if (!staffCount) return t('errors:ownerSignup.selectTeamSize');
+    if (!howHeard)   return t('errors:ownerSignup.tellUsHowHeard');
     if (howHeard === HOW_HEARD_REFERRAL) {
-      if (!referralFriendName.trim())     return "Please enter your friend's name.";
-      if (!referralFriendBusiness.trim()) return "Please enter your friend's business name.";
+      if (!referralFriendName.trim())     return t('errors:ownerSignup.enterFriendName');
+      if (!referralFriendBusiness.trim()) return t('errors:ownerSignup.enterFriendBusiness');
     }
     return null;
   }
@@ -281,7 +305,7 @@ function OwnerSignupInner() {
         password,
       });
       if (authErr || !authData.user) {
-        setError(authErr?.message ?? 'Could not create account. Email may already be in use.');
+        setError(authErr?.message ?? t('errors:ownerSignup.couldNotCreateAccountEmailInUse'));
         return;
       }
 
@@ -318,7 +342,7 @@ function OwnerSignupInner() {
 
       if (clientErr || !clientData) {
         await supabase.auth.signOut();
-        setError(clientErr?.message ?? 'Account could not be saved. Please try again or contact support@bookwithai.app');
+        setError(clientErr?.message ?? t('errors:ownerSignup.accountCouldNotBeSaved'));
         return;
       }
 
@@ -347,7 +371,7 @@ function OwnerSignupInner() {
         }).catch(() => { /* welcome email is best-effort */ });
       })();
     } catch {
-      setError('Could not create account. Please check your connection and try again.');
+      setError(t('errors:ownerSignup.couldNotCreateAccountCheckConnection'));
     } finally {
       setLoading(false);
     }
@@ -359,11 +383,11 @@ function OwnerSignupInner() {
     setError('');
     try {
       const headers = await authHeaders();
-      if (!headers) { setError('Not signed in.'); setConnectLoading(false); return; }
+      if (!headers) { setError(t('errors:ownerSignup.notSignedIn')); setConnectLoading(false); return; }
       const res  = await fetch(`${API_BASE}/api/stripe/connect?client_id=${clientId}&from=mobile`, { headers });
       const json = await res.json() as { url?: string; error?: string };
       if (!res.ok || !json.url) {
-        setError(json.error ?? 'Could not start Stripe connection');
+        setError(json.error ?? t('errors:ownerSignup.couldNotStartStripeConnection'));
         setConnectLoading(false);
         return;
       }
@@ -374,7 +398,7 @@ function OwnerSignupInner() {
       });
       await checkStripeStatus(clientId);
     } catch {
-      setError('Could not reach Stripe. Please try again.');
+      setError(t('errors:ownerSignup.couldNotReachStripe'));
     } finally {
       setConnectLoading(false);
     }
@@ -389,11 +413,11 @@ function OwnerSignupInner() {
         paymentMethodType: 'Card',
       });
       if (pmErr || !paymentMethod) {
-        setError(pmErr?.message ?? 'Card validation failed');
+        setError(pmErr?.message ?? t('errors:ownerSignup.cardValidationFailed'));
         return;
       }
       const headers = await authHeaders();
-      if (!headers) { setError('Not signed in.'); return; }
+      if (!headers) { setError(t('errors:ownerSignup.notSignedIn')); return; }
       const res  = await fetch(`${API_BASE}/api/stripe/save-card`, {
         method:  'POST',
         headers,
@@ -401,12 +425,12 @@ function OwnerSignupInner() {
       });
       const json = await res.json() as { success?: boolean; error?: string };
       if (!res.ok || !json.success) {
-        setError(json.error ?? 'Could not save card');
+        setError(json.error ?? t('errors:ownerSignup.couldNotSaveCard'));
         return;
       }
       setCardSaved(true);
     } catch {
-      setError('Could not reach Stripe. Please try again.');
+      setError(t('errors:ownerSignup.couldNotReachStripe'));
     } finally {
       setCardSaving(false);
     }
@@ -433,7 +457,7 @@ function OwnerSignupInner() {
               <Pressable onPress={handleBack} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={24} color="#F4D77A" />
               </Pressable>
-              <Text style={styles.title}>Set Up Your Business</Text>
+              <Text style={styles.title}>{t('onboarding:owner.headerTitle')}</Text>
               <View style={styles.backBtn} />
             </View>
 
@@ -443,36 +467,36 @@ function OwnerSignupInner() {
             {step === 1 && (
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
-                <Text style={styles.stepLabel}>Step 1 of 4 — Your Business</Text>
+                <Text style={styles.stepLabel}>{t('onboarding:owner.step1.label')}</Text>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Business name *</Text>
-                  <TextInput style={styles.input} value={businessName} onChangeText={setBusinessName} placeholder="Glamour Studio" placeholderTextColor="rgba(255,255,255,0.4)" autoCapitalize="words" />
+                  <Text style={styles.label}>{t('onboarding:owner.step1.businessNameLabel')}</Text>
+                  <TextInput style={styles.input} value={businessName} onChangeText={setBusinessName} placeholder={t('onboarding:owner.step1.businessNamePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" autoCapitalize="words" />
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Your full name *</Text>
-                  <TextInput style={styles.input} value={ownerName} onChangeText={setOwnerName} placeholder="Sarah Johnson" placeholderTextColor="rgba(255,255,255,0.4)" autoCapitalize="words" />
+                  <Text style={styles.label}>{t('onboarding:owner.step1.ownerNameLabel')}</Text>
+                  <TextInput style={styles.input} value={ownerName} onChangeText={setOwnerName} placeholder={t('onboarding:owner.step1.ownerNamePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" autoCapitalize="words" />
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Email *</Text>
-                  <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="you@salon.com" placeholderTextColor="rgba(255,255,255,0.4)" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                  <Text style={styles.label}>{t('onboarding:owner.step1.emailLabel')}</Text>
+                  <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder={t('onboarding:owner.step1.emailPlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Phone *</Text>
-                  <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(901) 555-0100" placeholderTextColor="rgba(255,255,255,0.4)" keyboardType="phone-pad" />
+                  <Text style={styles.label}>{t('onboarding:owner.step1.phoneLabel')}</Text>
+                  <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder={t('onboarding:owner.step1.phonePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" keyboardType="phone-pad" />
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Password *</Text>
+                  <Text style={styles.label}>{t('onboarding:owner.step1.passwordLabel')}</Text>
                   <View style={styles.passwordWrap}>
                     <TextInput
                       style={[styles.input, styles.passwordInput]}
                       value={password}
                       onChangeText={setPassword}
-                      placeholder="Min. 8 characters"
+                      placeholder={t('onboarding:owner.step1.passwordPlaceholder')}
                       placeholderTextColor="rgba(255,255,255,0.4)"
                       secureTextEntry={!showPass}
                       autoCapitalize="none"
@@ -484,28 +508,28 @@ function OwnerSignupInner() {
                   </View>
                 </View>
 
-                <Text style={styles.sectionDivider}>Business Address</Text>
+                <Text style={styles.sectionDivider}>{t('onboarding:owner.step1.addressSectionTitle')}</Text>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Street address *</Text>
-                  <TextInput style={styles.input} value={addressLine1} onChangeText={setAddressLine1} placeholder="123 Main St" placeholderTextColor="rgba(255,255,255,0.4)" />
+                  <Text style={styles.label}>{t('onboarding:owner.step1.streetLabel')}</Text>
+                  <TextInput style={styles.input} value={addressLine1} onChangeText={setAddressLine1} placeholder={t('onboarding:owner.step1.streetPlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" />
                 </View>
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Suite / unit (optional)</Text>
-                  <TextInput style={styles.input} value={addressLine2} onChangeText={setAddressLine2} placeholder="Suite 200" placeholderTextColor="rgba(255,255,255,0.4)" />
+                  <Text style={styles.label}>{t('onboarding:owner.step1.suiteLabel')}</Text>
+                  <TextInput style={styles.input} value={addressLine2} onChangeText={setAddressLine2} placeholder={t('onboarding:owner.step1.suitePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" />
                 </View>
                 <View style={styles.row3}>
                   <View style={[styles.fieldGroup, { flex: 1.4 }]}>
-                    <Text style={styles.label}>City *</Text>
-                    <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="Memphis" placeholderTextColor="rgba(255,255,255,0.4)" />
+                    <Text style={styles.label}>{t('onboarding:owner.step1.cityLabel')}</Text>
+                    <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder={t('onboarding:owner.step1.cityPlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" />
                   </View>
                   <View style={[styles.fieldGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>State *</Text>
-                    <TextInput style={styles.input} value={stateVal} onChangeText={setStateVal} placeholder="TN" placeholderTextColor="rgba(255,255,255,0.4)" autoCapitalize="characters" />
+                    <Text style={styles.label}>{t('onboarding:owner.step1.stateLabel')}</Text>
+                    <TextInput style={styles.input} value={stateVal} onChangeText={setStateVal} placeholder={t('onboarding:owner.step1.statePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" autoCapitalize="characters" />
                   </View>
                   <View style={[styles.fieldGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>ZIP *</Text>
-                    <TextInput style={styles.input} value={postalCode} onChangeText={setPostalCode} placeholder="38103" placeholderTextColor="rgba(255,255,255,0.4)" keyboardType="number-pad" />
+                    <Text style={styles.label}>{t('onboarding:owner.step1.zipLabel')}</Text>
+                    <TextInput style={styles.input} value={postalCode} onChangeText={setPostalCode} placeholder={t('onboarding:owner.step1.zipPlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" keyboardType="number-pad" />
                   </View>
                 </View>
 
@@ -515,30 +539,30 @@ function OwnerSignupInner() {
                     : <Ionicons name="location-outline" size={16} color="#F4D77A" />
                   }
                   <Text style={styles.verifyBtnText}>
-                    {geoStatus === 'checking' ? 'Verifying…' : 'Verify address'}
+                    {geoStatus === 'checking' ? t('onboarding:owner.step1.verifyingButton') : t('onboarding:owner.step1.verifyAddressButton')}
                   </Text>
                 </Pressable>
 
                 {geoStatus === 'verified' && (
                   <View style={styles.geoBannerOk}>
                     <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
-                    <Text style={styles.geoBannerOkText}>Address verified</Text>
+                    <Text style={styles.geoBannerOkText}>{t('onboarding:owner.step1.addressVerified')}</Text>
                     <Pressable onPress={openInMaps} style={{ marginLeft: 'auto' }}>
-                      <Text style={styles.geoMapLink}>View on map</Text>
+                      <Text style={styles.geoMapLink}>{t('onboarding:owner.step1.viewOnMap')}</Text>
                     </Pressable>
                   </View>
                 )}
                 {geoStatus === 'failed' && (
                   <View style={styles.geoBannerWarn}>
                     <Ionicons name="warning-outline" size={16} color="#FBBF24" />
-                    <Text style={styles.geoBannerWarnText}>Couldn't verify this address — please double-check it.</Text>
+                    <Text style={styles.geoBannerWarnText}>{t('onboarding:owner.step1.addressNotVerified')}</Text>
                   </View>
                 )}
 
                 {!!error && <Text style={styles.errorText}>{error}</Text>}
 
                 <Pressable style={[styles.primaryBtn, dupChecking && { opacity: 0.7 }]} onPress={handleStep1Continue} disabled={dupChecking}>
-                  {dupChecking ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Continue →</Text>}
+                  {dupChecking ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>{t('onboarding:owner.step1.continueButton')}</Text>}
                 </Pressable>
               </BlurView>
             )}
@@ -547,37 +571,43 @@ function OwnerSignupInner() {
             {step === 2 && (
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
-                <Text style={styles.stepLabel}>Step 2 of 4 — Your Setup</Text>
+                <Text style={styles.stepLabel}>{t('onboarding:owner.step2.label')}</Text>
 
+                {/* NOTE (L3 Section F, revisited L10 Section U): bizType/staffCount/howHeard
+                    canonical values are stored directly as agency_clients.business_type /
+                    staff_count / how_they_heard DB values (see handleCreateAccount below).
+                    The stored value is always the fixed English canonical string below —
+                    only the displayed Pill label is translated via the *_LABELS maps, so
+                    Spanish selection never leaks into the DB value. */}
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Business type *</Text>
+                  <Text style={styles.label}>{t('onboarding:owner.step2.businessTypeLabel')}</Text>
                   <View style={styles.pillRow}>
-                    {['Salon', 'Spa', 'Barbershop', 'Other'].map((t) => (
-                      <Pill key={t} label={t} selected={bizType === t} onPress={() => setBizType(t)} />
+                    {(['Salon', 'Spa', 'Barbershop', 'Other'] as const).map((v) => (
+                      <Pill key={v} label={BUSINESS_TYPE_LABELS[v]} selected={bizType === v} onPress={() => setBizType(v)} />
                     ))}
                   </View>
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Team size *</Text>
+                  <Text style={styles.label}>{t('onboarding:owner.step2.teamSizeLabel')}</Text>
                   <View style={styles.pillRow}>
-                    {['Just me', '2–3', '4–6', '7+'].map((t) => (
-                      <Pill key={t} label={t} selected={staffCount === t} onPress={() => setStaffCount(t)} />
+                    {(['Just me', '2–3', '4–6', '7+'] as const).map((v) => (
+                      <Pill key={v} label={TEAM_SIZE_LABELS[v]} selected={staffCount === v} onPress={() => setStaffCount(v)} />
                     ))}
                   </View>
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>How did you hear about us? *</Text>
+                  <Text style={styles.label}>{t('onboarding:owner.step2.howHeardLabel')}</Text>
                   <View style={styles.pillRow}>
-                    {['Facebook', 'Instagram', 'Google', 'Other', HOW_HEARD_REFERRAL].map((t) => (
+                    {(['Facebook', 'Instagram', 'Google', 'Other', HOW_HEARD_REFERRAL] as const).map((v) => (
                       <Pill
-                        key={t}
-                        label={t === HOW_HEARD_REFERRAL ? 'Friend referral' : t}
-                        selected={howHeard === t}
+                        key={v}
+                        label={v === HOW_HEARD_REFERRAL ? HOW_HEARD_LABELS.referral : HOW_HEARD_LABELS[v]}
+                        selected={howHeard === v}
                         onPress={() => {
-                          setHowHeard(t);
-                          if (t !== HOW_HEARD_REFERRAL) {
+                          setHowHeard(v);
+                          if (v !== HOW_HEARD_REFERRAL) {
                             setReferralFriendName('');
                             setReferralFriendBusiness('');
                           }
@@ -590,12 +620,12 @@ function OwnerSignupInner() {
                 {howHeard === HOW_HEARD_REFERRAL && (
                   <>
                     <View style={styles.fieldGroup}>
-                      <Text style={styles.label}>Friend's name *</Text>
-                      <TextInput style={styles.input} value={referralFriendName} onChangeText={setReferralFriendName} placeholder="Full name" placeholderTextColor="rgba(255,255,255,0.4)" />
+                      <Text style={styles.label}>{t('onboarding:owner.step2.friendNameLabel')}</Text>
+                      <TextInput style={styles.input} value={referralFriendName} onChangeText={setReferralFriendName} placeholder={t('onboarding:owner.step2.friendNamePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" />
                     </View>
                     <View style={styles.fieldGroup}>
-                      <Text style={styles.label}>Friend's business name *</Text>
-                      <TextInput style={styles.input} value={referralFriendBusiness} onChangeText={setReferralFriendBusiness} placeholder="Salon or business they run" placeholderTextColor="rgba(255,255,255,0.4)" />
+                      <Text style={styles.label}>{t('onboarding:owner.step2.friendBusinessLabel')}</Text>
+                      <TextInput style={styles.input} value={referralFriendBusiness} onChangeText={setReferralFriendBusiness} placeholder={t('onboarding:owner.step2.friendBusinessPlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" />
                     </View>
                   </>
                 )}
@@ -603,7 +633,7 @@ function OwnerSignupInner() {
                 {!!error && <Text style={styles.errorText}>{error}</Text>}
 
                 <Pressable style={styles.primaryBtn} onPress={handleStep2Continue}>
-                  <Text style={styles.primaryBtnText}>Continue →</Text>
+                  <Text style={styles.primaryBtnText}>{t('onboarding:owner.step2.continueButton')}</Text>
                 </Pressable>
               </BlurView>
             )}
@@ -612,17 +642,17 @@ function OwnerSignupInner() {
             {step === 3 && (
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
-                <Text style={styles.stepLabel}>Step 3 of 4 — Your Booking Page</Text>
+                <Text style={styles.stepLabel}>{t('onboarding:owner.step3.label')}</Text>
 
                 <View style={styles.linkPreview}>
-                  <Text style={styles.linkPreviewLabel}>Your booking link</Text>
+                  <Text style={styles.linkPreviewLabel}>{t('onboarding:owner.step3.bookingLinkLabel')}</Text>
                   <Text style={styles.linkPreviewValue}>
                     bookwithai.app/<Text style={{ color: '#F4D77A', fontFamily: FontFamily.soraSemiBold }}>{slug || '...'}</Text>
                   </Text>
-                  <Text style={styles.linkPreviewHint}>Customize this after signing up from your dashboard.</Text>
+                  <Text style={styles.linkPreviewHint}>{t('onboarding:owner.step3.bookingLinkHint')}</Text>
                 </View>
 
-                <Text style={styles.label}>Business hours *</Text>
+                <Text style={styles.label}>{t('onboarding:owner.step3.businessHoursLabel')}</Text>
                 {DAYS.map((day) => (
                   <View key={day} style={styles.dayRow}>
                     <Switch
@@ -631,7 +661,7 @@ function OwnerSignupInner() {
                       trackColor={{ false: 'rgba(255,255,255,0.15)', true: 'rgba(244,215,122,0.5)' }}
                       thumbColor={hours[day].open ? '#F4D77A' : '#f4f3f4'}
                     />
-                    <Text style={styles.dayLabel}>{day}</Text>
+                    <Text style={styles.dayLabel}>{t(`onboarding:owner.step3.days.${day}`)}</Text>
                     {hours[day].open ? (
                       <View style={styles.dayTimeRow}>
                         <TextInput
@@ -641,7 +671,7 @@ function OwnerSignupInner() {
                           placeholder="09:00"
                           placeholderTextColor="rgba(255,255,255,0.35)"
                         />
-                        <Text style={styles.dayTo}>to</Text>
+                        <Text style={styles.dayTo}>{t('onboarding:owner.step3.toLabel')}</Text>
                         <TextInput
                           style={styles.timeInput}
                           value={hours[day].end}
@@ -651,7 +681,7 @@ function OwnerSignupInner() {
                         />
                       </View>
                     ) : (
-                      <Text style={styles.dayClosed}>Closed</Text>
+                      <Text style={styles.dayClosed}>{t('onboarding:owner.step3.closedLabel')}</Text>
                     )}
                   </View>
                 ))}
@@ -659,7 +689,7 @@ function OwnerSignupInner() {
                 {!!error && <Text style={styles.errorText}>{error}</Text>}
 
                 <Pressable style={[styles.primaryBtn, loading && { opacity: 0.7 }]} onPress={handleCreateAccount} disabled={loading}>
-                  {loading ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>Create Account →</Text>}
+                  {loading ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.primaryBtnText}>{t('onboarding:owner.step3.createAccountButton')}</Text>}
                 </Pressable>
               </BlurView>
             )}
@@ -668,8 +698,8 @@ function OwnerSignupInner() {
             {step === 4 && (
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
-                <Text style={styles.stepLabel}>Step 4 of 4 — One Last Thing</Text>
-                <Text style={styles.stepSub}>You can set these up anytime from your dashboard.</Text>
+                <Text style={styles.stepLabel}>{t('onboarding:owner.step4.label')}</Text>
+                <Text style={styles.stepSub}>{t('onboarding:owner.step4.subtitle')}</Text>
 
                 <View style={styles.stripeBox}>
                   <View style={styles.stripeBoxHeader}>
@@ -677,27 +707,27 @@ function OwnerSignupInner() {
                       <Ionicons name="card-outline" size={18} color="#FFFFFF" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.stripeTitle}>Stripe Connect</Text>
-                      <Text style={styles.stripeSub}>Payouts go directly to your bank</Text>
+                      <Text style={styles.stripeTitle}>{t('onboarding:owner.step4.stripeTitle')}</Text>
+                      <Text style={styles.stripeSub}>{t('onboarding:owner.step4.stripeSubtitle')}</Text>
                     </View>
                     {connectStatus === 'complete' && (
                       <View style={styles.connectedBadge}>
-                        <Text style={styles.connectedBadgeText}>✓ Connected</Text>
+                        <Text style={styles.connectedBadgeText}>{t('onboarding:owner.step4.connectedBadge')}</Text>
                       </View>
                     )}
                   </View>
                   <Text style={styles.stripeDesc}>
-                    Securely connect your bank account to start collecting payments automatically. A 1% platform fee applies per transaction.
+                    {t('onboarding:owner.step4.stripeDesc')}
                   </Text>
                   {connectStatus === 'loading' && (
-                    <Text style={styles.stripeChecking}>Checking Stripe status…</Text>
+                    <Text style={styles.stripeChecking}>{t('onboarding:owner.step4.checkingStripeStatus')}</Text>
                   )}
                   {(connectStatus === 'none' || connectStatus === 'pending') && (
                     <Pressable style={styles.stripeConnectBtn} onPress={handleConnectStripe} disabled={connectLoading}>
                       {connectLoading
                         ? <BreathingHeart size={16} color="#FFFFFF" />
                         : <Text style={styles.stripeConnectBtnText}>
-                            {connectStatus === 'pending' ? 'Continue Stripe setup →' : 'Connect with Stripe →'}
+                            {connectStatus === 'pending' ? t('onboarding:owner.step4.continueStripeSetup') : t('onboarding:owner.step4.connectWithStripe')}
                           </Text>
                       }
                     </Pressable>
@@ -706,10 +736,10 @@ function OwnerSignupInner() {
 
                 <View style={[styles.cardBox, cardSaved && styles.cardBoxSaved]}>
                   <View style={styles.stripeBoxHeader}>
-                    <Text style={styles.stripeTitle}>Add a card on file</Text>
-                    {cardSaved && <Text style={styles.connectedBadgeText}>✓ Saved</Text>}
+                    <Text style={styles.stripeTitle}>{t('onboarding:owner.step4.cardTitle')}</Text>
+                    {cardSaved && <Text style={styles.connectedBadgeText}>{t('onboarding:owner.step4.cardSavedBadge')}</Text>}
                   </View>
-                  <Text style={styles.stripeDesc}>Used for unlocking features and add-ons. Not charged today.</Text>
+                  <Text style={styles.stripeDesc}>{t('onboarding:owner.step4.cardDesc')}</Text>
 
                   {!cardSaved && (
                     <>
@@ -723,7 +753,7 @@ function OwnerSignupInner() {
                         style={[styles.saveCardBtn, (!cardComplete || cardSaving) && { opacity: 0.5 }]}
                         onPress={handleSaveCard}
                         disabled={!cardComplete || cardSaving}>
-                        {cardSaving ? <BreathingHeart size={16} color="#FFFFFF" /> : <Text style={styles.saveCardBtnText}>Save card</Text>}
+                        {cardSaving ? <BreathingHeart size={16} color="#FFFFFF" /> : <Text style={styles.saveCardBtnText}>{t('onboarding:owner.step4.saveCardButton')}</Text>}
                       </Pressable>
                     </>
                   )}
@@ -732,10 +762,10 @@ function OwnerSignupInner() {
                 {!!error && <Text style={styles.errorText}>{error}</Text>}
 
                 <Pressable style={styles.primaryBtn} onPress={handleFinish}>
-                  <Text style={styles.primaryBtnText}>Finish setup →</Text>
+                  <Text style={styles.primaryBtnText}>{t('onboarding:owner.step4.finishButton')}</Text>
                 </Pressable>
                 <Pressable style={styles.skipBtn} onPress={handleFinish}>
-                  <Text style={styles.skipBtnText}>Set up from dashboard later</Text>
+                  <Text style={styles.skipBtnText}>{t('onboarding:owner.step4.skipButton')}</Text>
                 </Pressable>
               </BlurView>
             )}

@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SanaaWordmark } from './SanaaWordmark';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
@@ -10,19 +11,20 @@ interface SanaaHeroProps {
 // primary CTA into the experience. Deliberately no price/plan/feature grid
 // here; generous whitespace, not six competing buttons.
 export function SanaaHero({ onExperiencePress }: SanaaHeroProps) {
+  const { t } = useTranslation(['sanaa']);
   return (
     <View style={styles.hero}>
       <SanaaWordmark width={180} height={63} />
-      <Text style={styles.title}>Meet SANAA</Text>
-      <Text style={styles.subtitle}>Your AI Receptionist</Text>
+      <Text style={styles.title}>{t('sanaa:hero.meetSanaa')}</Text>
+      <Text style={styles.subtitle}>{t('sanaa:hero.subtitle')}</Text>
       <Text style={styles.emotional}>
-        Take care of the client in your chair.{'\n'}SANAA takes care of the phone.
+        {t('sanaa:hero.emotional')}
       </Text>
       <Text style={styles.functional}>
-        SANAA is your AI receptionist that answers, books, reschedules, cancels and helps customers.
+        {t('sanaa:hero.functional')}
       </Text>
       <Pressable style={styles.cta} onPress={onExperiencePress}>
-        <Text style={styles.ctaText}>See Her in Action</Text>
+        <Text style={styles.ctaText}>{t('sanaa:hero.seeInAction')}</Text>
       </Pressable>
     </View>
   );

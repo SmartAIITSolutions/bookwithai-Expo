@@ -6,9 +6,11 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { listServices, createService, archiveService, getServiceStaff, setServiceStaff, updateService, Service } from '@/lib/api/ownerServices';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatCentsUSD } from '@/lib/i18n/format';
 
 function CardOverlay() {
   return (
@@ -20,6 +22,7 @@ function CardOverlay() {
 }
 
 export default function ServicesScreen() {
+  const { t } = useTranslation(['owner']);
   const [loading, setLoading] = useState(true);
   const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -63,7 +66,7 @@ export default function ServicesScreen() {
       setAssignedStaffIds(new Set(result.data.staff_ids));
       setCommissionRates(result.data.commission_rates ?? {});
     } else {
-      Alert.alert('Could not load staff assignments', result.error);
+      Alert.alert(t('owner:servicesScreen.couldNotLoadStaffTitle'), result.error);
     }
   }
 
@@ -76,7 +79,7 @@ export default function ServicesScreen() {
     const result = await setServiceStaff(serviceId, Array.from(next), commissionRates);
     setStaffSaving(false);
     if (!result.ok) {
-      Alert.alert('Could not save', result.error);
+      Alert.alert(t('owner:servicesScreen.couldNotSaveTitle'), result.error);
       setAssignedStaffIds(assignedStaffIds);
     }
   }
@@ -84,20 +87,20 @@ export default function ServicesScreen() {
   async function handleSetCommissionRate(serviceId: string, staffId: string, value: string) {
     const pct = value.trim() ? parseFloat(value) : null;
     if (value.trim() && (isNaN(pct as number) || (pct as number) < 0 || (pct as number) > 100)) {
-      Alert.alert('Invalid rate', 'Enter a percentage between 0 and 100.');
+      Alert.alert(t('owner:servicesScreen.invalidRateTitle'), t('owner:servicesScreen.invalidRateMessage'));
       return;
     }
     const next = { ...commissionRates, [staffId]: pct };
     setCommissionRates(next);
     const result = await setServiceStaff(serviceId, Array.from(assignedStaffIds), next);
-    if (!result.ok) Alert.alert('Could not save rate', result.error);
+    if (!result.ok) Alert.alert(t('owner:servicesScreen.couldNotSaveRateTitle'), result.error);
   }
 
   async function handleAdd() {
     const durationNum = parseInt(duration, 10);
     const priceNum = parseFloat(price);
     if (!name.trim() || !durationNum || isNaN(priceNum)) {
-      Alert.alert('Missing info', 'Name, duration (minutes), and price are all required.');
+      Alert.alert(t('owner:servicesScreen.missingInfoTitle'), t('owner:servicesScreen.missingInfoMessage'));
       return;
     }
     setSaving(true);
@@ -112,7 +115,7 @@ export default function ServicesScreen() {
       setName(''); setDuration(''); setPrice(''); setBookableOnline(true); setAdding(false);
       load();
     } else {
-      Alert.alert('Could not add service', result.error);
+      Alert.alert(t('owner:servicesScreen.couldNotAddServiceTitle'), result.error);
     }
   }
 
@@ -130,7 +133,7 @@ export default function ServicesScreen() {
     if (result.ok) {
       setServices(list => list.map(x => x.id === s.id ? { ...x, deposit_type: type } : x));
     } else {
-      Alert.alert('Could not save', result.error);
+      Alert.alert(t('owner:servicesScreen.couldNotSaveTitle'), result.error);
     }
   }
 
@@ -144,22 +147,22 @@ export default function ServicesScreen() {
     if (result.ok) {
       setServices(list => list.map(x => x.id === s.id ? { ...x, ...patch } : x));
     } else {
-      Alert.alert('Could not save', result.error);
+      Alert.alert(t('owner:servicesScreen.couldNotSaveTitle'), result.error);
     }
   }
 
   async function handleArchive(id: string) {
     const result = await archiveService(id);
     if (result.ok) setServices(s => s.filter(x => x.id !== id));
-    else Alert.alert('Could not remove', result.error);
+    else Alert.alert(t('owner:servicesScreen.couldNotRemoveTitle'), result.error);
   }
 
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
       <Stack.Screen options={{
-        title: 'Services',
-        headerBackTitle: 'More',
+        title: t('owner:servicesScreen.headerTitle'),
+        headerBackTitle: t('owner:servicesScreen.headerBackTitle'),
         headerStyle: { backgroundColor: '#0B0712' },
         headerTintColor: '#F4D77A',
         headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
@@ -169,7 +172,7 @@ export default function ServicesScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {services.length === 0 && !adding && (
-            <Text style={styles.emptyHint}>Your services list starts here.</Text>
+            <Text style={styles.emptyHint}>{t('owner:servicesScreen.emptyHint')}</Text>
           )}
           {services.map(s => (
             <BlurView key={s.id} intensity={90} tint="dark" style={styles.card}>
@@ -178,17 +181,17 @@ export default function ServicesScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.serviceName}>{s.name}</Text>
                   <Text style={styles.serviceMeta}>
-                    {s.duration_minutes} min · ${(s.price_cents / 100).toFixed(2)}{s.price_is_from ? ' & up' : ''}
+                    {t('owner:servicesScreen.durationAndPrice', { duration: s.duration_minutes, price: formatCentsUSD(s.price_cents) })}{s.price_is_from ? t('owner:servicesScreen.andUp') : ''}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => toggleDepositPanel(s)} hitSlop={8} style={styles.staffBtn}>
                   <Ionicons name="cash-outline" size={16} color="#F4D77A" />
-                  <Text style={styles.staffBtnText}>Deposit</Text>
+                  <Text style={styles.staffBtnText}>{t('owner:servicesScreen.deposit')}</Text>
                   <Ionicons name={depositExpandedId === s.id ? 'chevron-up' : 'chevron-down'} size={14} color="#F4D77A" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleToggleStaffPanel(s.id)} hitSlop={8} style={styles.staffBtn}>
                   <Ionicons name="people-outline" size={16} color="#F4D77A" />
-                  <Text style={styles.staffBtnText}>Staff</Text>
+                  <Text style={styles.staffBtnText}>{t('owner:servicesScreen.staff')}</Text>
                   <Ionicons name={expandedServiceId === s.id ? 'chevron-up' : 'chevron-down'} size={14} color="#F4D77A" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleArchive(s.id)} hitSlop={8}>
@@ -198,16 +201,16 @@ export default function ServicesScreen() {
 
               {depositExpandedId === s.id && (
                 <View style={styles.staffPanel}>
-                  <Text style={styles.staffPanelHint}>Leave as &quot;Use salon default&quot; unless this service needs a different deposit rule.</Text>
+                  <Text style={styles.staffPanelHint}>{t('owner:servicesScreen.depositHint')}</Text>
                   <View style={styles.depositTypeRow}>
-                    {([null, 'none', 'percent', 'fixed'] as const).map(t => (
+                    {([null, 'none', 'percent', 'fixed'] as const).map(dt => (
                       <TouchableOpacity
-                        key={t ?? 'inherit'}
-                        style={[styles.depositTypeChip, s.deposit_type === t && styles.depositTypeChipActive]}
+                        key={dt ?? 'inherit'}
+                        style={[styles.depositTypeChip, s.deposit_type === dt && styles.depositTypeChipActive]}
                         disabled={depositSaving}
-                        onPress={() => handleSetDepositType(s, t)}>
-                        <Text style={[styles.depositTypeChipText, s.deposit_type === t && styles.depositTypeChipTextActive]}>
-                          {t === null ? 'Salon default' : t === 'none' ? 'Full payment' : t === 'percent' ? 'Percentage' : 'Fixed amount'}
+                        onPress={() => handleSetDepositType(s, dt)}>
+                        <Text style={[styles.depositTypeChipText, s.deposit_type === dt && styles.depositTypeChipTextActive]}>
+                          {dt === null ? t('owner:servicesScreen.depositSalonDefault') : dt === 'none' ? t('owner:servicesScreen.depositFullPayment') : dt === 'percent' ? t('owner:servicesScreen.depositPercentage') : t('owner:servicesScreen.depositFixedAmount')}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -216,7 +219,7 @@ export default function ServicesScreen() {
                     <View style={styles.depositInputRow}>
                       <TextInput
                         style={[styles.input, { flex: 1 }]}
-                        placeholder="Deposit %"
+                        placeholder={t('owner:servicesScreen.depositPercentPlaceholder')}
                         placeholderTextColor="rgba(255,255,255,0.4)"
                         value={depositPercentInput}
                         onChangeText={setDepositPercentInput}
@@ -231,7 +234,7 @@ export default function ServicesScreen() {
                       <Text style={styles.depositInputSuffix}>$</Text>
                       <TextInput
                         style={[styles.input, { flex: 1 }]}
-                        placeholder="0.00"
+                        placeholder={t('owner:servicesScreen.depositAmountPlaceholder')}
                         placeholderTextColor="rgba(255,255,255,0.4)"
                         value={depositAmountInput}
                         onChangeText={setDepositAmountInput}
@@ -248,13 +251,13 @@ export default function ServicesScreen() {
                   {staffLoading ? (
                     <BreathingHeart size={18} color="#F4D77A" />
                   ) : staff.length === 0 ? (
-                    <Text style={styles.staffPanelHint}>Add staff members first to assign them here.</Text>
+                    <Text style={styles.staffPanelHint}>{t('owner:servicesScreen.addStaffFirstHint')}</Text>
                   ) : (
                     <>
                       <Text style={styles.staffPanelHint}>
                         {assignedStaffIds.size === 0
-                          ? 'Any staff member can perform this service.'
-                          : 'Only the selected staff can perform this service.'}
+                          ? t('owner:servicesScreen.anyStaffCanPerform')
+                          : t('owner:servicesScreen.onlySelectedStaffCanPerform')}
                       </Text>
                       {staff.map(member => {
                         const isAssigned = assignedStaffIds.has(member.id);
@@ -274,7 +277,7 @@ export default function ServicesScreen() {
                             {isAssigned && (
                               <TextInput
                                 style={styles.staffRateInput}
-                                placeholder="Default"
+                                placeholder={t('owner:servicesScreen.commissionRatePlaceholder')}
                                 placeholderTextColor="rgba(255,255,255,0.4)"
                                 defaultValue={commissionRates[member.id] != null ? String(commissionRates[member.id]) : ''}
                                 onEndEditing={(e) => handleSetCommissionRate(s.id, member.id, e.nativeEvent.text)}
@@ -294,26 +297,26 @@ export default function ServicesScreen() {
           {adding ? (
             <BlurView intensity={90} tint="dark" style={styles.addCard}>
               <CardOverlay />
-              <TextInput style={styles.input} placeholder="Service name" placeholderTextColor="rgba(255,255,255,0.4)" value={name} onChangeText={setName} />
-              <TextInput style={styles.input} placeholder="Duration (minutes)" placeholderTextColor="rgba(255,255,255,0.4)" value={duration} onChangeText={setDuration} keyboardType="number-pad" />
-              <TextInput style={styles.input} placeholder="Price ($)" placeholderTextColor="rgba(255,255,255,0.4)" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:servicesScreen.namePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder={t('owner:servicesScreen.durationPlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" value={duration} onChangeText={setDuration} keyboardType="number-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:servicesScreen.pricePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
               <View style={styles.switchRow}>
-                <Text style={styles.fieldLabel}>Bookable online</Text>
+                <Text style={styles.fieldLabel}>{t('owner:servicesScreen.bookableOnline')}</Text>
                 <Switch value={bookableOnline} onValueChange={setBookableOnline} trackColor={{ true: '#F4D77A' }} />
               </View>
               <View style={styles.inlineFormActions}>
                 <TouchableOpacity onPress={() => setAdding(false)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={styles.cancelText}>{t('owner:servicesScreen.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color="#F4D77A" /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color="#F4D77A" /> : <Text style={styles.addRowText}>{t('owner:servicesScreen.save')}</Text>}
                 </TouchableOpacity>
               </View>
             </BlurView>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
               <Ionicons name="add" size={18} color="#F4D77A" />
-              <Text style={styles.addRowText}>Add service</Text>
+              <Text style={styles.addRowText}>{t('owner:servicesScreen.addService')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>

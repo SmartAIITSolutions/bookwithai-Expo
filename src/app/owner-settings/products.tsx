@@ -5,15 +5,18 @@ import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { listProducts, createProduct, archiveProduct, Product } from '@/lib/api/ownerProducts';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
+import { formatCentsUSD } from '@/lib/i18n/format';
 
 // Minimal product catalog — just enough for Checkout's product line items
 // (Sprint 4). Full Inventory (stock counts, receiving, alerts) is a
 // separate, still-unbuilt feature.
 export default function ProductsScreen() {
+  const { t } = useTranslation(['owner']);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [adding, setAdding] = useState(false);
@@ -31,34 +34,34 @@ export default function ProductsScreen() {
 
   async function handleAdd() {
     const priceNum = parseFloat(price);
-    if (!name.trim() || isNaN(priceNum)) { Alert.alert('Missing info', 'Name and price are required.'); return; }
+    if (!name.trim() || isNaN(priceNum)) { Alert.alert(t('owner:productsScreen.missingInfoTitle'), t('owner:productsScreen.missingInfoMessage')); return; }
     setSaving(true);
     const result = await createProduct(name.trim(), Math.round(priceNum * 100));
     setSaving(false);
     if (result.ok) { setName(''); setPrice(''); setAdding(false); load(); }
-    else Alert.alert('Could not add product', result.error);
+    else Alert.alert(t('owner:productsScreen.couldNotAddTitle'), result.error);
   }
 
   async function handleArchive(id: string) {
     const result = await archiveProduct(id);
     if (result.ok) setProducts(p => p.filter(x => x.id !== id));
-    else Alert.alert('Could not remove', result.error);
+    else Alert.alert(t('owner:productsScreen.couldNotRemoveTitle'), result.error);
   }
 
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Products', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:productsScreen.headerTitle'), headerBackTitle: t('owner:productsScreen.headerBackTitle') }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
-          {products.length === 0 && !adding && <Text style={styles.emptyHint}>Your retail products start here.</Text>}
+          {products.length === 0 && !adding && <Text style={styles.emptyHint}>{t('owner:productsScreen.emptyHint')}</Text>}
           {products.map(p => (
             <View key={p.id} style={styles.card}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{p.name}</Text>
-                <Text style={styles.meta}>${(p.price_cents / 100).toFixed(2)}</Text>
+                <Text style={styles.meta}>{formatCentsUSD(p.price_cents)}</Text>
               </View>
               <TouchableOpacity onPress={() => handleArchive(p.id)} hitSlop={8}>
                 <Ionicons name="trash-outline" size={18} color={Colors.error} />
@@ -67,19 +70,19 @@ export default function ProductsScreen() {
           ))}
           {adding ? (
             <View style={styles.addCard}>
-              <TextInput style={styles.input} placeholder="Product name" placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
-              <TextInput style={styles.input} placeholder="Price ($)" placeholderTextColor={Colors.textDisabled} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:productsScreen.namePlaceholder')} placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder={t('owner:productsScreen.pricePlaceholder')} placeholderTextColor={Colors.textDisabled} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
               <View style={styles.inlineActions}>
-                <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>{t('owner:productsScreen.cancel')}</Text></TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>{t('owner:productsScreen.save')}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
               <Ionicons name="add" size={18} color={Colors.primary} />
-              <Text style={styles.addRowText}>Add product</Text>
+              <Text style={styles.addRowText}>{t('owner:productsScreen.addProduct')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>

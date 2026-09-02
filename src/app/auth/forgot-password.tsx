@@ -20,6 +20,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { supabase } from '@/lib/supabase';
 import { isValidEmail } from '@/lib/validation';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -32,6 +33,7 @@ function CardOverlay() {
 }
 
 export default function ForgotPasswordScreen() {
+  const { t } = useTranslation(['auth', 'errors']);
   const [email,   setEmail]   = useState('');
   const [loading, setLoading] = useState(false);
   const [sent,    setSent]    = useState(false);
@@ -50,7 +52,7 @@ export default function ForgotPasswordScreen() {
 
   async function handleReset() {
     if (!email.trim()) {
-      Alert.alert('Enter your email', 'Please type your email address.');
+      Alert.alert(t('errors:auth.enterEmailTitle'), t('errors:auth.enterEmailToReset'));
       return;
     }
     if (!isValidEmail(email)) {
@@ -63,7 +65,7 @@ export default function ForgotPasswordScreen() {
       if (error) throw error;
       setSent(true);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not send reset email. Please try again.');
+      Alert.alert(t('errors:errorTitle'), e.message || t('errors:auth.couldNotSendResetEmail'));
     } finally {
       setLoading(false);
     }
@@ -80,7 +82,7 @@ export default function ForgotPasswordScreen() {
               <Pressable onPress={() => router.back()} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={24} color="#F4D77A" />
               </Pressable>
-              <Text style={styles.title}>Reset Password</Text>
+              <Text style={styles.title}>{t('auth:forgotPassword.title')}</Text>
               <View style={styles.backBtn} />
             </View>
 
@@ -89,31 +91,31 @@ export default function ForgotPasswordScreen() {
                 <View style={styles.sentIcon}>
                   <Ionicons name="checkmark-circle-outline" size={40} color="#F4D77A" />
                 </View>
-                <Text style={styles.sentTitle}>Email sent!</Text>
+                <Text style={styles.sentTitle}>{t('auth:forgotPassword.sentTitle')}</Text>
                 <Text style={styles.sentSubtitle}>
-                  Check your inbox for a password reset link.
+                  {t('auth:forgotPassword.sentSubtitle')}
                 </Text>
                 <Pressable
                   style={({ pressed }) => [styles.backToSignIn, pressed && { opacity: 0.85 }]}
                   onPress={() => router.replace('/auth/sign-in')}>
-                  <Text style={styles.backToSignInText}>Back to Sign In</Text>
+                  <Text style={styles.backToSignInText}>{t('auth:forgotPassword.backToSignIn')}</Text>
                 </Pressable>
               </View>
             ) : (
               <>
                 <Text style={styles.subtitle}>
-                  Enter your email address and we'll send you a link to reset your password.
+                  {t('auth:forgotPassword.subtitle')}
                 </Text>
 
                 <BlurView intensity={90} tint="dark" style={styles.card}>
                   <CardOverlay />
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.label}>Email</Text>
+                    <Text style={styles.label}>{t('auth:forgotPassword.emailLabel')}</Text>
                     <TextInput
                       style={styles.input}
                       value={email}
                       onChangeText={setEmail}
-                      placeholder="jane@example.com"
+                      placeholder={t('auth:forgotPassword.emailPlaceholder')}
                       placeholderTextColor="rgba(255,255,255,0.4)"
                       keyboardType="email-address"
                       autoCapitalize="none"
@@ -121,7 +123,7 @@ export default function ForgotPasswordScreen() {
                       autoFocus
                     />
                     {email.length > 0 && !isValidEmail(email) && (
-                      <Text style={styles.errorText}>Please enter a valid email address.</Text>
+                      <Text style={styles.errorText}>{t('errors:auth.invalidEmail')}</Text>
                     )}
                   </View>
                 </BlurView>
@@ -133,7 +135,7 @@ export default function ForgotPasswordScreen() {
                     disabled={loading}>
                     {loading
                       ? <BreathingHeart size={18} color="#09000F" />
-                      : <Text style={styles.sendBtnText}>Send Reset Link</Text>
+                      : <Text style={styles.sendBtnText}>{t('auth:forgotPassword.sendButton')}</Text>
                     }
                   </Pressable>
                 </Reanimated.View>

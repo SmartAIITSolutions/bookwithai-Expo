@@ -17,6 +17,10 @@ import Reanimated, {
 import { useAuth } from '@/lib/auth/AuthContext';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { fetchCustomerProfile } from '@/lib/api/customerProfile';
+import { formatDuration as formatDurationShared } from '@/lib/api/salon';
+import { formatCentsUSD, formatFullDateTime } from '@/lib/i18n/format';
+import i18n from '@/lib/i18n';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { API_BASE } from '@/lib/config';
 
@@ -30,32 +34,18 @@ function CardOverlay() {
 }
 
 function formatPrice(cents: number) {
-  if (!cents) return 'Free';
-  return `$${(cents / 100).toFixed(2)}`;
+  if (!cents) return i18n.t('booking:price.free');
+  return formatCentsUSD(cents);
 }
 
-function formatDuration(minutes: number) {
-  if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}
+const formatDuration = formatDurationShared;
 
 function formatDateTime(isoStr: string) {
-  const d = new Date(isoStr);
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} at ${h}:${m} ${ampm}`;
+  return formatFullDateTime(new Date(isoStr));
 }
 
 export default function ReviewScreen() {
+  const { t } = useTranslation(['booking', 'errors']);
   const { user } = useAuth();
   const {
     salonId, salonSlug, salonName, requireOnlinePayment,
@@ -166,7 +156,7 @@ export default function ReviewScreen() {
       });
 
       const booking = await res.json();
-      if (!res.ok) throw new Error(booking.error || 'Booking creation failed');
+      if (!res.ok) throw new Error(booking.error || t('errors:generic'));
 
       notificationSuccess();
       router.replace({
@@ -183,7 +173,7 @@ export default function ReviewScreen() {
       });
     } catch (e: any) {
       notificationError();
-      Alert.alert('Booking failed', e.message || 'Something went wrong. Please try again.');
+      Alert.alert(t('booking:reviewScreen.bookingFailedTitle'), e.message || t('errors:generic'));
     } finally {
       setBookingLoading(false);
     }
@@ -200,7 +190,7 @@ export default function ReviewScreen() {
           <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Review Booking</Text>
+          <Text style={styles.headerTitle}>{t('booking:reviewScreen.title')}</Text>
           {salonName ? <Text style={styles.headerSub} numberOfLines={1}>{salonName}</Text> : null}
         </View>
         <Pressable
@@ -215,7 +205,7 @@ export default function ReviewScreen() {
           } as never)}
           style={styles.editBtn}
           hitSlop={8}>
-          <Text style={styles.editBtnText}>Edit</Text>
+          <Text style={styles.editBtnText}>{t('booking:reviewScreen.edit')}</Text>
         </Pressable>
       </View>
 
@@ -228,7 +218,7 @@ export default function ReviewScreen() {
 
           {/* Date & Time */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Appointment</Text>
+            <Text style={styles.sectionLabel}>{t('booking:reviewScreen.appointmentLabel')}</Text>
             <View style={styles.detailCard}>
               <CardOverlay />
               <View style={styles.detailRow}>
@@ -241,14 +231,14 @@ export default function ReviewScreen() {
               </View>
               <View style={[styles.detailRow, { marginTop: Spacing.sm }]}>
                 <Ionicons name="person-outline" size={18} color="#F4D77A" />
-                <Text style={styles.detailText}>{staffName || 'Any Available'}</Text>
+                <Text style={styles.detailText}>{staffName || t('booking:staffScreen.anyAvailable')}</Text>
               </View>
             </View>
           </View>
 
           {/* Services */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Services</Text>
+            <Text style={styles.sectionLabel}>{t('booking:reviewScreen.servicesLabel')}</Text>
             <View style={styles.detailCard}>
               <CardOverlay />
               {services.map((s, i) => (
@@ -260,7 +250,7 @@ export default function ReviewScreen() {
               <View style={styles.divider} />
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>
-                  Total <Text style={styles.priceNote}>(does not incl. taxes and fees)</Text>
+                  {t('booking:reviewScreen.totalLabel')} <Text style={styles.priceNote}>{t('booking:reviewScreen.totalTaxNote')}</Text>
                 </Text>
                 <Text style={styles.priceValue}>{formatPrice(cents)}</Text>
               </View>
@@ -269,10 +259,10 @@ export default function ReviewScreen() {
 
           {/* Special Notes */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Special Notes (optional)</Text>
+            <Text style={styles.sectionLabel}>{t('booking:reviewScreen.notesLabel')}</Text>
             <TextInput
               style={styles.notesInput}
-              placeholder="Any allergies, preferences, or special requests..."
+              placeholder={t('booking:reviewScreen.notesPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.4)"
               multiline
               numberOfLines={4}
@@ -289,7 +279,7 @@ export default function ReviewScreen() {
                 {consented && <Ionicons name="checkmark" size={14} color="#09000F" />}
               </View>
               <Text style={styles.consentText}>
-                I agree to the salon's cancellation and booking policies
+                {t('booking:reviewScreen.consentText')}
               </Text>
             </Pressable>
           </Reanimated.View>
@@ -311,8 +301,8 @@ export default function ReviewScreen() {
               <>
                 <Text style={[styles.proceedBtnText, !consented && styles.proceedBtnTextDisabled]}>
                   {skipOnlinePayment
-                    ? (cents > 0 ? `Confirm Booking · Pay ${formatPrice(cents)} at Salon` : 'Confirm Booking')
-                    : `Proceed to Payment · ${formatPrice(cents)}`}
+                    ? (cents > 0 ? t('booking:reviewScreen.confirmBookingPayAtSalon', { amount: formatPrice(cents) }) : t('booking:reviewScreen.confirmBooking'))
+                    : t('booking:reviewScreen.proceedToPayment', { amount: formatPrice(cents) })}
                 </Text>
                 <Ionicons
                   name="chevron-forward"

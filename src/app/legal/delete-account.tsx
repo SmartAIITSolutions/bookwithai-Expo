@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { deleteAccount } from '@/lib/api/customer';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -22,6 +23,7 @@ import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 // much stronger warning: this locks them out of that whole business
 // permanently, not just their own personal profile.
 export default function DeleteAccountScreen() {
+  const { t } = useTranslation(['legal']);
   const { signOut, role } = useAuth();
   const isOwner = role === 'owner';
   const [confirmText, setConfirmText] = useState('');
@@ -30,21 +32,21 @@ export default function DeleteAccountScreen() {
 
   function handleDelete() {
     Alert.alert(
-      isOwner ? 'Delete your owner account?' : 'Delete your account?',
+      isOwner ? t('legal:deleteAccount.deleteOwnerTitle') : t('legal:deleteAccount.deleteCustomerTitle'),
       isOwner
-        ? "This permanently removes your login. Your salon's staff, services, bookings, and customer history are NOT deleted, but you will lose all access to manage them. This cannot be undone."
-        : 'This permanently removes your account and personal information. This cannot be undone.',
+        ? t('legal:deleteAccount.deleteOwnerMessage')
+        : t('legal:deleteAccount.deleteCustomerMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('legal:deleteAccount.cancel'), style: 'cancel' },
         {
-          text: 'Delete Account',
+          text: t('legal:deleteAccount.deleteAccountButton'),
           style: 'destructive',
           onPress: async () => {
             setDeleting(true);
             const result = await deleteAccount();
             setDeleting(false);
             if (!result.ok) {
-              Alert.alert('Could not delete account', result.error);
+              Alert.alert(t('legal:deleteAccount.couldNotDeleteTitle'), result.error);
               return;
             }
             await signOut('local');
@@ -62,8 +64,8 @@ export default function DeleteAccountScreen() {
       <SafeAreaView style={styles.container}>
         <Stack.Screen
           options={{
-            title: 'Delete My Account',
-            headerBackTitle: 'Account',
+            title: t('legal:deleteAccount.headerTitle'),
+            headerBackTitle: t('legal:deleteAccount.headerBackTitle'),
             headerStyle: { backgroundColor: '#09000F' },
             headerTintColor: '#F4D77A',
             headerTitleStyle: { color: '#FFFFFF' },
@@ -77,10 +79,9 @@ export default function DeleteAccountScreen() {
                 colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.sectionTitle}>What gets deleted</Text>
+              <Text style={styles.sectionTitle}>{t('legal:deleteAccount.whatGetsDeleted')}</Text>
               <Text style={styles.sectionDesc}>
-                Your login, name, email, phone number, and saved profile details are permanently
-                removed from Book With AI.
+                {t('legal:deleteAccount.whatGetsDeletedBody')}
               </Text>
             </BlurView>
 
@@ -90,14 +91,9 @@ export default function DeleteAccountScreen() {
                   colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={[styles.sectionTitle, styles.sectionTitleWarning]}>What this does NOT delete</Text>
+                <Text style={[styles.sectionTitle, styles.sectionTitleWarning]}>{t('legal:deleteAccount.whatDoesNotDelete')}</Text>
                 <Text style={styles.sectionDesc}>
-                  Your salon — its staff, services, bookings, and customer history — is not deleted
-                  when you delete your login. That data stays intact for accounting, tax, and
-                  fraud-prevention purposes, but once your login is gone, neither you nor anyone
-                  else will be able to sign in and manage it. If you want to hand your salon off to
-                  someone else, or shut it down properly first, contact support before deleting your
-                  account.
+                  {t('legal:deleteAccount.whatDoesNotDeleteBody')}
                 </Text>
               </BlurView>
             ) : (
@@ -106,12 +102,9 @@ export default function DeleteAccountScreen() {
                   colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
                   style={StyleSheet.absoluteFill}
                 />
-                <Text style={styles.sectionTitle}>What salons keep, and why</Text>
+                <Text style={styles.sectionTitle}>{t('legal:deleteAccount.whatSalonsKeep')}</Text>
                 <Text style={styles.sectionDesc}>
-                  Salons you've booked with may be legally required to retain basic transaction
-                  records (like appointment and payment history) for accounting, tax, and
-                  fraud-prevention purposes. This is retained by the salon independently of your
-                  Book With AI account and is not accessible to you or us once your account is deleted.
+                  {t('legal:deleteAccount.whatSalonsKeepBody')}
                 </Text>
               </BlurView>
             )}
@@ -121,13 +114,13 @@ export default function DeleteAccountScreen() {
                 colors={['rgba(255,255,255,0.035)', 'rgba(123,63,228,0.05)']}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.sectionTitle}>Confirm deletion</Text>
+              <Text style={styles.sectionTitle}>{t('legal:deleteAccount.confirmDeletion')}</Text>
               <Text style={styles.sectionDesc}>
-                Type DELETE below to confirm. This action is permanent and cannot be undone.
+                {t('legal:deleteAccount.confirmDeletionBody')}
               </Text>
               <TextInput
                 style={styles.input}
-                placeholder="Type DELETE to confirm"
+                placeholder={t('legal:deleteAccount.typeDeleteToConfirm')}
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={confirmText}
                 onChangeText={setConfirmText}
@@ -143,7 +136,7 @@ export default function DeleteAccountScreen() {
                   <BreathingHeart size={18} color="#F09595" />
                 ) : (
                   <Text style={[styles.dangerBtnFullText, !canDelete && styles.dangerBtnTextDisabled]}>
-                    Delete My Account
+                    {t('legal:deleteAccount.deleteMyAccount')}
                   </Text>
                 )}
               </Pressable>

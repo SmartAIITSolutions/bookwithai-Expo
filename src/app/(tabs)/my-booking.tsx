@@ -30,6 +30,9 @@ import Reanimated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
+import { formatCentsUSD, formatWeekdayMonthDay, formatTimeShort } from '@/lib/i18n/format';
 
 const AnimatedLinearGradient = Reanimated.createAnimatedComponent(LinearGradient);
 
@@ -142,14 +145,7 @@ function serviceDisplayName(item: Pick<Booking, 'service_names' | 'services'>): 
 
 function formatDateTime(isoStr: string) {
   const d = new Date(isoStr);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()} · ${h}:${m} ${ampm}`;
+  return `${formatWeekdayMonthDay(d)} · ${formatTimeShort(d)}`;
 }
 
 function statusColor(status: string) {
@@ -158,6 +154,23 @@ function statusColor(status: string) {
     case 'pending':   return Colors.warning;
     case 'cancelled': return Colors.error;
     default:          return 'rgba(255,255,255,0.6)';
+  }
+}
+
+// Reuses the common:status.* labels already established for the owner-side
+// StatusKey vocabulary (see bookingStatus.ts) -- this screen's raw
+// `status` values ('confirmed'/'pending'/'cancelled'/'completed'/'no_show')
+// are a subset of that same set. Unrecognized/future statuses fall back to
+// a simple capitalized display of the raw value rather than crashing or
+// showing a blank badge.
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'confirmed': return i18n.t('common:status.confirmed');
+    case 'pending':   return i18n.t('common:status.pending');
+    case 'cancelled': return i18n.t('common:status.cancelled');
+    case 'completed': return i18n.t('common:status.completed');
+    case 'no_show':   return i18n.t('common:status.noShow');
+    default:          return status.charAt(0).toUpperCase() + status.slice(1);
   }
 }
 
@@ -182,6 +195,7 @@ function sortBookings(items: Booking[]): Booking[] {
 }
 
 export default function MyBookingScreen() {
+  const { t } = useTranslation(['booking', 'common', 'errors']);
   const { user, loading: authLoading } = useAuth();
   const { highlightBookingId, openRatingBookingId } = useLocalSearchParams<{ highlightBookingId?: string; openRatingBookingId?: string }>();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -322,29 +336,29 @@ export default function MyBookingScreen() {
   function depositAdvisoryText(item: Booking): string | null {
     const depositCents = item.deposit_charged_cents ?? 0;
     if (depositCents <= 0) return null;
-    const dollars = (depositCents / 100).toFixed(2);
+    const amount = formatCentsUSD(depositCents);
     if (!item.agency_clients?.deposit_refund_policy_enabled) {
-      return `This booking has a $${dollars} deposit. Refunds are handled directly by the salon.`;
+      return t('booking:myBookingScreen.depositFlatNote', { amount });
     }
     const cutoffHours = item.agency_clients.deposit_refund_cutoff_hours ?? 24;
     const hoursUntilStart = (new Date(item.starts_at).getTime() - Date.now()) / 3_600_000;
     return hoursUntilStart >= cutoffHours
-      ? `Your $${dollars} deposit will be refunded.`
-      : `Your $${dollars} deposit will NOT be refunded — cancellations within ${cutoffHours} hours of the appointment forfeit the deposit.`;
+      ? t('booking:myBookingScreen.depositRefunded', { amount })
+      : t('booking:myBookingScreen.depositNotRefunded', { amount, hours: cutoffHours });
   }
 
   function handleCancel(item: Booking) {
     const policy = item.agency_clients?.rescheduling_policy || item.agency_clients?.cancellation_policy;
     const depositNote = depositAdvisoryText(item);
     Alert.alert(
-      'Cancel appointment?',
+      t('booking:myBookingScreen.cancelAppointmentTitle'),
       (policy ? `${policy}\n\n` : '') +
         (depositNote ? `${depositNote}\n\n` : '') +
-        "This can't be undone.",
+        t('booking:myBookingScreen.cancelCannotBeUndone'),
       [
-        { text: 'Keep It', style: 'cancel' },
+        { text: t('booking:myBookingScreen.keepIt'), style: 'cancel' },
         {
-          text: 'Yes, Cancel',
+          text: t('booking:myBookingScreen.yesCancel'),
           style: 'destructive',
           onPress: async () => {
             setActioningId(item.id);
@@ -352,14 +366,14 @@ export default function MyBookingScreen() {
             setActioningId(null);
             if (!result.ok) {
               notificationError();
-              Alert.alert('Could not cancel', result.error || 'Something went wrong. Please try again.');
+              Alert.alert(t('booking:myBookingScreen.couldNotCancelTitle'), result.error || t('errors:generic'));
               return;
             }
             notificationSuccess();
             if (result.deposit_refund_outcome === 'refunded') {
-              Alert.alert('Cancelled', 'Your deposit has been refunded.');
+              Alert.alert(t('booking:myBookingScreen.cancelledTitle'), t('booking:myBookingScreen.depositRefundedMessage'));
             } else if (result.deposit_refund_outcome === 'forfeited') {
-              Alert.alert('Cancelled', 'Your deposit was not refunded, per the salon\'s cancellation policy.');
+              Alert.alert(t('booking:myBookingScreen.cancelledTitle'), t('booking:myBookingScreen.depositForfeitedMessage'));
             }
             fetchBookings();
           },
@@ -400,7 +414,7 @@ export default function MyBookingScreen() {
     setSubmittingRating(false);
     if (!result.ok) {
       notificationError();
-      Alert.alert('Could not submit rating', result.error || 'Please try again.');
+      Alert.alert(t('booking:myBookingScreen.couldNotSubmitRatingTitle'), result.error || t('errors:tryAgain'));
       return;
     }
     notificationSuccess();
@@ -436,18 +450,18 @@ export default function MyBookingScreen() {
 
   function handleContactSalon(item: Booking) {
     const phone = item.agency_clients?.owner_phone;
-    const salonName = item.agency_clients?.business_name ?? 'the salon';
+    const salonName = item.agency_clients?.business_name ?? t('booking:myBookingScreen.salonFallbackLower');
     if (!phone) {
-      Alert.alert('Contact info unavailable', `Please reach out to ${salonName} directly.`);
+      Alert.alert(t('booking:myBookingScreen.contactInfoUnavailableTitle'), t('booking:myBookingScreen.reachOutDirectly', { salonName }));
       return;
     }
     Alert.alert(
-      `Contact ${salonName}`,
-      "This appointment is too close to reschedule or cancel online — please contact the salon directly.",
+      t('booking:myBookingScreen.contactSalonTitle', { salonName }),
+      t('booking:myBookingScreen.tooCloseToReschedule'),
       [
-        { text: 'Call', onPress: () => Linking.openURL(`tel:${phone}`) },
-        { text: 'Text', onPress: () => Linking.openURL(`sms:${phone}`) },
-        { text: 'Close', style: 'cancel' },
+        { text: t('booking:myBookingScreen.call'), onPress: () => Linking.openURL(`tel:${phone}`) },
+        { text: t('booking:myBookingScreen.text'), onPress: () => Linking.openURL(`sms:${phone}`) },
+        { text: t('booking:myBookingScreen.close'), style: 'cancel' },
       ]
     );
   }
@@ -484,13 +498,13 @@ export default function MyBookingScreen() {
                 </View>
               </View>
 
-              <Text style={styles.emptyTitle}>Your bookings live here</Text>
+              <Text style={styles.emptyTitle}>{t('booking:myBookingScreen.signedOutTitle')}</Text>
               <View style={styles.emptyDivider} />
               <Text style={styles.emptySubtitle}>
-                Sign in to see your upcoming and past appointments.
+                {t('booking:myBookingScreen.signedOutSubtitle')}
               </Text>
 
-              <RotatingGoldButton label="Sign In" onPress={() => router.push('/auth')} />
+              <RotatingGoldButton label={t('booking:myBookingScreen.signIn')} onPress={() => router.push('/auth')} />
             </View>
           </SafeAreaView>
       </View>
@@ -503,7 +517,7 @@ export default function MyBookingScreen() {
 
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>My Bookings</Text>
+          <Text style={styles.title}>{t('booking:myBookingScreen.title')}</Text>
           <View style={[styles.sparkle, { top: 2, left: 128, width: 3, height: 3 }]} />
           <View style={[styles.sparkle, { top: 18, left: 148, width: 2, height: 2 }]} />
           <View style={[styles.sparkle, { top: 30, left: 110, width: 2, height: 2 }]} />
@@ -515,7 +529,7 @@ export default function MyBookingScreen() {
           <BreathingHeart size={40} color="#F4D77A" />
         </View>
       ) : loadError && bookings.length === 0 ? (
-        <ErrorState message="Unable to load your bookings. Please check your connection and try again." onRetry={fetchBookings} />
+        <ErrorState message={t('booking:myBookingScreen.loadErrorMessage')} onRetry={fetchBookings} />
       ) : bookings.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIconWrap}>
@@ -542,11 +556,11 @@ export default function MyBookingScreen() {
             </View>
           </View>
 
-          <Text style={styles.emptyTitle}>No bookings yet</Text>
+          <Text style={styles.emptyTitle}>{t('booking:myBookingScreen.emptyTitle')}</Text>
           <View style={styles.emptyDivider} />
-          <Text style={styles.emptySubtitle}>Book your first appointment to get started.</Text>
+          <Text style={styles.emptySubtitle}>{t('booking:myBookingScreen.emptySubtitle')}</Text>
           <RotatingGoldButton
-            label="Book Your First Appointment"
+            label={t('booking:myBookingScreen.bookFirstAppointment')}
             onPress={() => router.push('/(tabs)/book')}
             breathe={notifPermissionGranted}
           />
@@ -567,9 +581,9 @@ export default function MyBookingScreen() {
                   </View>
 
                   <View style={styles.journeyTextWrap}>
-                    <Text style={styles.journeyTitle}>Turn on reminders & updates</Text>
+                    <Text style={styles.journeyTitle}>{t('booking:myBookingScreen.enableRemindersTitle')}</Text>
                     <Text style={styles.journeyDescription}>
-                      Tap to get notified about your upcoming appointments.
+                      {t('booking:myBookingScreen.enableRemindersDesc')}
                     </Text>
                   </View>
 
@@ -603,11 +617,11 @@ export default function MyBookingScreen() {
                 <CardOverlay />
                 <View style={styles.cardTop}>
                   <Text style={styles.salonName}>
-                    {item.agency_clients?.business_name ?? 'Salon'}
+                    {item.agency_clients?.business_name ?? t('booking:myBookingScreen.salonFallback')}
                   </Text>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '20' }]}>
                     <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
-                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                      {statusLabel(item.status)}
                     </Text>
                   </View>
                 </View>
@@ -633,7 +647,7 @@ export default function MyBookingScreen() {
 
                 {item.price_cents && item.price_cents > 0 && (
                   <Text style={styles.price}>
-                    ${(item.price_cents / 100).toFixed(2)}
+                    {formatCentsUSD(item.price_cents)}
                   </Text>
                 )}
 
@@ -642,13 +656,13 @@ export default function MyBookingScreen() {
                     <View style={styles.paymentDuePill}>
                       <Ionicons name="card-outline" size={12} color="#09000F" />
                       <Text style={styles.paymentDuePillText}>
-                        Payment Due — ${(item.price_cents / 100).toFixed(2)}
+                        {t('booking:myBookingScreen.paymentDue', { amount: formatCentsUSD(item.price_cents) })}
                       </Text>
                     </View>
                     <View style={styles.actionsRow}>
                       <Pressable style={styles.payNowBtn} onPress={() => handlePayNow(item)}>
                         <Ionicons name="card-outline" size={14} color="#09000F" />
-                        <Text style={styles.payNowBtnText}>Pay Now</Text>
+                        <Text style={styles.payNowBtnText}>{t('booking:myBookingScreen.payNow')}</Text>
                       </Pressable>
                     </View>
                   </>
@@ -662,17 +676,17 @@ export default function MyBookingScreen() {
                       <>
                         <Pressable style={styles.actionBtn} onPress={() => handleReschedule(item)}>
                           <Ionicons name="calendar-outline" size={14} color="#F4D77A" />
-                          <Text style={styles.actionBtnText}>Reschedule</Text>
+                          <Text style={styles.actionBtnText}>{t('booking:myBookingScreen.reschedule')}</Text>
                         </Pressable>
                         <Pressable style={styles.actionBtnDanger} onPress={() => handleCancel(item)}>
                           <Ionicons name="close-circle-outline" size={14} color="#F09595" />
-                          <Text style={styles.actionBtnDangerText}>Cancel</Text>
+                          <Text style={styles.actionBtnDangerText}>{t('booking:myBookingScreen.cancel')}</Text>
                         </Pressable>
                       </>
                     ) : (
                       <Pressable style={styles.actionBtn} onPress={() => handleContactSalon(item)}>
                         <Ionicons name="call-outline" size={14} color="#F4D77A" />
-                        <Text style={styles.actionBtnText}>Contact Salon</Text>
+                        <Text style={styles.actionBtnText}>{t('booking:myBookingScreen.contactSalon')}</Text>
                       </Pressable>
                     )}
                   </View>
@@ -682,18 +696,18 @@ export default function MyBookingScreen() {
                   <View style={styles.actionsRow}>
                     <Pressable style={styles.actionBtn} onPress={() => handleRebook(item)}>
                       <Ionicons name="repeat-outline" size={14} color="#F4D77A" />
-                      <Text style={styles.actionBtnText}>Rebook</Text>
+                      <Text style={styles.actionBtnText}>{t('booking:myBookingScreen.rebook')}</Text>
                     </Pressable>
                     {item.status === 'completed' && (
                       <Pressable style={styles.actionBtn} onPress={() => handleOpenRating(item)}>
                         <Ionicons name={item.reviewed ? 'star' : 'star-outline'} size={14} color="#F4D77A" />
-                        <Text style={styles.actionBtnText}>{item.reviewed ? 'Edit review' : 'Rate'}</Text>
+                        <Text style={styles.actionBtnText}>{item.reviewed ? t('booking:myBookingScreen.editReview') : t('booking:myBookingScreen.rate')}</Text>
                       </Pressable>
                     )}
                     {item.status === 'completed' && (
                       <Pressable style={styles.actionBtn} onPress={() => handleViewReceipt(item)}>
                         <Ionicons name="receipt-outline" size={14} color="#F4D77A" />
-                        <Text style={styles.actionBtnText}>Receipt</Text>
+                        <Text style={styles.actionBtnText}>{t('booking:myBookingScreen.receipt')}</Text>
                       </Pressable>
                     )}
                   </View>
@@ -701,7 +715,7 @@ export default function MyBookingScreen() {
 
                 {ratingId === item.id && (
                   <View style={styles.ratingPanel}>
-                    <Text style={styles.ratingLabel}>{item.reviewed ? 'Edit your review' : 'How was your visit?'}</Text>
+                    <Text style={styles.ratingLabel}>{item.reviewed ? t('booking:myBookingScreen.editYourReview') : t('booking:myBookingScreen.howWasYourVisit')}</Text>
                     <View style={styles.starRow}>
                       {[1, 2, 3, 4, 5].map((n) => (
                         <Pressable key={n} onPress={() => setRatingStars(n)} hitSlop={6}>
@@ -715,7 +729,7 @@ export default function MyBookingScreen() {
                     </View>
                     <TextInput
                       style={styles.ratingTextInput}
-                      placeholder="Add a comment (optional)"
+                      placeholder={t('booking:myBookingScreen.commentPlaceholder')}
                       placeholderTextColor="rgba(255,255,255,0.35)"
                       value={ratingText}
                       onChangeText={setRatingText}
@@ -723,7 +737,7 @@ export default function MyBookingScreen() {
                     />
                     <View style={styles.ratingActions}>
                       <Pressable onPress={() => { setRatingId(null); setRatingText(''); }}>
-                        <Text style={styles.ratingCancelText}>Cancel</Text>
+                        <Text style={styles.ratingCancelText}>{t('booking:myBookingScreen.cancel')}</Text>
                       </Pressable>
                       <Pressable
                         style={styles.ratingSubmitBtn}
@@ -732,7 +746,7 @@ export default function MyBookingScreen() {
                         {submittingRating ? (
                           <BreathingHeart size={16} color="#09000F" />
                         ) : (
-                          <Text style={styles.ratingSubmitText}>Submit</Text>
+                          <Text style={styles.ratingSubmitText}>{t('booking:myBookingScreen.submit')}</Text>
                         )}
                       </Pressable>
                     </View>

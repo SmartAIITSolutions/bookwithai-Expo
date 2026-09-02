@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import i18n from '@/lib/i18n';
+import { formatWeekdayShort, formatTimeShort, formatCentsUSDWhole } from '@/lib/i18n/format';
 
 export interface SalonInfo {
   id: string;
@@ -140,48 +142,53 @@ export async function fetchServicesBySalonId(salonId: string): Promise<Service[]
 }
 
 export function formatPrice(priceCents: number, priceIsFrom?: boolean | null): string {
-  if (!priceCents) return 'Free';
-  const amount = `$${(priceCents / 100).toFixed(0)}`;
-  return priceIsFrom ? `${amount} & up` : amount;
+  if (!priceCents) return i18n.t('booking:price.free');
+  const amount = formatCentsUSDWhole(priceCents);
+  return priceIsFrom ? i18n.t('booking:price.andUp', { amount }) : amount;
 }
 
 export function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return i18n.t('booking:duration.minAbbrev', { count: minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
+  return m
+    ? i18n.t('booking:duration.hoursMinutes', { hours: h, minutes: m })
+    : i18n.t('booking:duration.hoursOnly', { hours: h });
 }
 
 export function groupServicesByCategory(services: Service[]): { category: string; items: Service[] }[] {
   const map = new Map<string, Service[]>();
   for (const svc of services) {
-    const cat = svc.category || 'Services';
+    const cat = svc.category || i18n.t('booking:servicesDefaultCategory');
     if (!map.has(cat)) map.set(cat, []);
     map.get(cat)!.push(svc);
   }
   return Array.from(map.entries()).map(([category, items]) => ({ category, items }));
 }
 
+// 2024-01-01 was a real Monday -- used only as a stable reference date so
+// Intl.DateTimeFormat can produce a locale-correct weekday name for a given
+// day-of-week index. The actual calendar date is never displayed or used.
+const REFERENCE_MONDAY = new Date(2024, 0, 1);
+
 export function formatHours(
   hours: Record<string, { open: boolean; start: string; end: string }> | null | undefined
-): { day: string; label: string }[] {
+): { day: string; label: string; closed: boolean }[] {
   if (!hours) return [];
   const order = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-  const short: Record<string, string> = {
-    monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed',
-    thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
-  };
-  return order.map((day) => {
+  return order.map((day, index) => {
+    const weekdayDate = new Date(REFERENCE_MONDAY);
+    weekdayDate.setDate(REFERENCE_MONDAY.getDate() + index);
+    const dayLabel = formatWeekdayShort(weekdayDate);
     const h = hours[day];
-    if (!h || !h.open) return { day: short[day], label: 'Closed' };
-    return { day: short[day], label: `${formatTime(h.start)} – ${formatTime(h.end)}` };
+    if (!h || !h.open) return { day: dayLabel, label: i18n.t('booking:salonDetail.closed'), closed: true };
+    return { day: dayLabel, label: `${formatTime(h.start)} – ${formatTime(h.end)}`, closed: false };
   });
 }
 
 function formatTime(t: string): string {
   const [hourStr, min] = t.split(':');
   const hour = parseInt(hourStr, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const h = hour % 12 || 12;
-  return `${h}:${min} ${ampm}`;
+  const d = new Date(2024, 0, 1, hour, parseInt(min, 10));
+  return formatTimeShort(d);
 }

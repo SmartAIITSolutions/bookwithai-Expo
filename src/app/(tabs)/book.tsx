@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { QrCode, List, Map as MapIcon, Heart, MapPin } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   FlatList,
@@ -38,6 +39,7 @@ const INTER_BOLD = 'Inter_700Bold';
 type ViewMode = 'list' | 'map';
 
 export default function BookScreen() {
+  const { t } = useTranslation(['common', 'booking']);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [salons, setSalons] = useState<SalonListing[]>([]);
@@ -82,11 +84,11 @@ export default function BookScreen() {
         <DualBreathingBackground />
 
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Discover</Text>
+          <Text style={styles.headerTitle}>{t('booking:discovery.title')}</Text>
           <View style={styles.headerActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Open QR code scanner"
+              accessibilityLabel={t('common:a11y.openQrScanner')}
               onPress={() => setScannerOpen(true)}
               style={styles.headerIconButton}>
               <QrCode size={17} color={COLORS.goldLight} strokeWidth={1.6} />
@@ -103,7 +105,7 @@ export default function BookScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search salons or cities"
+              placeholder={t('booking:discovery.searchPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.35)"
               autoCapitalize="none"
               autoCorrect={false}
@@ -115,14 +117,14 @@ export default function BookScreen() {
           <View style={styles.modeToggle}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="List view"
+              accessibilityLabel={t('common:a11y.listView')}
               onPress={() => setMode('list')}
               style={[styles.modeButton, mode === 'list' && styles.modeButtonActive]}>
               <List size={16} color={mode === 'list' ? '#0A0410' : COLORS.body} strokeWidth={1.8} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Map view"
+              accessibilityLabel={t('common:a11y.mapView')}
               onPress={() => setMode('map')}
               style={[styles.modeButton, mode === 'map' && styles.modeButtonActive]}>
               <MapIcon size={16} color={mode === 'map' ? '#0A0410' : COLORS.body} strokeWidth={1.8} />
@@ -141,7 +143,7 @@ export default function BookScreen() {
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               <Text style={styles.emptyText}>
-                {query ? 'No salons match your search.' : 'No salons are listed yet.'}
+                {query ? t('booking:discovery.noSalonsMatchSearch') : t('booking:discovery.noSalonsListedYet')}
               </Text>
             }
             renderItem={({ item }) => (
@@ -157,7 +159,7 @@ export default function BookScreen() {
           <View style={styles.mapWrap}>
             {mappable.length === 0 ? (
               <View style={styles.centerFill}>
-                <Text style={styles.emptyText}>No salons with a mapped location yet.</Text>
+                <Text style={styles.emptyText}>{t('booking:discovery.noMappedSalonsYet')}</Text>
               </View>
             ) : (
               // Android needs a Google Maps API key (app.json ->
@@ -183,7 +185,7 @@ export default function BookScreen() {
                         {!!(s.city || s.state) && (
                           <Text style={styles.calloutSubtitle}>{[s.city, s.state].filter(Boolean).join(', ')}</Text>
                         )}
-                        <Text style={styles.calloutLink}>View salon</Text>
+                        <Text style={styles.calloutLink}>{t('booking:discovery.viewSalon')}</Text>
                       </View>
                     </Callout>
                   </Marker>
@@ -217,6 +219,7 @@ function SalonCard({
   onPress: () => void;
   onToggleFavorite: () => void;
 }) {
+  const { t } = useTranslation(['common']);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
       <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill} />
@@ -235,7 +238,7 @@ function SalonCard({
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={favorited ? 'Remove favorite' : 'Add favorite'}
+        accessibilityLabel={favorited ? t('common:a11y.removeFavorite') : t('common:a11y.addFavorite')}
         onPress={onToggleFavorite}
         hitSlop={10}
         style={styles.heartButton}>

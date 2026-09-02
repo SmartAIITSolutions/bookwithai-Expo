@@ -9,21 +9,25 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { supabase } from '@/lib/supabase';
 import { API_BASE } from '@/lib/config';
 import { STORE_URL, STORE_URL_FALLBACK } from '@/components/UpdateNagModal';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
 import {
   fetchNotifications, markNotificationRead,
   type NotificationItem,
 } from '@/lib/notifications/api';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
+// Standalone-instance pattern (matches appointmentVisual.ts's paymentLabel())
+// since this is a plain utility function, not a hook/component.
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return i18n.t('notifications:timeAgo.justNow');
+  if (mins < 60) return i18n.t('notifications:timeAgo.minutesAgo', { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return i18n.t('notifications:timeAgo.hoursAgo', { count: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return i18n.t('notifications:timeAgo.daysAgo', { count: days });
 }
 
 // Only the "new booking created" balance_due push
@@ -150,7 +154,7 @@ const TYPE_ICON: Partial<Record<string, keyof typeof Ionicons.glyphMap>> = {
 // for every other notification type -- only balance_due and cancelled get
 // their own dedicated render function (embedded button / date-row layout).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const HERO_CARD_CONFIG: Partial<Record<string, {
+type HeroCardConfig = Partial<Record<string, {
   title: string;
   bg: any;
   accent: string;
@@ -158,63 +162,67 @@ const HERO_CARD_CONFIG: Partial<Record<string, {
   subtitle?: string;
   buttonLabel?: string;
   buttonIcon?: keyof typeof Ionicons.glyphMap;
-}>> = {
-  booking_confirmed: {
-    title: 'You’re Booked! 🎉',
-    bg: require('../../assets/images/notifications/pay-now-card-bg.png'),
-    accent: '#C9B8FF',
-    subtitle: 'You’re all set! Your appointment is confirmed for',
-    iconImage: require('../../assets/images/notifications/booking-confirmed-icon.png'),
-  },
-  rescheduled: {
-    title: 'Plans Updated ✨',
-    bg: require('../../assets/images/notifications/rescheduled-card-bg.png'),
-    accent: '#22D3EE',
-    iconImage: require('../../assets/images/notifications/rescheduled-icon.png'),
-    subtitle: 'Your appointment has been rescheduled to',
-  },
-  reminder_2h: {
-    title: 'Your Appointment Is Coming Up ✨',
-    bg: require('../../assets/images/notifications/reminder-card-bg.png'),
-    accent: '#FBBF6C',
-    iconImage: require('../../assets/images/notifications/reminder-2h-icon.png'),
-  },
-  reminder_24h: {
-    title: 'See You Tomorrow 💜',
-    bg: require('../../assets/images/notifications/pay-now-card-bg.png'),
-    accent: '#D8B4FE',
-    iconImage: require('../../assets/images/notifications/reminder-24h-icon.png'),
-  },
-  receipt: {
-    title: 'Payment Complete ✅',
-    bg: require('../../assets/images/notifications/receipt-card-bg.png'),
-    accent: '#7FE8B8',
-  },
-  rebook_nudge: {
-    title: 'Time to Rebook? 💕',
-    bg: require('../../assets/images/notifications/rebook-card-bg.png'),
-    accent: '#FF8FC0',
-    buttonLabel: 'Rebook',
-    buttonIcon: 'refresh',
-  },
-  app_update: {
-    title: 'Update Available ✨',
-    bg: require('../../assets/images/notifications/rescheduled-card-bg.png'),
-    accent: '#7EB6FF',
-    buttonLabel: 'Update Now',
-    buttonIcon: 'arrow-up-circle',
-  },
-  checkin_ready: {
-    title: 'Are You Here? 📍',
-    bg: require('../../assets/images/notifications/reminder-card-bg.png'),
-    accent: '#FBBF6C',
-  },
-  review_nudge: {
-    title: 'How Was Your Visit? ⭐',
-    bg: require('../../assets/images/notifications/pay-now-card-bg.png'),
-    accent: '#D8B4FE',
-  },
-};
+}>>;
+
+function buildHeroCardConfig(t: ReturnType<typeof useTranslation<['notifications']>>['t']): HeroCardConfig {
+  return {
+    booking_confirmed: {
+      title: t('notifications:heroCards.bookingConfirmedTitle'),
+      bg: require('../../assets/images/notifications/pay-now-card-bg.png'),
+      accent: '#C9B8FF',
+      subtitle: t('notifications:heroCards.bookingConfirmedSubtitle'),
+      iconImage: require('../../assets/images/notifications/booking-confirmed-icon.png'),
+    },
+    rescheduled: {
+      title: t('notifications:heroCards.rescheduledTitle'),
+      bg: require('../../assets/images/notifications/rescheduled-card-bg.png'),
+      accent: '#22D3EE',
+      iconImage: require('../../assets/images/notifications/rescheduled-icon.png'),
+      subtitle: t('notifications:heroCards.rescheduledSubtitle'),
+    },
+    reminder_2h: {
+      title: t('notifications:heroCards.reminder2hTitle'),
+      bg: require('../../assets/images/notifications/reminder-card-bg.png'),
+      accent: '#FBBF6C',
+      iconImage: require('../../assets/images/notifications/reminder-2h-icon.png'),
+    },
+    reminder_24h: {
+      title: t('notifications:heroCards.reminder24hTitle'),
+      bg: require('../../assets/images/notifications/pay-now-card-bg.png'),
+      accent: '#D8B4FE',
+      iconImage: require('../../assets/images/notifications/reminder-24h-icon.png'),
+    },
+    receipt: {
+      title: t('notifications:heroCards.receiptTitle'),
+      bg: require('../../assets/images/notifications/receipt-card-bg.png'),
+      accent: '#7FE8B8',
+    },
+    rebook_nudge: {
+      title: t('notifications:heroCards.rebookNudgeTitle'),
+      bg: require('../../assets/images/notifications/rebook-card-bg.png'),
+      accent: '#FF8FC0',
+      buttonLabel: t('notifications:heroCards.rebookButtonLabel'),
+      buttonIcon: 'refresh',
+    },
+    app_update: {
+      title: t('notifications:heroCards.appUpdateTitle'),
+      bg: require('../../assets/images/notifications/rescheduled-card-bg.png'),
+      accent: '#7EB6FF',
+      buttonLabel: t('notifications:heroCards.appUpdateButtonLabel'),
+      buttonIcon: 'arrow-up-circle',
+    },
+    checkin_ready: {
+      title: t('notifications:heroCards.checkinReadyTitle'),
+      bg: require('../../assets/images/notifications/reminder-card-bg.png'),
+      accent: '#FBBF6C',
+    },
+    review_nudge: {
+      title: t('notifications:heroCards.reviewNudgeTitle'),
+      bg: require('../../assets/images/notifications/pay-now-card-bg.png'),
+      accent: '#D8B4FE',
+    },
+  };
+}
 
 // Shared date/time row -- breathes (gentle scale pulse) and vibrates
 // (small side-to-side wiggle) on a loop so the highlighted appointment
@@ -364,6 +372,8 @@ function HeroGoldButton({
 }
 
 export default function NotificationsScreen() {
+  const { t } = useTranslation(['notifications']);
+  const HERO_CARD_CONFIG = buildHeroCardConfig(t);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -491,16 +501,16 @@ export default function NotificationsScreen() {
 
     if (option === 'cancel') {
       Alert.alert(
-        'Cancel this appointment?',
-        'This will let the salon know you’re not coming.',
+        t('notifications:checkin.cancelTitle'),
+        t('notifications:checkin.cancelMessage'),
         [
-          { text: 'Keep appointment', style: 'cancel' },
+          { text: t('notifications:checkin.keepAppointment'), style: 'cancel' },
           {
-            text: 'Cancel appointment',
+            text: t('notifications:checkin.cancelAppointment'),
             style: 'destructive',
             onPress: async () => {
               await fetch(`${API_BASE}/api/mobile/bookings/${item.booking_id}/cancel`, { method: 'POST', headers, body: '{}' });
-              setCheckinSentFor((prev) => ({ ...prev, [item.id]: 'Cancelled' }));
+              setCheckinSentFor((prev) => ({ ...prev, [item.id]: t('notifications:checkin.cancelledStatus') }));
               load();
             },
           },
@@ -511,7 +521,7 @@ export default function NotificationsScreen() {
 
     if (option === 'here') {
       await fetch(`${API_BASE}/api/mobile/bookings/${item.booking_id}/check-in`, { method: 'POST', headers });
-      setCheckinSentFor((prev) => ({ ...prev, [item.id]: "You're checked in" }));
+      setCheckinSentFor((prev) => ({ ...prev, [item.id]: t('notifications:checkin.checkedIn') }));
       return;
     }
 
@@ -520,7 +530,7 @@ export default function NotificationsScreen() {
       headers,
       body: JSON.stringify({ status: option }),
     });
-    setCheckinSentFor((prev) => ({ ...prev, [item.id]: option === 'almost' ? "Salon notified — almost there" : 'Salon notified — running late' }));
+    setCheckinSentFor((prev) => ({ ...prev, [item.id]: option === 'almost' ? t('notifications:checkin.notifiedAlmost') : t('notifications:checkin.notifiedRunningLate') }));
   }
 
   async function handlePress(item: NotificationItem) {
@@ -578,10 +588,10 @@ export default function NotificationsScreen() {
           </View>
           <View style={styles.heroRightCol}>
             <Pressable onPress={() => handlePress(item)}>
-              <Text style={styles.heroTitle}>You&rsquo;re Almost Booked! 🎉</Text>
+              <Text style={styles.heroTitle}>{t('notifications:heroCards.balanceDueTitle')}</Text>
               {apptDateTime ? (
                 <>
-                  <Text style={styles.heroSubtitle}>Complete your payment to confirm your appointment on</Text>
+                  <Text style={styles.heroSubtitle}>{t('notifications:heroCards.balanceDueSubtitle')}</Text>
                   <View style={styles.heroDateRow}>
                     <Ionicons name="calendar-outline" size={15} color="#B762F0" />
                     <Text style={styles.heroDateText}>{apptDateTime}.</Text>
@@ -591,7 +601,7 @@ export default function NotificationsScreen() {
                 <Text style={styles.heroSubtitle}>{item.body}</Text>
               )}
             </Pressable>
-            <HeroGoldButton onPress={() => handlePress(item)} label="Pay Now" iconName="lock-closed" />
+            <HeroGoldButton onPress={() => handlePress(item)} label={t('notifications:heroCards.payNowButtonLabel')} iconName="lock-closed" />
           </View>
         </View>
       </ImageBackground>
@@ -626,7 +636,7 @@ export default function NotificationsScreen() {
               <Text style={styles.cancelledTitle} numberOfLines={1}>{item.title}</Text>
               {cancelledDateTime ? (
                 <>
-                  <Text style={[styles.cardBody, { marginTop: 6 }]}>Your appointment has been cancelled.</Text>
+                  <Text style={[styles.cardBody, { marginTop: 6 }]}>{t('notifications:heroCards.cancelledBody')}</Text>
                   <View style={styles.cancelledDateRow}>
                     <Ionicons name="calendar-outline" size={15} color="#FF4D4D" />
                     <Text style={[styles.cancelledDateText, { color: '#FF4D4D' }]}>{cancelledDateTime}.</Text>
@@ -636,7 +646,7 @@ export default function NotificationsScreen() {
                 <Text style={[styles.cardBody, { marginTop: 6 }]}>{item.body}</Text>
               )}
             </Pressable>
-            <HeroGoldButton onPress={() => handlePress(item)} label="Rebook" iconName="refresh" />
+            <HeroGoldButton onPress={() => handlePress(item)} label={t('notifications:heroCards.rebookButtonLabel')} iconName="refresh" />
           </View>
         </View>
         {!item.read && <View style={[styles.unreadDot, { backgroundColor: style.accent }]} />}
@@ -657,7 +667,7 @@ export default function NotificationsScreen() {
         return (
           <>
             <Text style={[styles.cardBody, { marginTop: 6 }]}>
-              Your appointment {fromDateTime} has been rescheduled to
+              {t('notifications:heroCards.rescheduledFromTo', { fromDateTime })}
             </Text>
             <AnimatedDateRow dateTime={toDateTime} color={accent} rowStyle={styles.cancelledDateRow} textStyle={styles.cancelledDateText} />
           </>
@@ -744,16 +754,16 @@ export default function NotificationsScreen() {
               ) : (
                 <View style={styles.checkinOptionsGrid}>
                   <Pressable style={[styles.checkinOptionBtn, { backgroundColor: '#3DD68C' }]} onPress={() => handleCheckinOption(item, 'here')}>
-                    <Text style={styles.checkinOptionText}>Here</Text>
+                    <Text style={styles.checkinOptionText}>{t('notifications:checkin.here')}</Text>
                   </Pressable>
                   <Pressable style={[styles.checkinOptionBtn, { backgroundColor: accent }]} onPress={() => handleCheckinOption(item, 'almost')}>
-                    <Text style={styles.checkinOptionText}>Almost</Text>
+                    <Text style={styles.checkinOptionText}>{t('notifications:checkin.almost')}</Text>
                   </Pressable>
                   <Pressable style={[styles.checkinOptionBtn, { backgroundColor: '#FF8A5C' }]} onPress={() => handleCheckinOption(item, 'running_late')}>
-                    <Text style={styles.checkinOptionText}>Running Late</Text>
+                    <Text style={styles.checkinOptionText}>{t('notifications:checkin.runningLate')}</Text>
                   </Pressable>
                   <Pressable style={[styles.checkinOptionBtn, styles.checkinCancelBtn]} onPress={() => handleCheckinOption(item, 'cancel')}>
-                    <Text style={[styles.checkinOptionText, styles.checkinCancelText]}>Cancel</Text>
+                    <Text style={[styles.checkinOptionText, styles.checkinCancelText]}>{t('notifications:checkin.cancel')}</Text>
                   </Pressable>
                 </View>
               )}
@@ -843,7 +853,7 @@ export default function NotificationsScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
-        <Text style={styles.title}>Notifications</Text>
+        <Text style={styles.title}>{t('notifications:screen.title')}</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -854,7 +864,7 @@ export default function NotificationsScreen() {
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="notifications-off-outline" size={48} color="rgba(255,255,255,0.4)" />
-          <Text style={styles.emptyText}>No notifications yet</Text>
+          <Text style={styles.emptyText}>{t('notifications:screen.noNotificationsYet')}</Text>
         </View>
       ) : (
         <ScrollView
@@ -865,13 +875,13 @@ export default function NotificationsScreen() {
           }>
           {todayItems.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>Today</Text>
+              <Text style={styles.sectionLabel}>{t('notifications:screen.today')}</Text>
               {todayItems.map(renderCard)}
             </>
           )}
           {earlierItems.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>Earlier</Text>
+              <Text style={styles.sectionLabel}>{t('notifications:screen.earlier')}</Text>
               {earlierItems.map(renderCard)}
             </>
           )}

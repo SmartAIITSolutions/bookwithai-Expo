@@ -15,12 +15,15 @@ import {
 import { isSampleBooking } from '@/lib/calendar/sampleDayFixture';
 import {
   bookingSource, SOURCE_COLOR, primaryPill, cornerIcon,
-  PAYMENT_COLOR, PAYMENT_LABEL,
+  PAYMENT_COLOR, paymentLabel,
 } from '@/lib/calendar/appointmentVisual';
 import { SanaaMark } from '@/components/SanaaMark';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
+import { formatWeekdayMonthDay, formatTimeShortInTZ, formatCentsUSDWhole } from '@/lib/i18n/format';
 
 const PULL_THRESHOLD = 60;
 const PULL_MAX = 90;
@@ -197,7 +200,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   // control today either, so that capability isn't available through any
   // path right now -- a real gap, not something this change newly creates,
   // but worth a follow-up.
-  const columns: Column[] = useMemo(() => [{ id: 'all', label: 'All' }], []);
+  const columns: Column[] = useMemo(() => [{ id: 'all', label: i18n.t('calendar:timeline.allColumn') }], []);
   const columnWidth = Math.max(COLUMN_WIDTH, screenWidth - TIME_GUTTER);
 
   function columnForBooking(_b: OwnerBooking): number {
@@ -435,7 +438,21 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                             const dayBase = new Date(date);
                             dayBase.setHours(0, 0, 0, 0);
                             const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
-                            onFillSlot(startsAt, col.id === 'unassigned' ? null : col.id, true);
+                            // Bug fix — `col.id` is always the single merged
+                            // day-view column's literal id ('all', see the
+                            // `columns` useMemo above), not a real staff id.
+                            // It used to be forwarded here whenever it wasn't
+                            // exactly 'unassigned', so tapping the closed-hours
+                            // fringe while the staff filter was on "All Staff"
+                            // sent the literal string "all" as staff_id to the
+                            // booking API, which failed a UUID column check
+                            // server-side. The real, meaningful signal for
+                            // "which staff member was this tap for" is the
+                            // selectedStaffId filter prop, not the column id:
+                            // a specific staff selection is preserved, and
+                            // "All Staff" now passes null (WalkInSheet already
+                            // auto-assigns a real staff member from null).
+                            onFillSlot(startsAt, selectedStaffId === 'all' ? null : selectedStaffId, true);
                           }}
                         />
                       )}
@@ -449,7 +466,9 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                             const dayBase = new Date(date);
                             dayBase.setHours(0, 0, 0, 0);
                             const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
-                            onFillSlot(startsAt, col.id === 'unassigned' ? null : col.id, true);
+                            // See the matching comment on the closed-top-fringe
+                            // handler above -- same fix, same reasoning.
+                            onFillSlot(startsAt, selectedStaffId === 'all' ? null : selectedStaffId, true);
                           }}
                         />
                       )}
@@ -491,7 +510,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
         <GestureDetector gesture={Gesture.Tap().onEnd(() => runOnJS(scrollToNow)())}>
           <View style={styles.nowButton}>
             <Ionicons name="locate" size={16} color="#FFFFFF" />
-            <Text style={styles.nowButtonText}>Now</Text>
+            <Text style={styles.nowButtonText}>{i18n.t('calendar:timeline.now')}</Text>
           </View>
         </GestureDetector>
       )}
@@ -509,7 +528,7 @@ class TimelineErrorBoundary extends Component<{ children: ReactNode }, { error: 
     if (this.state.error) {
       return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg }}>
-          <Text style={{ color: P.textSecondary, textAlign: 'center' }}>Couldn't load the timeline.{'\n'}{this.state.error.message}</Text>
+          <Text style={{ color: P.textSecondary, textAlign: 'center' }}>{i18n.t('calendar:timeline.couldNotLoadTimeline')}{'\n'}{this.state.error.message}</Text>
         </View>
       );
     }
@@ -659,7 +678,7 @@ function AppointmentBlock({
     // update. Stopping here, before that dialog, is what actually prevents
     // the misleading error rather than just rewording it.
     if (isSampleBooking(booking.id)) {
-      Alert.alert('Sample Data', 'This is a demo appointment for visual review only. Moving it here isn’t saved.');
+      Alert.alert(i18n.t('calendar:timeline.sampleDataTitle'), i18n.t('calendar:timeline.sampleDataMoveMessage'));
       translateY.value = withSpring(0);
       translateX.value = withSpring(0);
       return;
@@ -668,20 +687,20 @@ function AppointmentBlock({
     dayBase.setHours(0, 0, 0, 0);
     dayBase.setDate(dayBase.getDate() + dayOffset);
     const newStart = new Date(dayBase.getTime() + newStartMinutes * 60000);
-    const dateLabel = newStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    const timeLabel = newStart.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const dateLabel = formatWeekdayMonthDay(newStart);
+    const timeLabel = formatTimeShortInTZ(newStart, timeZone);
 
     Alert.alert(
-      'Reschedule appointment?',
-      `Move ${booking.customer ? customerDisplayName(booking) : 'this appointment'} to ${dateLabel} at ${timeLabel}?`,
+      i18n.t('calendar:timeline.rescheduleTitle'),
+      i18n.t('calendar:timeline.moveConfirm', { customerName: booking.customer ? customerDisplayName(booking) : i18n.t('calendar:timeline.thisAppointment'), date: dateLabel, time: timeLabel }),
       [
         {
-          text: 'Ignore', style: 'cancel', onPress: () => {
+          text: i18n.t('calendar:timeline.ignore'), style: 'cancel', onPress: () => {
             translateY.value = withSpring(0);
             translateX.value = withSpring(0);
           },
         },
-        { text: 'Reschedule', onPress: () => commitMove(newStartMinutes, newColIndex, dayOffset) },
+        { text: i18n.t('calendar:timeline.reschedule'), onPress: () => commitMove(newStartMinutes, newColIndex, dayOffset) },
       ],
     );
   }
@@ -718,11 +737,11 @@ function AppointmentBlock({
       // where it was dropped until the owner actually decides, matching
       // confirmMove's own Ignore/Reschedule pattern above.
       Alert.alert(
-        'Time slot is taken',
-        `${booking.staff?.name ?? 'That staff member'} already has an appointment then. Double-book anyway?`,
+        i18n.t('calendar:timeline.timeSlotTaken'),
+        i18n.t('calendar:timeline.staffAlreadyHasAppointment', { staffName: booking.staff?.name ?? i18n.t('calendar:timeline.thatStaffMember') }),
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => { translateY.value = withSpring(0); translateX.value = withSpring(0); } },
-          { text: 'Double-Book', style: 'destructive', onPress: () => commitMove(newStartMinutes, newColIndex, dayOffset, true) },
+          { text: i18n.t('calendar:timeline.cancel'), style: 'cancel', onPress: () => { translateY.value = withSpring(0); translateX.value = withSpring(0); } },
+          { text: i18n.t('calendar:timeline.doubleBook'), style: 'destructive', onPress: () => commitMove(newStartMinutes, newColIndex, dayOffset, true) },
         ],
       );
       return;
@@ -730,7 +749,7 @@ function AppointmentBlock({
 
     translateY.value = withSpring(0);
     translateX.value = withSpring(0);
-    Alert.alert('Could not move appointment', result.error);
+    Alert.alert(i18n.t('calendar:timeline.couldNotMoveAppointment'), result.error);
   }
 
   // Calendar 2.0 Part 19/20/21/22 — bottom-edge resize. START TIME is never
@@ -758,21 +777,21 @@ function AppointmentBlock({
     // PATCH, so stop before the confirm dialog rather than show one that's
     // followed by a misleading "Booking not found".
     if (isSampleBooking(booking.id)) {
-      Alert.alert('Sample Data', 'This is a demo appointment for visual review only. Resizing it here isn’t saved.');
+      Alert.alert(i18n.t('calendar:timeline.sampleDataTitle'), i18n.t('calendar:timeline.sampleDataResizeMessage'));
       resizeHeight.value = withSpring(0);
       return;
     }
     const newEnd = new Date(new Date(booking.starts_at).getTime() + newDurationMin * 60000);
-    const startLabel = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(booking.starts_at));
-    const endLabel = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(newEnd);
+    const startLabel = formatTimeShortInTZ(new Date(booking.starts_at), timeZone);
+    const endLabel = formatTimeShortInTZ(newEnd, timeZone);
     Alert.alert(
-      isBlockedTime ? 'Change block length?' : 'Change appointment length?',
+      isBlockedTime ? i18n.t('calendar:timeline.changeBlockLength') : i18n.t('calendar:timeline.changeAppointmentLength'),
       isBlockedTime
-        ? `${startLabel} → ${endLabel} (${newDurationMin} min)?`
-        : `${startLabel} → ${endLabel} (${newDurationMin} min) for ${customerDisplayName(booking)}?`,
+        ? i18n.t('calendar:timeline.lengthChangeBlockDetail', { start: startLabel, end: endLabel, minutes: newDurationMin })
+        : i18n.t('calendar:timeline.lengthChangeApptDetail', { start: startLabel, end: endLabel, minutes: newDurationMin, customerName: customerDisplayName(booking) }),
       [
-        { text: 'Cancel', style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
-        { text: 'Save', onPress: () => commitResize(newEnd, false) },
+        { text: i18n.t('calendar:timeline.cancel'), style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
+        { text: i18n.t('calendar:timeline.save'), onPress: () => commitResize(newEnd, false) },
       ],
     );
   }
@@ -789,17 +808,17 @@ function AppointmentBlock({
     }
     if (result.code === 'CONFLICT' && !overrideConflict) {
       Alert.alert(
-        'Time slot is taken',
-        'Extending this appointment would overlap another one. Double-book anyway?',
+        i18n.t('calendar:timeline.timeSlotTaken'),
+        i18n.t('calendar:timeline.extendingWouldOverlap'),
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
-          { text: 'Double-Book', style: 'destructive', onPress: () => commitResize(newEnd, true) },
+          { text: i18n.t('calendar:timeline.cancel'), style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
+          { text: i18n.t('calendar:timeline.doubleBook'), style: 'destructive', onPress: () => commitResize(newEnd, true) },
         ],
       );
       return;
     }
     resizeHeight.value = withSpring(0);
-    Alert.alert('Could not change length', result.error);
+    Alert.alert(i18n.t('calendar:timeline.couldNotChangeLength'), result.error);
   }
 
   const resizeDrag = Gesture.Pan()
@@ -825,25 +844,25 @@ function AppointmentBlock({
 
   async function runSwipeAction(direction: 'left' | 'right') {
     if (isSampleBooking(booking.id)) {
-      Alert.alert('Sample Data', 'This is a demo appointment for visual review only. Status actions here aren’t saved.');
+      Alert.alert(i18n.t('calendar:timeline.sampleDataTitle'), i18n.t('calendar:timeline.sampleDataStatusMessage'));
       return;
     }
     setBusy(true);
     let result;
     if (direction === 'right') {
       // Swipe right = Check In (Phase 0.3)
-      if (!action || action.label !== 'CHECK IN') { setBusy(false); return; }
+      if (!action || action.key !== 'check_in') { setBusy(false); return; }
       result = await checkIn(booking.id);
     } else {
       // Swipe left = advance toward checkout. Real Checkout Mode is Sprint 4 --
       // this advances the state machine as far as Sprint 2's own scope owns.
-      if (action?.label === 'START SERVICE') result = await startService(booking.id);
-      else if (action?.label === 'MARK SERVICE COMPLETE') result = await completeService(booking.id);
+      if (action?.key === 'start_service') result = await startService(booking.id);
+      else if (action?.key === 'mark_complete') result = await completeService(booking.id);
       else { setBusy(false); return; }
     }
     setBusy(false);
     if (result?.ok) onChanged();
-    else if (result) Alert.alert('Could not update', result.error);
+    else if (result) Alert.alert(i18n.t('calendar:timeline.couldNotUpdate'), result.error);
   }
 
   const longPressDrag = Gesture.Pan()
@@ -938,12 +957,12 @@ function AppointmentBlock({
           <BlockStripes />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.blockedTime} numberOfLines={1}>
-              {new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(booking.starts_at))}
+              {formatTimeShortInTZ(new Date(booking.starts_at), timeZone)}
               {' – '}
-              {new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(booking.ends_at))}
+              {formatTimeShortInTZ(new Date(booking.ends_at), timeZone)}
               {'  ·  '}{durationMin}m
             </Text>
-            <Text style={styles.blockedTitle} numberOfLines={1}>Blocked Time</Text>
+            <Text style={styles.blockedTitle} numberOfLines={1}>{i18n.t('calendar:timeline.blockedTimeTitle')}</Text>
             {!!booking.internal_notes && <Text style={styles.blockedReason} numberOfLines={1}>{booking.internal_notes}</Text>}
           </View>
           <View style={styles.blockedIconWrap}>
@@ -962,13 +981,16 @@ function AppointmentBlock({
     );
   }
 
-  const timeLabel = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(booking.starts_at));
+  const timeLabel = formatTimeShortInTZ(new Date(booking.starts_at), timeZone);
   // Short-narrow cleanup Part 2 — "10:55 AM" in an already-tight column
   // was reading as if two separate values were stacked. numberOfLines={1}
   // truncating a too-wide string still looks broken; dropping the AM/PM
   // suffix (spec explicitly allows this) keeps it a genuinely short,
   // single-token string that always fits one line at any narrow width.
-  const narrowTimeLabel = timeLabel.replace(/\s?[AP]M$/i, '');
+  // i18n foundation (L5B) -- broadened from a strict "AM"/"PM"-only match so
+  // this still strips the meridiem in Spanish's Intl output too (e.g.
+  // "9:00 a.m." / "9:00 p. m.", which vary by ICU spacing/punctuation).
+  const narrowTimeLabel = timeLabel.replace(/\s?[ap]\.?\s?m\.?$/i, '');
 
   return (
     <>
@@ -1009,7 +1031,7 @@ function AppointmentBlock({
             )}
             <Text style={styles.narrowNameText} numberOfLines={1}>{initials(customerDisplayName(booking))}</Text>
             {narrowTier === 'tall' && !isTerminal && !!booking.price_cents && (
-              <Text style={styles.narrowPriceText} numberOfLines={1}>${Math.round(booking.price_cents / 100)}</Text>
+              <Text style={styles.narrowPriceText} numberOfLines={1}>{formatCentsUSDWhole(booking.price_cents)}</Text>
             )}
             {/* Rule 9 — one tiny icon, only when there's genuinely enough
                 room (tallest tier AND a slot wide enough that it won't
@@ -1059,7 +1081,7 @@ function AppointmentBlock({
                 <Text style={styles.blockCustomer} numberOfLines={1}>{customerDisplayName(booking)}</Text>
                 {booking.customer?.priority && <Ionicons name="star" size={11} color={P.accentGold} />}
                 {!booking.customer?.priority && (booking.customer?.total_bookings ?? 0) <= 1 && (
-                  <View style={styles.newChip}><Text style={styles.newChipText}>NEW</Text></View>
+                  <View style={styles.newChip}><Text style={styles.newChipText}>{i18n.t('calendar:timeline.newChip')}</Text></View>
                 )}
               </View>
               {showMeta && (
@@ -1081,12 +1103,12 @@ function AppointmentBlock({
                     styles.pillText,
                     { color: pill.kind === 'cancelled' || pill.kind === 'no_show' ? P.error : PAYMENT_COLOR[pill.badge] },
                   ]}>
-                    {pill.kind === 'cancelled' ? 'CANCELLED' : pill.kind === 'no_show' ? 'NO-SHOW' : PAYMENT_LABEL[pill.badge]}
+                    {pill.kind === 'cancelled' ? i18n.t('calendar:timeline.cancelledPill') : pill.kind === 'no_show' ? i18n.t('calendar:timeline.noShowPill') : paymentLabel(pill.badge)}
                   </Text>
                 </View>
               )}
               {!isTerminal && !!booking.price_cents && (
-                <Text style={styles.priceText}>${Math.round(booking.price_cents / 100)}</Text>
+                <Text style={styles.priceText}>{formatCentsUSDWhole(booking.price_cents)}</Text>
               )}
               {/* Card polish pass — the source/status corner icon was the
                   only piece of the right column with no height gating at
@@ -1259,13 +1281,13 @@ function BlockTimeBand({ band, gridStart, pxPerMinute, rowWidth, timeZone, onOpe
     // Multiple real blocks overlap this exact point -- don't guess which
     // one the owner meant; offer a chooser that still opens the real
     // record (existing Block Time editor, via onOpenBooking).
-    const fmt = (d: string) => new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(d));
+    const fmt = (d: string) => formatTimeShortInTZ(new Date(d), timeZone);
     Alert.alert(
-      'Multiple Blocks Here',
-      'This period has more than one blocked-time entry. Which one do you want to open?',
+      i18n.t('calendar:timeline.multipleBlocksTitle'),
+      i18n.t('calendar:timeline.multipleBlocksMessage'),
       [
         ...band.bookings.map(b => ({ text: `${fmt(b.starts_at)} – ${fmt(b.ends_at)}`, onPress: () => onOpenBooking(b) })),
-        { text: 'Cancel', style: 'cancel' as const },
+        { text: i18n.t('calendar:timeline.cancel'), style: 'cancel' as const },
       ],
     );
   }
@@ -1291,18 +1313,18 @@ function BlockTimeBand({ band, gridStart, pxPerMinute, rowWidth, timeZone, onOpe
   function confirmResize(newDurationMin: number) {
     if (!soleBooking) return;
     if (isSampleBooking(soleBooking.id)) {
-      Alert.alert('Sample Data', 'This is a demo block for visual review only. Resizing it here isn’t saved.');
+      Alert.alert(i18n.t('calendar:timeline.sampleDataTitle'), i18n.t('calendar:timeline.sampleDataBlockResizeMessage'));
       resizeHeight.value = withSpring(0);
       return;
     }
     const newEnd = new Date(new Date(soleBooking.starts_at).getTime() + newDurationMin * 60000);
-    const fmt = (d: Date) => new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(d);
+    const fmt = (d: Date) => formatTimeShortInTZ(d, timeZone);
     Alert.alert(
-      'Change block length?',
-      `${fmt(new Date(soleBooking.starts_at))} → ${fmt(newEnd)} (${newDurationMin} min)?`,
+      i18n.t('calendar:timeline.changeBlockLength'),
+      i18n.t('calendar:timeline.lengthChangeBlockDetail', { start: fmt(new Date(soleBooking.starts_at)), end: fmt(newEnd), minutes: newDurationMin }),
       [
-        { text: 'Cancel', style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
-        { text: 'Save', onPress: () => commitResize(newEnd, false) },
+        { text: i18n.t('calendar:timeline.cancel'), style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
+        { text: i18n.t('calendar:timeline.save'), onPress: () => commitResize(newEnd, false) },
       ],
     );
   }
@@ -1315,17 +1337,17 @@ function BlockTimeBand({ band, gridStart, pxPerMinute, rowWidth, timeZone, onOpe
     if (result.ok) { resizeHeight.value = withSpring(0); return; }
     if (result.code === 'CONFLICT' && !overrideConflict) {
       Alert.alert(
-        'Appointments Inside This Range',
-        'Extending this block would newly overlap an appointment already on the calendar. That appointment is never touched -- extend anyway?',
+        i18n.t('calendar:timeline.appointmentsInsideRangeTitle'),
+        i18n.t('calendar:timeline.appointmentsInsideRangeMessage'),
         [
-          { text: 'Cancel', style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
-          { text: 'Extend Anyway', onPress: () => commitResize(newEnd, true) },
+          { text: i18n.t('calendar:timeline.cancel'), style: 'cancel', onPress: () => { resizeHeight.value = withSpring(0); } },
+          { text: i18n.t('calendar:timeline.extendAnyway'), onPress: () => commitResize(newEnd, true) },
         ],
       );
       return;
     }
     resizeHeight.value = withSpring(0);
-    Alert.alert('Could not change length', result.error);
+    Alert.alert(i18n.t('calendar:timeline.couldNotChangeLength'), result.error);
   }
 
   const resizeDrag = Gesture.Pan()

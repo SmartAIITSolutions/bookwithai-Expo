@@ -14,9 +14,11 @@ import { listServices, Service } from '@/lib/api/ownerServices';
 import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
 import { RebookDateTimeModal } from '@/components/owner/RebookDateTimeModal';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { formatCentsUSD, formatWeekdayMonthDay, formatWeekdayMonthDayLong, formatTimeShort, formatMonthDay } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
-function money(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
+const money = formatCentsUSD;
 
 function CardOverlay() {
   return (
@@ -43,6 +45,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // this screen is where reschedule, service changes, staff reassignment,
 // direct contact, and notes all live in one place.
 export default function AppointmentDetailScreen() {
+  const { t } = useTranslation(['owner']);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { clientId } = useAuth();
   const [booking, setBooking] = useState<OwnerBooking | null>(null);
@@ -85,7 +88,7 @@ export default function AppointmentDetailScreen() {
     const result = await updateBooking(id, body);
     setBusy(false);
     if (result.ok) { onDone?.(); load(); }
-    else Alert.alert('Could not update', result.error);
+    else Alert.alert(t('owner:appointmentDetail.couldNotUpdateTitle'), result.error);
   }
 
   function handleReschedule(newStart: Date) {
@@ -145,7 +148,7 @@ export default function AppointmentDetailScreen() {
     if (!booking?.customer_id || !newNote.trim()) return;
     const result = await addNote(booking.customer_id, newNote.trim());
     if (result.ok) { setNewNote(''); load(); }
-    else Alert.alert('Could not add note', result.error);
+    else Alert.alert(t('owner:appointmentDetail.couldNotAddNoteTitle'), result.error);
   }
 
   async function handlePinNote(noteId: string, pinned: boolean) {
@@ -161,14 +164,14 @@ export default function AppointmentDetailScreen() {
   }
 
   function saveInternalNote() {
-    patch({ internal_notes: internalNote.trim() || null }, () => Alert.alert('Saved', 'Internal note updated.'));
+    patch({ internal_notes: internalNote.trim() || null }, () => Alert.alert(t('owner:appointmentDetail.savedTitle'), t('owner:appointmentDetail.internalNoteUpdatedMessage')));
   }
 
   if (loading || !booking) {
     return (
       <View style={styles.screen}>
         <DualBreathingBackground />
-        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', title: 'Appointment' }} />
+        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', title: t('owner:appointmentDetail.headerTitle') }} />
         <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
       </View>
     );
@@ -195,8 +198,8 @@ export default function AppointmentDetailScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.customerName}>{customerDisplayName(booking)}</Text>
             <Text style={styles.meta}>
-              {new Date(booking.starts_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-              {'  ·  '}{new Date(booking.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              {formatWeekdayMonthDay(new Date(booking.starts_at))}
+              {'  ·  '}{formatTimeShort(new Date(booking.starts_at))}
               {'  ·  '}{displayServiceName}
             </Text>
           </View>
@@ -208,43 +211,43 @@ export default function AppointmentDetailScreen() {
         {booking.source === 'voice_ai' && (
           <View style={styles.sanaaBadge}>
             <SanaaMark variant="bookingAttribution" />
-            <Text style={styles.sanaaBadgeText}>Booked by SANAA</Text>
+            <Text style={styles.sanaaBadgeText}>{t('owner:appointmentDetail.bookedBySanaa')}</Text>
           </View>
         )}
 
         {/* Quick contact */}
         <View style={styles.contactRow}>
           <ContactAction
-            icon="call-outline" label="Call"
+            icon="call-outline" label={t('owner:appointmentDetail.call')}
             disabled={!booking.customer?.phone}
             onPress={() => booking.customer?.phone && Linking.openURL(`tel:${booking.customer.phone}`)}
           />
           <ContactAction
-            icon="chatbubble-outline" label="Text"
+            icon="chatbubble-outline" label={t('owner:appointmentDetail.text')}
             disabled={!booking.customer?.phone}
             onPress={() => booking.customer?.phone && Linking.openURL(`sms:${booking.customer.phone}`)}
           />
           <ContactAction
-            icon="mail-outline" label="Email"
+            icon="mail-outline" label={t('owner:appointmentDetail.email')}
             disabled={!booking.customer?.email}
             onPress={() => booking.customer?.email && Linking.openURL(`mailto:${booking.customer.email}`)}
           />
         </View>
 
         {/* Date & Time */}
-        <Section title="Date & Time">
+        <Section title={t('owner:appointmentDetail.dateTime')}>
           <TouchableOpacity style={styles.rowBetween} onPress={() => setShowReschedule(true)} disabled={busy}>
             <Text style={styles.rowValue}>
-              {new Date(booking.starts_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              {'  at  '}
-              {new Date(booking.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              {formatWeekdayMonthDayLong(new Date(booking.starts_at))}
+              {'  '}{t('owner:appointmentDetail.at')}{'  '}
+              {formatTimeShort(new Date(booking.starts_at))}
             </Text>
-            <Text style={styles.linkText}>Change</Text>
+            <Text style={styles.linkText}>{t('owner:appointmentDetail.change')}</Text>
           </TouchableOpacity>
         </Section>
 
         {/* Staff */}
-        <Section title="Staff">
+        <Section title={t('owner:appointmentDetail.staff')}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
             {staff.map(s => (
               <TouchableOpacity
@@ -260,7 +263,7 @@ export default function AppointmentDetailScreen() {
         </Section>
 
         {/* Services */}
-        <Section title="Services">
+        <Section title={t('owner:appointmentDetail.services')}>
           {resolvedServices.map(s => (
             <View key={s.id} style={styles.rowBetween}>
               <Text style={styles.rowValue}>{s.name} — {money(s.price_cents)}</Text>
@@ -273,7 +276,7 @@ export default function AppointmentDetailScreen() {
           ))}
           <TouchableOpacity style={styles.addRow} onPress={() => setShowServicePicker(v => !v)}>
             <Ionicons name="add-circle-outline" size={16} color="#F4D77A" />
-            <Text style={styles.linkText}>Add service</Text>
+            <Text style={styles.linkText}>{t('owner:appointmentDetail.addService')}</Text>
           </TouchableOpacity>
           {showServicePicker && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -287,11 +290,11 @@ export default function AppointmentDetailScreen() {
         </Section>
 
         {/* Client note (tied to the customer, not just this visit) */}
-        <Section title="Client Note">
+        <Section title={t('owner:appointmentDetail.clientNote')}>
           {notes.map(n => (
             <View key={n.id} style={styles.noteCard}>
               <View style={styles.noteHeader}>
-                <Text style={styles.noteDate}>{new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                <Text style={styles.noteDate}>{formatMonthDay(new Date(n.created_at))}</Text>
                 <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                   <TouchableOpacity onPress={() => handlePinNote(n.id, n.pinned)}>
                     <Ionicons name={n.pinned ? 'pin' : 'pin-outline'} size={14} color={n.pinned ? '#F4D77A' : 'rgba(255,255,255,0.5)'} />
@@ -308,28 +311,28 @@ export default function AppointmentDetailScreen() {
             <TextInput
               ref={noteInputRef}
               style={styles.noteInput}
-              placeholder="Add a note..."
+              placeholder={t('owner:appointmentDetail.addNotePlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={newNote}
               onChangeText={setNewNote}
               multiline
             />
-            <TouchableOpacity onPress={handleAddNote}><Text style={styles.linkText}>Save</Text></TouchableOpacity>
+            <TouchableOpacity onPress={handleAddNote}><Text style={styles.linkText}>{t('owner:appointmentDetail.save')}</Text></TouchableOpacity>
           </View>
         </Section>
 
         {/* Internal staff note (tied to this booking only) */}
-        <Section title="Internal Staff Note">
+        <Section title={t('owner:appointmentDetail.internalStaffNote')}>
           <TextInput
             style={styles.internalInput}
-            placeholder="Notes only your team can see..."
+            placeholder={t('owner:appointmentDetail.internalNotePlaceholder')}
             placeholderTextColor="rgba(255,255,255,0.4)"
             value={internalNote}
             onChangeText={setInternalNote}
             multiline
           />
           <TouchableOpacity style={styles.saveRow} onPress={saveInternalNote} disabled={busy}>
-            <Text style={styles.linkText}>Save</Text>
+            <Text style={styles.linkText}>{t('owner:appointmentDetail.save')}</Text>
           </TouchableOpacity>
         </Section>
 

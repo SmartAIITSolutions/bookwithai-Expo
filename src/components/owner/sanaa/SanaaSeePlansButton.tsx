@@ -1,5 +1,6 @@
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, BorderRadius } from '@/constants/Theme';
 import { trackSanaaEvent } from '@/lib/analytics/sanaaEvents';
 
@@ -12,6 +13,7 @@ interface SanaaSeePlansButtonProps {
 // so the post-demo and bottom conversion CTAs stay identical rather than
 // drifting apart.
 export function SanaaSeePlansButton({ variant = 'primary', location }: SanaaSeePlansButtonProps) {
+  const { t } = useTranslation(['sanaa']);
   return (
     <Pressable
       style={variant === 'primary' ? styles.primary : styles.secondary}
@@ -20,7 +22,7 @@ export function SanaaSeePlansButton({ variant = 'primary', location }: SanaaSeeP
         router.push('/owner-sanaa/plans');
       }}
     >
-      <Text style={variant === 'primary' ? styles.primaryText : styles.secondaryText}>See Plans</Text>
+      <Text style={variant === 'primary' ? styles.primaryText : styles.secondaryText}>{t('sanaa:seePlansButton.seePlans')}</Text>
     </Pressable>
   );
 }

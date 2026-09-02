@@ -17,6 +17,7 @@ import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { ErrorState } from '@/components/ErrorState';
 import { saveCustomerPreferences } from '@/lib/api/customer';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 function CardOverlay() {
   return (
@@ -28,6 +29,7 @@ function CardOverlay() {
 }
 
 export default function ServicesScreen() {
+  const { t } = useTranslation(['booking']);
   const { user } = useAuth();
   const {
     salonId, salonSlug, salonName, requireOnlinePayment,
@@ -125,7 +127,7 @@ export default function ServicesScreen() {
           <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Select Services</Text>
+          <Text style={styles.headerTitle}>{t('booking:servicesScreen.title')}</Text>
           {salonName ? (
             <Text style={styles.headerSub} numberOfLines={1}>{salonName}</Text>
           ) : null}
@@ -139,12 +141,12 @@ export default function ServicesScreen() {
           <BreathingHeart size={40} color="#F4D77A" />
         </View>
       ) : loadError ? (
-        <ErrorState message="Unable to load services. Please check your connection and try again." onRetry={load} />
+        <ErrorState message={t('booking:servicesScreen.loadErrorMessage')} onRetry={load} />
       ) : groups.length === 0 ? (
         <View style={styles.centered}>
           <Ionicons name="cut-outline" size={48} color="rgba(255,255,255,0.4)" />
-          <Text style={styles.emptyTitle}>No services available</Text>
-          <Text style={styles.emptySub}>This salon has no online-bookable services yet.</Text>
+          <Text style={styles.emptyTitle}>{t('booking:servicesScreen.emptyTitle')}</Text>
+          <Text style={styles.emptySub}>{t('booking:servicesScreen.emptySubtitle')}</Text>
         </View>
       ) : (
         <ScrollView
@@ -201,7 +203,7 @@ export default function ServicesScreen() {
         <View style={styles.footer}>
           <View style={styles.footerSummary}>
             <Text style={styles.footerCount}>
-              {selected.length} {selected.length === 1 ? 'service' : 'services'}
+              {t('booking:servicesScreen.serviceCount', { count: selected.length })}
             </Text>
             <Text style={styles.footerMeta}>
               {formatDuration(totalMins)}
@@ -209,7 +211,7 @@ export default function ServicesScreen() {
             </Text>
           </View>
           <Pressable style={styles.continueBtn} onPress={handleContinue}>
-            <Text style={styles.continueBtnText}>Continue</Text>
+            <Text style={styles.continueBtnText}>{t('booking:servicesScreen.continueButton')}</Text>
             <Ionicons name="chevron-forward" size={18} color="#09000F" />
           </Pressable>
         </View>

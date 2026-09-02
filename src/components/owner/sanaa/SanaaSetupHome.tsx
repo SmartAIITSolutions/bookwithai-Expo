@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { SanaaWordmark } from './SanaaWordmark';
 import { SanaaLifecycle } from '@/lib/api/ownerSanaa';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -16,12 +17,6 @@ function CardOverlay() {
   );
 }
 
-// Three real steps -- Connect IS the technical activation boundary
-// (successful provisioning = SANAA is live and answering calls), so there
-// is no separate owner-facing Activate step. Test verifies the
-// already-active SANAA; it doesn't activate her.
-const STEPS = ['Configure', 'Connect', 'Test'] as const;
-
 // Setup-in-progress states, in step order.
 // Resumes at the correct incomplete step; already-completed steps never
 // have to be repeated.
@@ -29,12 +24,6 @@ const STEP_INDEX: Record<string, number> = {
   setup_not_started: 0,
   setup_partial: 1,
   ready_to_test: 2,
-};
-
-const CTA_LABEL: Record<string, string> = {
-  setup_not_started: 'Continue Setup',
-  setup_partial: 'Continue Setup',
-  ready_to_test: 'Test SANAA',
 };
 
 // Real destinations for each step, in the order defined by STEPS/STEP_INDEX.
@@ -49,16 +38,27 @@ interface SanaaSetupHomeProps {
 }
 
 export function SanaaSetupHome({ state }: SanaaSetupHomeProps) {
+  const { t } = useTranslation(['sanaa']);
+  // Three real steps -- Connect IS the technical activation boundary
+  // (successful provisioning = SANAA is live and answering calls), so there
+  // is no separate owner-facing Activate step. Test verifies the
+  // already-active SANAA; it doesn't activate her.
+  const STEPS = [t('sanaa:setupHome.stepConfigure'), t('sanaa:setupHome.stepConnect'), t('sanaa:setupHome.stepTest')];
+  const CTA_LABEL: Record<string, string> = {
+    setup_not_started: t('sanaa:setupHome.continueSetupCta'),
+    setup_partial: t('sanaa:setupHome.continueSetupCta'),
+    ready_to_test: t('sanaa:setupHome.testSanaaCta'),
+  };
   const activeStep = STEP_INDEX[state] ?? 0;
-  const ctaLabel = CTA_LABEL[state] ?? 'Continue Setup';
+  const ctaLabel = CTA_LABEL[state] ?? t('sanaa:setupHome.continueSetupCta');
   const ctaRoute = STEP_ROUTES[activeStep];
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <SanaaWordmark width={150} height={53} showTagline={false} />
-        <Text style={styles.heroTitle}>Let's Set Her Up</Text>
-        <Text style={styles.heroBody}>A few steps and SANAA will be answering your calls.</Text>
+        <Text style={styles.heroTitle}>{t('sanaa:setupHome.heroTitle')}</Text>
+        <Text style={styles.heroBody}>{t('sanaa:setupHome.heroBody')}</Text>
       </View>
 
       <BlurView intensity={90} tint="dark" style={styles.card}>
@@ -70,11 +70,11 @@ export function SanaaSetupHome({ state }: SanaaSetupHomeProps) {
           const pressable = isCurrent && !!route;
           return (
             <Pressable
-              key={label}
+              key={i}
               style={[styles.stepRow, i > 0 && styles.rowBorder]}
               onPress={pressable ? () => router.push(route as never) : undefined}
               accessibilityRole={pressable ? 'button' : undefined}
-              accessibilityLabel={pressable ? `Continue to ${label}` : undefined}
+              accessibilityLabel={pressable ? t('sanaa:setupHome.continueToStep', { step: label }) : undefined}
             >
               <View style={[styles.stepBadge, done && styles.stepBadgeDone, isCurrent && styles.stepBadgeCurrent]}>
                 {done ? (
@@ -84,7 +84,7 @@ export function SanaaSetupHome({ state }: SanaaSetupHomeProps) {
                 )}
               </View>
               <Text style={[styles.stepLabel, isCurrent && styles.stepLabelCurrent]}>{label}</Text>
-              {isCurrent && <Text style={styles.stepNextTag}>NEXT</Text>}
+              {isCurrent && <Text style={styles.stepNextTag}>{t('sanaa:setupHome.next')}</Text>}
             </Pressable>
           );
         })}

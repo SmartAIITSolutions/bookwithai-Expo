@@ -1,0 +1,38 @@
+{
+  "privacy": {
+    "title": "Privacy Policy"
+  },
+  "terms": {
+    "title": "Terms of Service"
+  },
+  "support": {
+    "title": "Support"
+  },
+  "webScreen": {
+    "opening": "Opening {{title}}...",
+    "notOpenedHint": "If the page didn't open, tap below.",
+    "open": "Open {{title}}",
+    "tryAgain": "Try Again"
+  },
+  "deleteAccount": {
+    "headerTitle": "Delete My Account",
+    "headerBackTitle": "Account",
+    "whatGetsDeleted": "What gets deleted",
+    "whatGetsDeletedBody": "Your login, name, email, phone number, and saved profile details are permanently removed from Book With AI.",
+    "whatDoesNotDelete": "What this does NOT delete",
+    "whatDoesNotDeleteBody": "Your salon — its staff, services, bookings, and customer history — is not deleted when you delete your login. That data stays intact for accounting, tax, and fraud-prevention purposes, but once your login is gone, neither you nor anyone else will be able to sign in and manage it. If you want to hand your salon off to someone else, or shut it down properly first, contact support before deleting your account.",
+    "whatSalonsKeep": "What salons keep, and why",
+    "whatSalonsKeepBody": "Salons you've booked with may be legally required to retain basic transaction records (like appointment and payment history) for accounting, tax, and fraud-prevention purposes. This is retained by the salon independently of your Book With AI account and is not accessible to you or us once your account is deleted.",
+    "confirmDeletion": "Confirm deletion",
+    "confirmDeletionBody": "Type DELETE below to confirm. This action is permanent and cannot be undone.",
+    "typeDeleteToConfirm": "Type DELETE to confirm",
+    "deleteMyAccount": "Delete My Account",
+    "deleteOwnerTitle": "Delete your owner account?",
+    "deleteOwnerMessage": "This permanently removes your login. Your salon's staff, services, bookings, and customer history are NOT deleted, but you will lose all access to manage them. This cannot be undone.",
+    "deleteCustomerTitle": "Delete your account?",
+    "deleteCustomerMessage": "This permanently removes your account and personal information. This cannot be undone.",
+    "cancel": "Cancel",
+    "deleteAccountButton": "Delete Account",
+    "couldNotDeleteTitle": "Could not delete account"
+  }
+}

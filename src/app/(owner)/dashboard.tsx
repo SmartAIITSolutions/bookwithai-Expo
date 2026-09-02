@@ -17,37 +17,42 @@ import { getDashboard, DashboardData } from '@/lib/api/ownerDashboard';
 import { getBusiness } from '@/lib/api/ownerBusiness';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { listBookingsForDate, getPaymentStatusForDate, getUpcomingActivity, getBooking, serviceDisplayName, customerDisplayName, OwnerBooking, PaymentStatusResult, UpcomingActivityItem } from '@/lib/api/ownerBookings';
-import { bookingStatusColor } from '@/lib/calendar/bookingStatus';
+import { bookingStatusColor, bookingStatusKey } from '@/lib/calendar/bookingStatus';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
 import { dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { groupBackToBackBookings } from '@/lib/calendar/groupBackToBack';
 import { ownerBookingsQueryKey } from '@/lib/calendar/useOwnerBookings';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
+import { formatCentsUSDWhole, formatTimeShort, formatWeekdayMonthDay, formatWeekdayMonthDayLong } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
-const THOUGHTS = [
-  'A great salon day starts with one great appointment.',
-  'Every returning client is a decision they made about you.',
-  'Small consistency beats big effort every time.',
-  'The chair is empty for a reason — fill it with intention.',
-  'Today is data. Tomorrow is a decision.',
-];
-
-function greetingWord(hour: number) {
-  if (hour < 12) return 'Good Morning';
-  if (hour < 17) return 'Good Afternoon';
-  return 'Good Evening';
+function thoughts(): string[] {
+  return [
+    i18n.t('owner:dashboard.thought1'),
+    i18n.t('owner:dashboard.thought2'),
+    i18n.t('owner:dashboard.thought3'),
+    i18n.t('owner:dashboard.thought4'),
+    i18n.t('owner:dashboard.thought5'),
+  ];
 }
 
-function money(cents: number) { return `$${(cents / 100).toFixed(0)}`; }
+function greetingWord(hour: number) {
+  if (hour < 12) return i18n.t('owner:dashboard.greetingMorning');
+  if (hour < 17) return i18n.t('owner:dashboard.greetingAfternoon');
+  return i18n.t('owner:dashboard.greetingEvening');
+}
+
+const money = formatCentsUSDWhole;
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
 function timeLabel(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return formatTimeShort(new Date(iso));
 }
 
 // Recent Activity can span any future date, not just today -- needs a real
@@ -59,7 +64,7 @@ function dateTimeLabel(iso: string) {
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const isTomorrow = d.toDateString() === tomorrow.toDateString();
-  const dayLabel = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const dayLabel = isToday ? i18n.t('owner:dashboard.today') : isTomorrow ? i18n.t('owner:dashboard.tomorrow') : formatWeekdayMonthDay(d);
   return `${dayLabel} · ${timeLabel(iso)}`;
 }
 
@@ -99,7 +104,9 @@ function CardOverlay() {
 
 // Phase 0.2 Dashboard — "answer 'Am I okay today?' in under 5 seconds."
 export default function OwnerDashboardScreen() {
+  const { t } = useTranslation(['owner']);
   const { clientId } = useAuth();
+  const dayIndexThoughts = thoughts();
   const [healthExpanded, setHealthExpanded] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
@@ -107,7 +114,7 @@ export default function OwnerDashboardScreen() {
 
   const now = new Date();
   const todayKey = localDateKey(now);
-  const dayIndex = now.getDate() % THOUGHTS.length;
+  const dayIndex = now.getDate() % dayIndexThoughts.length;
   const queryClient = useQueryClient();
 
   // Each independently cached/de-duped by React Query. `bookings` shares its
@@ -185,7 +192,7 @@ export default function OwnerDashboardScreen() {
       <DualBreathingBackground />
 
       <View style={styles.container}>
-      <OwnerScreenHeader title="Dashboard" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
+      <OwnerScreenHeader title={t('owner:dashboard.title')} onNotificationsPress={() => router.push('/owner-notifications' as never)} />
       {loading || !data ? (
         <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
       ) : (
@@ -193,8 +200,8 @@ export default function OwnerDashboardScreen() {
           {/* Greeting */}
           <View>
             <Text style={styles.greeting}>{greetingWord(now.getHours())} 👋</Text>
-            <Text style={styles.date}>{now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
-            <Text style={styles.thought}>{THOUGHTS[dayIndex]}</Text>
+            <Text style={styles.date}>{formatWeekdayMonthDayLong(now)}</Text>
+            <Text style={styles.thought}>{dayIndexThoughts[dayIndex]}</Text>
           </View>
 
           <SanaaDashboardCard />
@@ -205,12 +212,12 @@ export default function OwnerDashboardScreen() {
               <BlurView intensity={90} tint="dark" style={[styles.snapshotCard, { borderColor: `${healthColor}88` }]}>
                 <CardOverlay />
                 <Text style={[styles.snapshotValue, { color: healthColor }]} numberOfLines={1} adjustsFontSizeToFit>{data.health.score}</Text>
-                <Text style={styles.snapshotLabel} numberOfLines={1}>Health</Text>
+                <Text style={styles.snapshotLabel} numberOfLines={1}>{t('owner:dashboard.health')}</Text>
               </BlurView>
             </Pressable>
-            <SnapshotCard label="Revenue" value={money(data.snapshot.revenue_cents)} trend={data.snapshot.revenue_trend_pct} />
-            <SnapshotCard label="Appointments" value={String(data.snapshot.appointments)} />
-            <SnapshotCard label="Occupancy" value={`${data.snapshot.occupancy_pct}%`} />
+            <SnapshotCard label={t('owner:dashboard.revenue')} value={money(data.snapshot.revenue_cents)} trend={data.snapshot.revenue_trend_pct} />
+            <SnapshotCard label={t('owner:dashboard.appointments')} value={String(data.snapshot.appointments)} />
+            <SnapshotCard label={t('owner:dashboard.occupancy')} value={`${data.snapshot.occupancy_pct}%`} />
           </View>
           {healthExpanded && (
             <View style={styles.healthReasons}>
@@ -225,7 +232,7 @@ export default function OwnerDashboardScreen() {
           {/* Today's Schedule — Option 2 card style, one card per visit */}
           {todaysBookings.length > 0 && (
             <View style={styles.scheduleSection}>
-              <Text style={styles.sectionTitle}>Today's Schedule</Text>
+              <Text style={styles.sectionTitle}>{t('owner:dashboard.todaysSchedule')}</Text>
               {todaysAppointmentGroups(todaysBookings).map((group) => {
                 const first = group[0];
                 const status = bookingStatusColor(first);
@@ -233,7 +240,12 @@ export default function OwnerDashboardScreen() {
                 const paid = paidValues.some(p => p === undefined) ? undefined : paidValues.every(p => p === true);
                 // Paid already implies confirmed -- showing both a Paid
                 // icon and a "Confirmed" pill said the same thing twice.
-                const showStatusBadge = !(paid === true && status.label === 'Confirmed');
+                // i18n foundation (L1) -- was `status.label === 'Confirmed'`,
+                // comparing the (translatable) display label directly. Now
+                // compares the stable bookingStatusKey() instead, so this
+                // keeps working unchanged once StatusLabel's strings are
+                // ever localized. Behavior is identical in English today.
+                const showStatusBadge = !(paid === true && bookingStatusKey(first) === 'confirmed');
                 const amountCents = group.reduce((sum, b) => sum + (b.total_charged_cents || b.price_cents || 0), 0);
                 const serviceLabel = group.map(serviceDisplayName).join(' + ');
                 return (
@@ -326,6 +338,7 @@ function StatChip({ label, value }: { label: string; value: string }) {
 // future, non-cancelled bookings show here -- past activity belongs to
 // history, not to something still needing attention today.
 function RecentActivity({ bookings, onOpen }: { bookings: OwnerBooking[]; onOpen: (id: string) => void }) {
+  const { t } = useTranslation(['owner', 'common']);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['owner-recent-activity'],
     queryFn: async () => {
@@ -348,17 +361,17 @@ function RecentActivity({ bookings, onOpen }: { bookings: OwnerBooking[]; onOpen
 
   return (
     <View style={styles.activitySection}>
-      <Text style={styles.sectionTitle}>Recent Activity</Text>
+      <Text style={styles.sectionTitle}>{t('owner:dashboard.recentActivity')}</Text>
       <View style={styles.statsRow}>
-        <StatChip label="Total Appts" value={String(groups.length)} />
-        <StatChip label="Confirmed" value={String(confirmedCount)} />
-        <StatChip label="Open Slots" value={String(openCount)} />
-        <StatChip label="Walk-Ins" value={String(walkInCount)} />
+        <StatChip label={t('owner:dashboard.totalAppts')} value={String(groups.length)} />
+        <StatChip label={t('owner:dashboard.confirmed')} value={String(confirmedCount)} />
+        <StatChip label={t('owner:dashboard.openSlots')} value={String(openCount)} />
+        <StatChip label={t('owner:dashboard.walkIns')} value={String(walkInCount)} />
       </View>
       {loading ? (
         <View style={{ paddingVertical: Spacing.md, alignItems: 'center' }}><BreathingHeart size={22} color="#F4D77A" /></View>
       ) : items.length === 0 ? (
-        <Text style={styles.activityEmpty}>No upcoming activity yet.</Text>
+        <Text style={styles.activityEmpty}>{t('owner:dashboard.noUpcomingActivity')}</Text>
       ) : (
         <BlurView intensity={90} tint="dark" style={styles.activityCard}>
           <CardOverlay />
@@ -372,7 +385,7 @@ function RecentActivity({ bookings, onOpen }: { bookings: OwnerBooking[]; onOpen
                   <Text style={styles.activityTitle} numberOfLines={1}>{item.customer_name}</Text>
                   <Text style={styles.activityMeta} numberOfLines={1}>{dateTimeLabel(item.starts_at)}</Text>
                   <Text style={styles.activityBody}>
-                    {item.service_names.length > 0 ? item.service_names.join(' + ') : 'Service'}
+                    {item.service_names.length > 0 ? item.service_names.join(' + ') : t('common:serviceFallback')}
                   </Text>
                 </View>
                 <View style={styles.apptTrailing}>

@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
+import { useTranslation } from 'react-i18next';
 import { getBusiness } from '@/lib/api/ownerBusiness';
 import {
   getStripeConnectStatus,
@@ -29,6 +30,7 @@ function CardOverlay() {
 // app's static /signup/mobile-done page; there's no session to resume into,
 // so we just re-poll status once the in-app browser closes).
 export default function PaymentsScreen() {
+  const { t } = useTranslation(['owner']);
   const [clientId, setClientId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<StripeConnectStatus | null>(null);
@@ -56,7 +58,7 @@ export default function PaymentsScreen() {
     setConnectLoading(true);
     const result = await getStripeConnectUrl(clientId);
     if (!result.ok) {
-      Alert.alert('Could not start Stripe connection', result.error);
+      Alert.alert(t('owner:paymentsScreen.couldNotStartConnectionTitle'), result.error);
       setConnectLoading(false);
       return;
     }
@@ -72,17 +74,17 @@ export default function PaymentsScreen() {
   function handleDisconnect() {
     if (!clientId) return;
     Alert.alert(
-      'Disconnect Stripe?',
-      'This unlinks your payout account. You can reconnect any time, but online card payments will stop working until you do.',
+      t('owner:paymentsScreen.disconnectStripeTitle'),
+      t('owner:paymentsScreen.disconnectStripeMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('owner:paymentsScreen.cancel'), style: 'cancel' },
         {
-          text: 'Disconnect',
+          text: t('owner:paymentsScreen.disconnect'),
           style: 'destructive',
           onPress: async () => {
             setDisconnectLoading(true);
             const result = await disconnectStripe(clientId);
-            if (!result.ok) Alert.alert('Could not disconnect', result.error);
+            if (!result.ok) Alert.alert(t('owner:paymentsScreen.couldNotDisconnectTitle'), result.error);
             else await loadStatus(clientId);
             setDisconnectLoading(false);
           },
@@ -95,7 +97,7 @@ export default function PaymentsScreen() {
     return (
       <View style={styles.container}>
         <DualBreathingBackground />
-        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Payments', headerBackTitle: 'More' }} />
+        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:paymentsScreen.headerTitle'), headerBackTitle: t('owner:paymentsScreen.headerBackTitle') }} />
         <View style={styles.centerFill}>
           <ActivityIndicator color="#F4D77A" />
         </View>
@@ -112,21 +114,21 @@ export default function PaymentsScreen() {
       <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Payments', headerBackTitle: 'More' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Stripe Connect</Text>
+          <Text style={styles.sectionTitle}>{t('owner:paymentsScreen.stripeConnect')}</Text>
           <BlurView intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
 
             <Text style={styles.statusText}>
               {isConnected
-                ? '✓ Bank connected'
+                ? t('owner:paymentsScreen.bankConnected')
                 : isPending
-                ? 'Setup incomplete — continue onboarding'
-                : 'Not connected yet'}
+                ? t('owner:paymentsScreen.setupIncomplete')
+                : t('owner:paymentsScreen.notConnectedYet')}
             </Text>
             <Text style={styles.emptyHint}>
               {isConnected
-                ? 'Payouts and online card payments go directly to your bank.'
-                : 'Connect a bank account with Stripe to accept online card payments and receive payouts.'}
+                ? t('owner:paymentsScreen.connectedHint')
+                : t('owner:paymentsScreen.notConnectedHint')}
             </Text>
 
             {!status?.has_account ? (
@@ -134,7 +136,7 @@ export default function PaymentsScreen() {
                 {connectLoading ? (
                   <ActivityIndicator color="#09000F" />
                 ) : (
-                  <Text style={styles.saveButtonText}>Connect bank account</Text>
+                  <Text style={styles.saveButtonText}>{t('owner:paymentsScreen.connectBankAccount')}</Text>
                 )}
               </TouchableOpacity>
             ) : isPending ? (
@@ -143,19 +145,19 @@ export default function PaymentsScreen() {
                   {connectLoading ? (
                     <ActivityIndicator color="#09000F" />
                   ) : (
-                    <Text style={styles.saveButtonText}>Continue Stripe setup</Text>
+                    <Text style={styles.saveButtonText}>{t('owner:paymentsScreen.continueStripeSetup')}</Text>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleDisconnect} disabled={disconnectLoading}>
                   <Text style={styles.disconnectText}>
-                    {disconnectLoading ? 'Disconnecting…' : 'Disconnect and start over'}
+                    {disconnectLoading ? t('owner:paymentsScreen.disconnecting') : t('owner:paymentsScreen.disconnectAndStartOver')}
                   </Text>
                 </TouchableOpacity>
               </>
             ) : (
               <TouchableOpacity onPress={handleDisconnect} disabled={disconnectLoading}>
                 <Text style={styles.disconnectText}>
-                  {disconnectLoading ? 'Disconnecting…' : 'Disconnect bank'}
+                  {disconnectLoading ? t('owner:paymentsScreen.disconnecting') : t('owner:paymentsScreen.disconnectBank')}
                 </Text>
               </TouchableOpacity>
             )}

@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
+import { useTranslation } from 'react-i18next';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
@@ -11,15 +12,16 @@ import { getSanaaOffer, SanaaOfferResponse } from '@/lib/api/ownerSanaaOffer';
 import { getSanaaUsage, SanaaUsage } from '@/lib/api/ownerSanaaUsage';
 import { openSanaaBillingPortal } from '@/lib/api/ownerSanaa';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatCentsUSD, formatMonthDay } from '@/lib/i18n/format';
 
 const BILLING_CTA_STATUSES = new Set(['past_due', 'suspended', 'conversion_failed', 'conversion_action_required']);
 
 function formatMoney(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatCentsUSD(cents);
 }
 
 function formatFullDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatMonthDay(new Date(iso));
 }
 
 function CardOverlay() {
@@ -28,30 +30,29 @@ function CardOverlay() {
   );
 }
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#0B0712' },
-  headerTintColor: '#F4D77A',
-  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-  title: 'Plan & Billing',
-  headerBackTitle: 'SANAA',
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  experience: 'Active — $5 SANAA Experience',
-  active: 'Active subscription',
-  past_due: 'Payment issue — grace period active',
-  suspended: 'Suspended — payment needed',
-  cancel_scheduled: 'Ending at the end of this billing period',
-  cancelled: 'Ended',
-  conversion_failed: 'Payment failed — needs a new payment method',
-  conversion_action_required: 'Payment confirmation needed',
-  converting: 'Finishing up…',
-  incomplete: 'Checkout not completed',
-};
-
 // Manage-existing destination -- distinct from owner-sanaa/plans (browse/buy).
 // Extended (not duplicated) now that a real commercial state exists to show.
 export default function SanaaBillingScreen() {
+  const { t } = useTranslation(['sanaa']);
+  const HEADER_OPTIONS = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: t('sanaa:billingScreen.headerTitle'),
+    headerBackTitle: t('sanaa:billingScreen.headerBackTitle'),
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    experience: t('sanaa:billingScreen.statusExperience'),
+    active: t('sanaa:billingScreen.statusActive'),
+    past_due: t('sanaa:billingScreen.statusPastDue'),
+    suspended: t('sanaa:billingScreen.statusSuspended'),
+    cancel_scheduled: t('sanaa:billingScreen.statusCancelScheduled'),
+    cancelled: t('sanaa:billingScreen.statusCancelled'),
+    conversion_failed: t('sanaa:billingScreen.statusConversionFailed'),
+    conversion_action_required: t('sanaa:billingScreen.statusConversionActionRequired'),
+    converting: t('sanaa:billingScreen.statusConverting'),
+    incomplete: t('sanaa:billingScreen.statusIncomplete'),
+  };
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [offer, setOffer] = useState<SanaaOfferResponse | null>(null);
@@ -103,23 +104,23 @@ export default function SanaaBillingScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {offer.current ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your SANAA Plan</Text>
+            <Text style={styles.sectionTitle}>{t('sanaa:billingScreen.yourSanaaPlan')}</Text>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               <Text style={styles.statusText}>{STATUS_LABEL[offer.current.status] ?? offer.current.status}</Text>
               {offer.current.experience_expires_at && offer.current.status === 'experience' && (
                 <Text style={styles.hint}>
-                  Experience ends {new Date(offer.current.experience_expires_at).toLocaleDateString()}, or after 30 calling minutes.
+                  {t('sanaa:billingScreen.experienceEndsHint', { date: formatFullDate(offer.current.experience_expires_at) })}
                 </Text>
               )}
               {BILLING_CTA_STATUSES.has(offer.current.status) && (
                 <TouchableOpacity style={styles.plansButton} onPress={handleUpdateBilling}>
-                  <Text style={styles.plansButtonText}>Update Billing</Text>
+                  <Text style={styles.plansButtonText}>{t('sanaa:billingScreen.updateBilling')}</Text>
                 </TouchableOpacity>
               )}
               {offer.current.status === 'cancelled' && (
                 <TouchableOpacity style={styles.plansButton} onPress={() => router.push('/owner-sanaa/plans')}>
-                  <Text style={styles.plansButtonText}>Restart SANAA</Text>
+                  <Text style={styles.plansButtonText}>{t('sanaa:billingScreen.restartSanaa')}</Text>
                 </TouchableOpacity>
               )}
             </BlurView>
@@ -128,14 +129,14 @@ export default function SanaaBillingScreen() {
 
         {usage?.available && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Usage This Billing Period</Text>
+            <Text style={styles.sectionTitle}>{t('sanaa:billingScreen.usageThisPeriod')}</Text>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               <Text style={styles.statusText}>{usage.plan_name}</Text>
-              <Text style={styles.usagePrice}>{formatMoney(usage.monthly_price_cents)}/month</Text>
+              <Text style={styles.usagePrice}>{t('sanaa:billingScreen.perMonth', { price: formatMoney(usage.monthly_price_cents) })}</Text>
 
               <View style={styles.usageRow}>
-                <Text style={styles.usageMinutes}>{usage.used_minutes} / {usage.included_minutes} minutes</Text>
+                <Text style={styles.usageMinutes}>{t('sanaa:billingScreen.minutesUsedOf', { used: usage.used_minutes, included: usage.included_minutes })}</Text>
                 <Text style={styles.usagePercent}>{usage.usage_percent}%</Text>
               </View>
               <View style={styles.progressTrack}>
@@ -153,23 +154,23 @@ export default function SanaaBillingScreen() {
               {usage.overage_minutes > 0 ? (
                 <>
                   <Text style={styles.overageText}>
-                    You've used {usage.overage_minutes} additional minutes this billing period.
+                    {t('sanaa:billingScreen.usedAdditionalMinutes', { count: usage.overage_minutes })}
                   </Text>
                   <Text style={styles.estimateText}>
-                    Estimated additional usage: {formatMoney(usage.estimated_overage_cents)}
+                    {t('sanaa:billingScreen.estimatedAdditionalUsage', { amount: formatMoney(usage.estimated_overage_cents) })}
                   </Text>
                   <Text style={styles.overageRateHint}>
-                    Based on your plan's {formatMoney(usage.overage_rate_cents_per_min)}/min overage rate.
+                    {t('sanaa:billingScreen.overageRateHint', { rate: formatMoney(usage.overage_rate_cents_per_min) })}
                   </Text>
                 </>
               ) : (
                 <Text style={styles.remainingText}>
-                  {usage.remaining_minutes} included minutes remaining this billing period.
+                  {t('sanaa:billingScreen.remainingMinutes', { count: usage.remaining_minutes })}
                 </Text>
               )}
 
               <Text style={styles.cycleLabel}>
-                Billing cycle: {formatFullDate(usage.current_period_start)} – {formatFullDate(usage.current_period_end)}
+                {t('sanaa:billingScreen.billingCycle', { start: formatFullDate(usage.current_period_start), end: formatFullDate(usage.current_period_end) })}
               </Text>
             </BlurView>
           </View>
@@ -179,9 +180,9 @@ export default function SanaaBillingScreen() {
           <View style={styles.section}>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
-              <Text style={styles.emptyText}>You haven't started SANAA yet.</Text>
+              <Text style={styles.emptyText}>{t('sanaa:billingScreen.notStartedYet')}</Text>
               <TouchableOpacity style={styles.plansButton} onPress={() => router.push('/owner-sanaa/plans')}>
-                <Text style={styles.plansButtonText}>See Plans</Text>
+                <Text style={styles.plansButtonText}>{t('sanaa:billingScreen.seePlans')}</Text>
               </TouchableOpacity>
             </BlurView>
           </View>

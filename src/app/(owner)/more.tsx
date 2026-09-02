@@ -6,6 +6,8 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { LanguagePickerRow } from '@/components/LanguagePickerRow';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -24,49 +26,53 @@ function CardOverlay() {
 // as incomplete). Growth/AI/Hardware groups previously existed here as
 // all-placeholder groups and are removed entirely for the same reason;
 // they come back once there's a real screen behind at least one item.
-const GROUPS: { name: string; items: { label: string; route: string }[] }[] = [
-  { name: 'Business', items: [
-    { label: 'Services', route: '/owner-settings/services' },
-    { label: 'Products', route: '/owner-settings/products' },
-    { label: 'Membership Plans', route: '/owner-settings/membership-plans' },
-    { label: 'Packages', route: '/owner-settings/service-packages' },
-  ] },
-  { name: 'Team', items: [
-    { label: 'Staff', route: '/owner-settings/staff' },
-    { label: 'Time Off', route: '/owner-settings/time-off' },
-    { label: 'Clock In / Payroll', route: '/owner-settings/clock' },
-  ] },
-  { name: 'System', items: [
-    { label: 'Settings', route: '/owner-settings/business' },
-    { label: 'Payments', route: '/owner-settings/payments' },
-    { label: 'Reports', route: '/owner-settings/reports' },
-    { label: 'Reviews', route: '/reviews' },
-  ] },
-  { name: 'Legal', items: [
-    { label: 'Privacy Policy', route: '/legal/privacy' },
-    { label: 'Terms of Service', route: '/legal/terms' },
-    { label: 'Support', route: '/legal/support' },
-    { label: 'Delete My Account', route: '/legal/delete-account' },
-  ] },
-];
+function buildGroups(t: ReturnType<typeof useTranslation<['owner']>>['t']): { name: string; items: { label: string; route: string }[] }[] {
+  return [
+    { name: t('owner:moreScreen.businessGroup'), items: [
+      { label: t('owner:moreScreen.services'), route: '/owner-settings/services' },
+      { label: t('owner:moreScreen.products'), route: '/owner-settings/products' },
+      { label: t('owner:moreScreen.membershipPlans'), route: '/owner-settings/membership-plans' },
+      { label: t('owner:moreScreen.packages'), route: '/owner-settings/service-packages' },
+    ] },
+    { name: t('owner:moreScreen.teamGroup'), items: [
+      { label: t('owner:moreScreen.staff'), route: '/owner-settings/staff' },
+      { label: t('owner:moreScreen.timeOff'), route: '/owner-settings/time-off' },
+      { label: t('owner:moreScreen.clockInPayroll'), route: '/owner-settings/clock' },
+    ] },
+    { name: t('owner:moreScreen.systemGroup'), items: [
+      { label: t('owner:moreScreen.settings'), route: '/owner-settings/business' },
+      { label: t('owner:moreScreen.payments'), route: '/owner-settings/payments' },
+      { label: t('owner:moreScreen.reports'), route: '/owner-settings/reports' },
+      { label: t('owner:moreScreen.reviews'), route: '/reviews' },
+    ] },
+    { name: t('owner:moreScreen.legalGroup'), items: [
+      { label: t('owner:moreScreen.privacyPolicy'), route: '/legal/privacy' },
+      { label: t('owner:moreScreen.termsOfService'), route: '/legal/terms' },
+      { label: t('owner:moreScreen.support'), route: '/legal/support' },
+      { label: t('owner:moreScreen.deleteMyAccount'), route: '/legal/delete-account' },
+    ] },
+  ];
+}
 
 export default function OwnerMoreScreen() {
+  const { t } = useTranslation(['owner']);
   const { signOut } = useAuth();
   const { width, height } = useWindowDimensions();
+  const GROUPS = buildGroups(t);
 
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <OwnerScreenHeader title="More" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
+      <OwnerScreenHeader title={t('owner:moreScreen.title')} onNotificationsPress={() => router.push('/owner-notifications' as never)} />
       <ScrollView contentContainerStyle={styles.content}>
-        {GROUPS.map((group) => (
-          <View key={group.name} style={styles.group}>
+        {GROUPS.map((group, gi) => (
+          <View key={`group-${gi}`} style={styles.group}>
             <Text style={styles.groupLabel}>{group.name}</Text>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               {group.items.map((item, i) => (
                 <TouchableOpacity
-                  key={item.label}
+                  key={`item-${gi}-${i}`}
                   onPress={() => router.push(item.route as never)}
                   style={[styles.row, i > 0 && styles.rowBorder]}
                 >
@@ -77,10 +83,17 @@ export default function OwnerMoreScreen() {
             </BlurView>
           </View>
         ))}
+        <View style={styles.group}>
+          <Text style={styles.groupLabel}>{t('owner:moreScreen.languageGroup')}</Text>
+          <BlurView intensity={90} tint="dark" style={[styles.card, styles.languageCard]}>
+            <CardOverlay />
+            <LanguagePickerRow variant="dark" />
+          </BlurView>
+        </View>
         <BlurView intensity={90} tint="dark" style={styles.card}>
           <CardOverlay />
           <TouchableOpacity style={styles.row} onPress={() => signOut()}>
-            <Text style={styles.logOutText}>Log Out</Text>
+            <Text style={styles.logOutText}>{t('owner:moreScreen.logOut')}</Text>
           </TouchableOpacity>
         </BlurView>
       </ScrollView>
@@ -112,6 +125,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: Spacing.md,
   },
   rowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' },
+  languageCard: { padding: Spacing.md },
   rowText: { fontFamily: FontFamily.sora, fontSize: FontSize.base, color: '#FFFFFF' },
   logOutText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.base, color: '#FF6B6B' },
 });

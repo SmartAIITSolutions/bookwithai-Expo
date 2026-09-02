@@ -7,12 +7,14 @@ import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import {
   listStaff, createStaff, updateStaff, saveStaffAvailability, inviteStaff,
   StaffMember, DayAvailability, PermissionRole,
 } from '@/lib/api/ownerStaff';
 import { setStaffOverride } from '@/lib/api/ownerDailyOps';
 import { getBusiness } from '@/lib/api/ownerBusiness';
+import { formatWeekdayShort } from '@/lib/i18n/format';
 
 function CardOverlay() {
   return (
@@ -25,9 +27,12 @@ function CardOverlay() {
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PERMISSION_ROLES: PermissionRole[] = ['manager', 'receptionist', 'stylist', 'assistant'];
-const ROLE_LABELS: Record<PermissionRole, string> = {
-  manager: 'Manager', receptionist: 'Receptionist', stylist: 'Stylist', assistant: 'Assistant',
-};
+const REFERENCE_SUNDAY = new Date(2023, 0, 1);
+function weekdayShortForIndex(index: number): string {
+  const d = new Date(REFERENCE_SUNDAY);
+  d.setDate(REFERENCE_SUNDAY.getDate() + index);
+  return formatWeekdayShort(d);
+}
 
 function defaultWeek(): DayAvailability[] {
   return DAY_LABELS.map((_, i) => ({
@@ -41,6 +46,13 @@ function defaultWeek(): DayAvailability[] {
 }
 
 export default function StaffScreen() {
+  const { t } = useTranslation(['owner']);
+  const ROLE_LABELS: Record<PermissionRole, string> = {
+    manager: t('owner:staffScreen.roleManager'),
+    receptionist: t('owner:staffScreen.roleReceptionist'),
+    stylist: t('owner:staffScreen.roleStylist'),
+    assistant: t('owner:staffScreen.roleAssistant'),
+  };
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [adding, setAdding] = useState(false);
@@ -70,7 +82,7 @@ export default function StaffScreen() {
 
   async function handleAdd() {
     if (!name.trim()) {
-      Alert.alert('Missing info', 'Name is required.');
+      Alert.alert(t('owner:staffScreen.missingInfoTitle'), t('owner:staffScreen.missingInfoMessage'));
       return;
     }
     setSaving(true);
@@ -80,7 +92,7 @@ export default function StaffScreen() {
       setName(''); setRole(''); setAdding(false);
       load();
     } else {
-      Alert.alert('Could not add staff member', result.error);
+      Alert.alert(t('owner:staffScreen.couldNotAddStaffTitle'), result.error);
     }
   }
 
@@ -97,7 +109,7 @@ export default function StaffScreen() {
   async function handleSaveHours(staffId: string) {
     const result = await saveStaffAvailability(staffId, editingWeek);
     if (result.ok) { setExpandedId(null); load(); }
-    else Alert.alert('Could not save hours', result.error);
+    else Alert.alert(t('owner:staffScreen.couldNotSaveHoursTitle'), result.error);
   }
 
   async function handleSetPermissionRole(staffId: string, role: PermissionRole) {
@@ -105,23 +117,23 @@ export default function StaffScreen() {
     const result = await updateStaff(staffId, { permission_role: role });
     setSavingRoleFor(null);
     if (result.ok) load();
-    else Alert.alert('Could not update role', result.error);
+    else Alert.alert(t('owner:staffScreen.couldNotUpdateRoleTitle'), result.error);
   }
 
   async function handleSaveCommissionRate(staffId: string, value: string) {
     const pct = value.trim() ? parseFloat(value) : null;
     if (value.trim() && (isNaN(pct as number) || (pct as number) < 0 || (pct as number) > 100)) {
-      Alert.alert('Invalid rate', 'Enter a percentage between 0 and 100.');
+      Alert.alert(t('owner:staffScreen.invalidRateTitle'), t('owner:staffScreen.invalidRateMessage'));
       return;
     }
     const result = await updateStaff(staffId, { default_commission_rate_pct: pct });
     if (result.ok) load();
-    else Alert.alert('Could not save', result.error);
+    else Alert.alert(t('owner:staffScreen.couldNotSaveTitle'), result.error);
   }
 
   async function handleSavePin(staffId: string) {
     if (pinDraft.length !== 4 || !/^\d{4}$/.test(pinDraft)) {
-      Alert.alert('Invalid PIN', 'Enter a 4-digit PIN.');
+      Alert.alert(t('owner:staffScreen.invalidPinTitle'), t('owner:staffScreen.invalidPinMessage'));
       return;
     }
     const result = await updateStaff(staffId, { pin: pinDraft });
@@ -129,33 +141,33 @@ export default function StaffScreen() {
       setPinDraftFor(null); setPinDraft('');
       load();
     } else {
-      Alert.alert('Could not save PIN', result.error);
+      Alert.alert(t('owner:staffScreen.couldNotSavePinTitle'), result.error);
     }
   }
 
   async function handleSendInvite(staffId: string) {
     if (!inviteEmail.trim() || !inviteEmail.includes('@')) {
-      Alert.alert('Invalid email', 'Enter a valid email address.');
+      Alert.alert(t('owner:staffScreen.invalidEmailTitle'), t('owner:staffScreen.invalidEmailMessage'));
       return;
     }
     const result = await inviteStaff(staffId, inviteEmail.trim());
     if (result.ok) {
-      Alert.alert('Invite sent', `An invite was sent to ${inviteEmail.trim()}.`);
+      Alert.alert(t('owner:staffScreen.inviteSentTitle'), t('owner:staffScreen.inviteSentMessage', { email: inviteEmail.trim() }));
       setInviteDraftFor(null); setInviteEmail('');
       load();
     } else {
-      Alert.alert('Could not send invite', result.error);
+      Alert.alert(t('owner:staffScreen.couldNotSendInviteTitle'), result.error);
     }
   }
 
   function handleRemoveStaff(s: StaffMember) {
     Alert.alert(
-      `Remove ${s.name}?`,
-      "They'll no longer appear in scheduling or booking. This doesn't delete their past appointment or commission history.",
+      t('owner:staffScreen.removeStaffTitle', { name: s.name }),
+      t('owner:staffScreen.removeStaffMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('owner:staffScreen.cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('owner:staffScreen.remove'),
           style: 'destructive',
           onPress: async () => {
             const result = await updateStaff(s.id, { active: false });
@@ -163,7 +175,7 @@ export default function StaffScreen() {
               setExpandedId(null);
               load();
             } else {
-              Alert.alert('Could not remove staff member', result.error);
+              Alert.alert(t('owner:staffScreen.couldNotRemoveStaffTitle'), result.error);
             }
           },
         },
@@ -172,26 +184,26 @@ export default function StaffScreen() {
   }
 
   async function handleSaveException(staffId: string) {
-    if (!exceptionDate.trim()) { Alert.alert('Missing date', 'Enter a date (YYYY-MM-DD).'); return; }
+    if (!exceptionDate.trim()) { Alert.alert(t('owner:staffScreen.missingDateTitle'), t('owner:staffScreen.missingDateMessage')); return; }
     const result = await setStaffOverride(staffId, { date: exceptionDate.trim(), is_working: false, reason: exceptionReason.trim() || undefined });
     if (result.ok) {
-      Alert.alert('Saved', `${exceptionDate} marked as a day off.`);
+      Alert.alert(t('owner:staffScreen.savedTitle'), t('owner:staffScreen.markedAsDayOffMessage', { date: exceptionDate }));
       setExceptionForId(null); setExceptionDate(''); setExceptionReason('');
     } else {
-      Alert.alert('Could not save', result.error);
+      Alert.alert(t('owner:staffScreen.couldNotSaveTitle'), result.error);
     }
   }
 
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Staff', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:staffScreen.headerTitle'), headerBackTitle: t('owner:staffScreen.headerBackTitle') }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={'#F4D77A'} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {staff.length === 0 && !adding && (
-            <Text style={styles.emptyHint}>Your team starts here.</Text>
+            <Text style={styles.emptyHint}>{t('owner:staffScreen.emptyHint')}</Text>
           )}
           {staff.map(s => (
             <BlurView key={s.id} intensity={90} tint="dark" style={styles.card}>
@@ -208,7 +220,7 @@ export default function StaffScreen() {
                 <View style={styles.hoursEditor}>
                   {editingWeek.map((day, i) => (
                     <View key={day.day_of_week} style={styles.dayRow}>
-                      <Text style={styles.dayLabel}>{DAY_LABELS[day.day_of_week]}</Text>
+                      <Text style={styles.dayLabel}>{weekdayShortForIndex(day.day_of_week)}</Text>
                       <Switch
                         value={day.is_working}
                         onValueChange={(v) => setEditingWeek(w => w.map((d, idx) => idx === i ? { ...d, is_working: v } : d))}
@@ -223,7 +235,7 @@ export default function StaffScreen() {
                             placeholder="09:00"
                             placeholderTextColor={'rgba(255,255,255,0.35)'}
                           />
-                          <Text style={styles.toText}>to</Text>
+                          <Text style={styles.toText}>{t('owner:staffScreen.to')}</Text>
                           <TextInput
                             style={styles.timeInput}
                             value={day.end_time}
@@ -236,11 +248,11 @@ export default function StaffScreen() {
                     </View>
                   ))}
                   <TouchableOpacity style={styles.saveHoursButton} onPress={() => handleSaveHours(s.id)}>
-                    <Text style={styles.addRowText}>Save hours</Text>
+                    <Text style={styles.addRowText}>{t('owner:staffScreen.saveHours')}</Text>
                   </TouchableOpacity>
 
                   <View style={styles.roleSection}>
-                    <Text style={styles.exceptionLabel}>Role & permissions</Text>
+                    <Text style={styles.exceptionLabel}>{t('owner:staffScreen.rolePermissions')}</Text>
                     <View style={styles.roleChipRow}>
                       {PERMISSION_ROLES.map(r => (
                         <TouchableOpacity
@@ -256,10 +268,10 @@ export default function StaffScreen() {
                       ))}
                     </View>
 
-                    <Text style={[styles.exceptionLabel, { marginTop: Spacing.sm }]}>Default commission rate (%)</Text>
+                    <Text style={[styles.exceptionLabel, { marginTop: Spacing.sm }]}>{t('owner:staffScreen.defaultCommissionRate')}</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="e.g. 40"
+                      placeholder={t('owner:staffScreen.commissionRatePlaceholder')}
                       placeholderTextColor={'rgba(255,255,255,0.35)'}
                       defaultValue={s.default_commission_rate_pct != null ? String(s.default_commission_rate_pct) : ''}
                       onEndEditing={(e) => handleSaveCommissionRate(s.id, e.nativeEvent.text)}
@@ -271,34 +283,34 @@ export default function StaffScreen() {
                         <View style={styles.inlineFormActions}>
                           <TextInput
                             style={[styles.input, { flex: 1 }]}
-                            placeholder="4-digit PIN"
+                            placeholder={t('owner:staffScreen.pinPlaceholder')}
                             placeholderTextColor={'rgba(255,255,255,0.35)'}
                             value={pinDraft}
-                            onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, 4))}
+                            onChangeText={(v) => setPinDraft(v.replace(/\D/g, '').slice(0, 4))}
                             keyboardType="number-pad"
                             secureTextEntry
                             maxLength={4}
                           />
                           <TouchableOpacity onPress={() => { setPinDraftFor(null); setPinDraft(''); }}>
-                            <Text style={styles.cancelText}>Cancel</Text>
+                            <Text style={styles.cancelText}>{t('owner:staffScreen.cancel')}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity onPress={() => handleSavePin(s.id)}>
-                            <Text style={styles.addRowText}>Save</Text>
+                            <Text style={styles.addRowText}>{t('owner:staffScreen.save')}</Text>
                           </TouchableOpacity>
                         </View>
                       ) : (
                         <TouchableOpacity style={styles.addRow} onPress={() => setPinDraftFor(s.id)}>
                           <Ionicons name="keypad-outline" size={16} color={'#F4D77A'} />
-                          <Text style={styles.addRowText}>{s.has_pin ? 'Change PIN' : 'Set a clock-in PIN'}</Text>
+                          <Text style={styles.addRowText}>{s.has_pin ? t('owner:staffScreen.changePin') : t('owner:staffScreen.setClockInPin')}</Text>
                         </TouchableOpacity>
                       )
                     ) : s.auth_user_id ? (
-                      <Text style={styles.exceptionLabel}>Account active</Text>
+                      <Text style={styles.exceptionLabel}>{t('owner:staffScreen.accountActive')}</Text>
                     ) : inviteDraftFor === s.id ? (
                       <View style={styles.inlineFormActions}>
                         <TextInput
                           style={[styles.input, { flex: 1 }]}
-                          placeholder="Email address"
+                          placeholder={t('owner:staffScreen.emailPlaceholder')}
                           placeholderTextColor={'rgba(255,255,255,0.35)'}
                           value={inviteEmail}
                           onChangeText={setInviteEmail}
@@ -306,17 +318,17 @@ export default function StaffScreen() {
                           keyboardType="email-address"
                         />
                         <TouchableOpacity onPress={() => { setInviteDraftFor(null); setInviteEmail(''); }}>
-                          <Text style={styles.cancelText}>Cancel</Text>
+                          <Text style={styles.cancelText}>{t('owner:staffScreen.cancel')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => handleSendInvite(s.id)}>
-                          <Text style={styles.addRowText}>Invite</Text>
+                          <Text style={styles.addRowText}>{t('owner:staffScreen.invite')}</Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
                       <TouchableOpacity style={styles.addRow} onPress={() => setInviteDraftFor(s.id)}>
                         <Ionicons name="mail-outline" size={16} color={'#F4D77A'} />
                         <Text style={styles.addRowText}>
-                          {s.invite_status === 'invited' ? `Invite pending (${s.invite_email})` : 'Invite to create an account'}
+                          {s.invite_status === 'invited' ? t('owner:staffScreen.invitePending', { email: s.invite_email }) : t('owner:staffScreen.inviteToCreateAccount')}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -324,24 +336,24 @@ export default function StaffScreen() {
 
                   {exceptionForId === s.id ? (
                     <View style={styles.exceptionForm}>
-                      <Text style={styles.exceptionLabel}>Mark a specific date off (sick day, etc.)</Text>
-                      <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={'rgba(255,255,255,0.35)'} value={exceptionDate} onChangeText={setExceptionDate} />
-                      <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={'rgba(255,255,255,0.35)'} value={exceptionReason} onChangeText={setExceptionReason} />
+                      <Text style={styles.exceptionLabel}>{t('owner:staffScreen.markDateOff')}</Text>
+                      <TextInput style={styles.input} placeholder={t('owner:staffScreen.datePlaceholder')} placeholderTextColor={'rgba(255,255,255,0.35)'} value={exceptionDate} onChangeText={setExceptionDate} />
+                      <TextInput style={styles.input} placeholder={t('owner:staffScreen.reasonPlaceholder')} placeholderTextColor={'rgba(255,255,255,0.35)'} value={exceptionReason} onChangeText={setExceptionReason} />
                       <View style={styles.inlineFormActions}>
-                        <TouchableOpacity onPress={() => setExceptionForId(null)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleSaveException(s.id)}><Text style={styles.addRowText}>Save</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => setExceptionForId(null)}><Text style={styles.cancelText}>{t('owner:staffScreen.cancel')}</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleSaveException(s.id)}><Text style={styles.addRowText}>{t('owner:staffScreen.save')}</Text></TouchableOpacity>
                       </View>
                     </View>
                   ) : (
                     <TouchableOpacity style={styles.addRow} onPress={() => setExceptionForId(s.id)}>
                       <Ionicons name="calendar-outline" size={16} color={'#F4D77A'} />
-                      <Text style={styles.addRowText}>Add a day-off exception</Text>
+                      <Text style={styles.addRowText}>{t('owner:staffScreen.addDayOffException')}</Text>
                     </TouchableOpacity>
                   )}
 
                   <TouchableOpacity style={styles.removeRow} onPress={() => handleRemoveStaff(s)}>
                     <Ionicons name="person-remove-outline" size={16} color={'#F09595'} />
-                    <Text style={styles.removeRowText}>Remove staff member</Text>
+                    <Text style={styles.removeRowText}>{t('owner:staffScreen.removeStaffMember')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -351,21 +363,21 @@ export default function StaffScreen() {
           {adding ? (
             <BlurView intensity={90} tint="dark" style={styles.addCard}>
               <CardOverlay />
-              <TextInput style={styles.input} placeholder="Name" placeholderTextColor={'rgba(255,255,255,0.35)'} value={name} onChangeText={setName} />
-              <TextInput style={styles.input} placeholder="Role (e.g. Stylist)" placeholderTextColor={'rgba(255,255,255,0.35)'} value={role} onChangeText={setRole} />
+              <TextInput style={styles.input} placeholder={t('owner:staffScreen.namePlaceholder')} placeholderTextColor={'rgba(255,255,255,0.35)'} value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder={t('owner:staffScreen.rolePlaceholder')} placeholderTextColor={'rgba(255,255,255,0.35)'} value={role} onChangeText={setRole} />
               <View style={styles.inlineFormActions}>
                 <TouchableOpacity onPress={() => setAdding(false)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={styles.cancelText}>{t('owner:staffScreen.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color={'#F4D77A'} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={'#F4D77A'} /> : <Text style={styles.addRowText}>{t('owner:staffScreen.save')}</Text>}
                 </TouchableOpacity>
               </View>
             </BlurView>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
               <Ionicons name="add" size={18} color={'#F4D77A'} />
-              <Text style={styles.addRowText}>Add staff member</Text>
+              <Text style={styles.addRowText}>{t('owner:staffScreen.addStaffMember')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>

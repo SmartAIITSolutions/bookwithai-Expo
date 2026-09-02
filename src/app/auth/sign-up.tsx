@@ -19,6 +19,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { supabase } from '@/lib/supabase';
 import { isValidEmail, isValidPhone, getPasswordError } from '@/lib/validation';
+import { Trans, useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -31,6 +32,7 @@ function CardOverlay() {
 }
 
 export default function SignUpScreen() {
+  const { t } = useTranslation(['auth', 'errors']);
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
@@ -52,12 +54,12 @@ export default function SignUpScreen() {
 
   function getFormErrors(): string[] {
     const errors: string[] = [];
-    if (!name.trim()) errors.push('Full name is required.');
-    if (!email.trim()) errors.push('Email is required.');
-    else if (!isValidEmail(email)) errors.push('Enter a valid email address.');
-    if (!phone.trim()) errors.push('Phone number is required.');
-    else if (!isValidPhone(phone)) errors.push('Enter a valid phone number.');
-    if (!password.trim()) errors.push('Password is required.');
+    if (!name.trim()) errors.push(t('errors:auth.fullNameRequired'));
+    if (!email.trim()) errors.push(t('errors:auth.emailRequired'));
+    else if (!isValidEmail(email)) errors.push(t('errors:auth.enterValidEmail'));
+    if (!phone.trim()) errors.push(t('errors:auth.phoneRequired'));
+    else if (!isValidPhone(phone)) errors.push(t('errors:auth.enterValidPhone'));
+    if (!password.trim()) errors.push(t('errors:auth.passwordRequired'));
     else {
       const pwError = getPasswordError(password);
       if (pwError) errors.push(pwError);
@@ -68,7 +70,7 @@ export default function SignUpScreen() {
   async function handleSignUp() {
     const errors = getFormErrors();
     if (errors.length > 0) {
-      Alert.alert('Please fix the following', errors.join('\n'));
+      Alert.alert(t('errors:auth.fixFollowingTitle'), errors.join('\n'));
       return;
     }
     try {
@@ -88,7 +90,7 @@ export default function SignUpScreen() {
         router.replace('/auth/sign-in');
       }
     } catch (e: any) {
-      Alert.alert('Sign up failed', e.message || 'Something went wrong. Please try again.');
+      Alert.alert(t('errors:auth.signUpFailedTitle'), e.message || t('errors:generic'));
     } finally {
       setLoading(false);
     }
@@ -106,22 +108,22 @@ export default function SignUpScreen() {
               <Pressable onPress={() => router.back()} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={24} color="#F4D77A" />
               </Pressable>
-              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.title}>{t('auth:signUp.title')}</Text>
               <View style={styles.backBtn} />
             </View>
 
-            <Text style={styles.subtitle}>Join Book With AI to manage your appointments.</Text>
+            <Text style={styles.subtitle}>{t('auth:signUp.subtitle')}</Text>
 
             {/* Fields */}
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Full Name *</Text>
+                <Text style={styles.label}>{t('auth:signUp.fullNameLabel')}</Text>
                 <TextInput
                   style={styles.input}
                   value={name}
                   onChangeText={setName}
-                  placeholder="Jane Smith"
+                  placeholder={t('auth:signUp.fullNamePlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   autoCapitalize="words"
                   autoCorrect={false}
@@ -129,45 +131,45 @@ export default function SignUpScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Email *</Text>
+                <Text style={styles.label}>{t('auth:signUp.emailLabel')}</Text>
                 <TextInput
                   style={styles.input}
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="jane@example.com"
+                  placeholder={t('auth:signUp.emailPlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
                 {email.length > 0 && !isValidEmail(email) && (
-                  <Text style={styles.errorText}>Please enter a valid email address.</Text>
+                  <Text style={styles.errorText}>{t('errors:auth.invalidEmail')}</Text>
                 )}
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Phone *</Text>
+                <Text style={styles.label}>{t('auth:signUp.phoneLabel')}</Text>
                 <TextInput
                   style={styles.input}
                   value={phone}
                   onChangeText={setPhone}
-                  placeholder="+1 (555) 000-0000"
+                  placeholder={t('auth:signUp.phonePlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   keyboardType="phone-pad"
                 />
                 {phone.length > 0 && !isValidPhone(phone) && (
-                  <Text style={styles.errorText}>Please enter a valid phone number.</Text>
+                  <Text style={styles.errorText}>{t('errors:auth.invalidPhone')}</Text>
                 )}
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Password *</Text>
+                <Text style={styles.label}>{t('auth:signUp.passwordLabel')}</Text>
                 <View style={styles.passwordWrap}>
                   <TextInput
                     style={[styles.input, styles.passwordInput]}
                     value={password}
                     onChangeText={setPassword}
-                    placeholder="Min. 8 characters"
+                    placeholder={t('auth:signUp.passwordPlaceholder')}
                     placeholderTextColor="rgba(255,255,255,0.4)"
                     secureTextEntry={!showPass}
                     autoCapitalize="none"
@@ -186,7 +188,7 @@ export default function SignUpScreen() {
                 )}
                 {password.length === 0 && (
                   <Text style={styles.hintText}>
-                    At least 8 characters, with an uppercase letter, a lowercase letter, and a number.
+                    {t('auth:signUp.passwordHint')}
                   </Text>
                 )}
               </View>
@@ -199,20 +201,24 @@ export default function SignUpScreen() {
                 disabled={loading}>
                 {loading
                   ? <BreathingHeart size={18} color="#09000F" />
-                  : <Text style={styles.submitBtnText}>Create Account</Text>
+                  : <Text style={styles.submitBtnText}>{t('auth:signUp.title')}</Text>
                 }
               </Pressable>
             </Reanimated.View>
 
             <Text style={styles.legalText}>
-              By creating an account, you agree to our{' '}
-              <Text style={styles.legalLink} onPress={() => router.push('/legal/terms')}>Terms</Text>
-              {' '}and{' '}
-              <Text style={styles.legalLink} onPress={() => router.push('/legal/privacy')}>Privacy Policy</Text>.
+              <Trans
+                ns="auth"
+                i18nKey="signUp.legalPrefix"
+                components={{
+                  terms: <Text style={styles.legalLink} onPress={() => router.push('/legal/terms')} />,
+                  privacy: <Text style={styles.legalLink} onPress={() => router.push('/legal/privacy')} />,
+                }}
+              />
             </Text>
 
             <Pressable style={styles.switchBtn} onPress={() => router.replace('/auth/sign-in')}>
-              <Text style={styles.switchText}>Already have an account? <Text style={styles.switchLink}>Sign in</Text></Text>
+              <Text style={styles.switchText}>{t('auth:switchToSignIn')} <Text style={styles.switchLink}>{t('auth:signInLink')}</Text></Text>
             </Pressable>
 
           </ScrollView>

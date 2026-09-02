@@ -20,6 +20,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { supabase } from '@/lib/supabase';
 import { isValidEmail } from '@/lib/validation';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -32,6 +33,7 @@ function CardOverlay() {
 }
 
 export default function MagicLinkScreen() {
+  const { t } = useTranslation(['auth', 'errors']);
   const [email,   setEmail]   = useState('');
   const [loading, setLoading] = useState(false);
   const [sent,    setSent]    = useState(false);
@@ -50,7 +52,7 @@ export default function MagicLinkScreen() {
 
   async function handleSend() {
     if (!email.trim()) {
-      Alert.alert('Enter your email', 'Please type your email address to receive a magic link.');
+      Alert.alert(t('errors:auth.enterEmailTitle'), t('errors:auth.enterEmailToReceiveMagicLink'));
       return;
     }
     if (!isValidEmail(email)) {
@@ -66,7 +68,7 @@ export default function MagicLinkScreen() {
       if (error) throw error;
       setSent(true);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not send magic link. Please try again.');
+      Alert.alert(t('errors:errorTitle'), e.message || t('errors:auth.couldNotSendMagicLink'));
     } finally {
       setLoading(false);
     }
@@ -83,7 +85,7 @@ export default function MagicLinkScreen() {
               <Pressable onPress={() => router.back()} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={24} color="#F4D77A" />
               </Pressable>
-              <Text style={styles.title}>Magic Link</Text>
+              <Text style={styles.title}>{t('auth:magicLink.title')}</Text>
               <View style={styles.backBtn} />
             </View>
 
@@ -92,32 +94,32 @@ export default function MagicLinkScreen() {
                 <View style={styles.sentIcon}>
                   <Ionicons name="mail-outline" size={40} color="#F4D77A" />
                 </View>
-                <Text style={styles.sentTitle}>Check your inbox</Text>
+                <Text style={styles.sentTitle}>{t('auth:magicLink.sentTitle')}</Text>
                 <Text style={styles.sentSubtitle}>
-                  We sent a login link to{'\n'}<Text style={styles.sentEmail}>{email}</Text>
+                  {t('auth:magicLink.sentSubtitle')}{'\n'}<Text style={styles.sentEmail}>{email}</Text>
                 </Text>
                 <Text style={styles.sentNote}>
-                  Tap the link in the email to sign in. You can close this screen.
+                  {t('auth:magicLink.sentNote')}
                 </Text>
                 <Pressable style={styles.resendBtn} onPress={() => setSent(false)}>
-                  <Text style={styles.resendText}>Didn't get it? Send again</Text>
+                  <Text style={styles.resendText}>{t('auth:magicLink.resend')}</Text>
                 </Pressable>
               </View>
             ) : (
               <>
                 <Text style={styles.subtitle}>
-                  Enter your email and we'll send you a one-tap login link. No password needed.
+                  {t('auth:magicLink.subtitle')}
                 </Text>
 
                 <BlurView intensity={90} tint="dark" style={styles.card}>
                   <CardOverlay />
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.label}>Email</Text>
+                    <Text style={styles.label}>{t('auth:magicLink.emailLabel')}</Text>
                     <TextInput
                       style={styles.input}
                       value={email}
                       onChangeText={setEmail}
-                      placeholder="jane@example.com"
+                      placeholder={t('auth:magicLink.emailPlaceholder')}
                       placeholderTextColor="rgba(255,255,255,0.4)"
                       keyboardType="email-address"
                       autoCapitalize="none"
@@ -125,7 +127,7 @@ export default function MagicLinkScreen() {
                       autoFocus
                     />
                     {email.length > 0 && !isValidEmail(email) && (
-                      <Text style={styles.errorText}>Please enter a valid email address.</Text>
+                      <Text style={styles.errorText}>{t('errors:auth.invalidEmail')}</Text>
                     )}
                   </View>
                 </BlurView>
@@ -137,7 +139,7 @@ export default function MagicLinkScreen() {
                     disabled={loading}>
                     {loading
                       ? <BreathingHeart size={18} color="#09000F" />
-                      : <Text style={styles.sendBtnText}>Send Magic Link</Text>
+                      : <Text style={styles.sendBtnText}>{t('auth:magicLink.sendButton')}</Text>
                     }
                   </Pressable>
                 </Reanimated.View>

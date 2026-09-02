@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Dimensions, Image, ImageSourcePropType } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 const { width, height } = Dimensions.get('window');
@@ -20,6 +21,7 @@ export function OnboardingSlide({
   heroPlaceholderLabel,
   isActive,
 }: OnboardingSlideProps) {
+  const { t } = useTranslation(['onboarding']);
   const floatValue = useSharedValue(0);
   const scaleValue = useSharedValue(1);
 
@@ -59,7 +61,7 @@ export function OnboardingSlide({
           <Image source={heroImage} style={styles.heroImage} resizeMode="cover" />
         ) : (
           <View style={styles.heroPlaceholder}>
-            <Text style={styles.heroPlaceholderText}>{heroPlaceholderLabel ?? 'Hero image coming soon'}</Text>
+            <Text style={styles.heroPlaceholderText}>{heroPlaceholderLabel ?? t('onboarding:customer.heroFallback')}</Text>
           </View>
         )}
       </Animated.View>

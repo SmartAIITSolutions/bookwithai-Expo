@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { useTranslation } from 'react-i18next';
 import { OwnerBooking, createBooking } from '@/lib/api/ownerBookings';
 import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine, sendBalancePaymentEmail, sendBalancePaymentPush, sendRebookNudge } from '@/lib/api/ownerCheckout';
 import { getStoreCredit } from '@/lib/api/ownerCheckout';
@@ -16,8 +17,10 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { cardChargeFromVisitDueCents } from '@/lib/stripe/fees';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatCentsUSD, formatWeekdayMonthDay, formatTimeShort } from '@/lib/i18n/format';
+import i18n from '@/lib/i18n';
 
-function money(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
+function money(cents: number) { return formatCentsUSD(cents); }
 
 // YYYY-MM-DD / HH:mm in the device's actual local time. `toISOString()`
 // always converts to UTC first, which silently shows the wrong calendar
@@ -33,8 +36,9 @@ function toLocalTimeStr(d: Date) {
 function formatRebookDateTime(dateStr: string, timeStr: string): string {
   const d = new Date(`${dateStr}T${timeStr}:00`);
   if (isNaN(d.getTime())) return `${dateStr} ${timeStr}`;
-  return `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  return `${formatWeekdayMonthDay(d)} ${i18n.t('owner:appointmentDetail.at')} ${formatTimeShort(d)}`;
 }
+
 
 function CardOverlay() {
   return (
@@ -71,6 +75,20 @@ export interface CheckoutSheetHandle {
 // races). Plain Modal has no such issue and needs no external library.
 export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>(
   function CheckoutSheet({ booking, onDone, staff = [] }, ref) {
+    const { t } = useTranslation(['owner']);
+    // Display-only labels for canonical tender methods -- `Tender['method']`
+    // values themselves ('cash', 'card', etc.) are never translated: they're
+    // submitted to the backend and must stay stable regardless of app language.
+    const TENDER_METHOD_LABELS: Record<Tender['method'], string> = {
+      cash: t('owner:checkoutSheet.tenderCash'),
+      card: t('owner:checkoutSheet.tenderCard'),
+      venmo: t('owner:checkoutSheet.tenderVenmo'),
+      zelle: t('owner:checkoutSheet.tenderZelle'),
+      cashapp: t('owner:checkoutSheet.tenderCashapp'),
+      gift_card: t('owner:checkoutSheet.tenderGiftCard'),
+      store_credit: t('owner:checkoutSheet.tenderStoreCredit'),
+      other: t('owner:checkoutSheet.tenderOther'),
+    };
     const [visible, setVisible] = useState(false);
     useImperativeHandle(ref, () => ({
       present: () => setVisible(true),
@@ -238,28 +256,28 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       if (!clientId || !giftCode.trim()) return;
       const r = await validateGiftCard(clientId, giftCode.trim());
       if (r.ok) setGiftBalance(r.balance_cents);
-      else Alert.alert('Invalid gift card', r.error);
+      else Alert.alert(t('owner:checkoutSheet.invalidGiftCardTitle'), r.error);
     }
 
     function addTender() {
       const amount = Math.round(parseFloat(tenderAmount || '0') * 100);
-      if (!amount || amount <= 0) { Alert.alert('Enter an amount'); return; }
+      if (!amount || amount <= 0) { Alert.alert(t('owner:checkoutSheet.enterAnAmountTitle')); return; }
       if (tenderMethod === 'gift_card') {
-        if (giftBalance == null) { Alert.alert('Validate the gift card first'); return; }
-        if (amount > giftBalance) { Alert.alert('Amount exceeds gift card balance'); return; }
-        setTenders(t => [...t, { method: 'gift_card', amount_cents: amount, gift_card_code: giftCode.trim() }]);
+        if (giftBalance == null) { Alert.alert(t('owner:checkoutSheet.validateGiftCardFirstTitle')); return; }
+        if (amount > giftBalance) { Alert.alert(t('owner:checkoutSheet.amountExceedsGiftCardTitle')); return; }
+        setTenders(list => [...list, { method: 'gift_card', amount_cents: amount, gift_card_code: giftCode.trim() }]);
         setGiftCode(''); setGiftBalance(null);
       } else if (tenderMethod === 'store_credit') {
-        if (amount > storeCreditBalance) { Alert.alert('Amount exceeds store credit balance'); return; }
-        setTenders(t => [...t, { method: 'store_credit', amount_cents: amount }]);
+        if (amount > storeCreditBalance) { Alert.alert(t('owner:checkoutSheet.amountExceedsStoreCreditTitle')); return; }
+        setTenders(list => [...list, { method: 'store_credit', amount_cents: amount }]);
       } else {
-        setTenders(t => [...t, { method: tenderMethod, amount_cents: amount }]);
+        setTenders(list => [...list, { method: tenderMethod, amount_cents: amount }]);
       }
     }
 
     async function handleSubmit() {
       if (!booking || !preview) return;
-      if (checkoutRemaining !== 0) { Alert.alert('Payments must add up to the total due.'); return; }
+      if (checkoutRemaining !== 0) { Alert.alert(t('owner:checkoutSheet.paymentsMustAddUpTitle')); return; }
       const finalTenders = pendingTender ? [...tenders, pendingTender] : tenders;
       setSubmitting(true);
       const res = await submitCheckout(booking.id, {
@@ -270,7 +288,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         staff_id: performedByStaffId !== booking.staff_id ? performedByStaffId : undefined,
       });
       setSubmitting(false);
-      if (!res.ok) { Alert.alert('Checkout failed', res.error); return; }
+      if (!res.ok) { Alert.alert(t('owner:checkoutSheet.checkoutFailedTitle'), res.error); return; }
 
       // Rebook -- only attempted after a successful checkout, and only if
       // the owner actually confirmed the (editable) suggested date/time.
@@ -288,7 +306,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             staff_id: performedByStaffId, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(),
             source: 'manual',
           });
-          if (!bookResult.ok) Alert.alert('Checkout completed, but rebooking failed', bookResult.error);
+          if (!bookResult.ok) Alert.alert(t('owner:checkoutSheet.checkoutCompletedRebookFailedTitle'), bookResult.error);
           else rebooked = true;
         }
       }
@@ -315,7 +333,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
     async function copyLink(url: string) {
       await Clipboard.setStringAsync(url);
-      setInfoModal({ title: 'Copied', message: 'Payment link copied to clipboard.' });
+      setInfoModal({ title: t('owner:checkoutSheet.copiedTitle'), message: t('owner:checkoutSheet.linkCopiedMessage') });
     }
 
     async function emailLink(url: string) {
@@ -323,8 +341,8 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       setEmailLinkSending(true);
       const res = await sendBalancePaymentEmail(booking.id, url, cardResultInfo.visitDueCents, cardResultInfo.cardTotalCents);
       setEmailLinkSending(false);
-      if (!res.ok) setInfoModal({ title: 'Could not send email', message: res.error });
-      else setInfoModal({ title: 'Sent', message: 'Payment link emailed to the customer.' });
+      if (!res.ok) setInfoModal({ title: t('owner:checkoutSheet.couldNotSendEmailTitle'), message: res.error });
+      else setInfoModal({ title: t('owner:checkoutSheet.sentTitle'), message: t('owner:checkoutSheet.linkEmailedMessage') });
     }
 
     async function pushLink(url: string) {
@@ -332,8 +350,8 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       setPushLinkSending(true);
       const res = await sendBalancePaymentPush(booking.id, url, cardResultInfo.cardTotalCents);
       setPushLinkSending(false);
-      if (!res.ok) setInfoModal({ title: 'Could not send notification', message: res.error });
-      else setInfoModal({ title: 'Sent', message: "Push notification sent -- they can pay right from the app, no phone number or email needed." });
+      if (!res.ok) setInfoModal({ title: t('owner:checkoutSheet.couldNotSendNotificationTitle'), message: res.error });
+      else setInfoModal({ title: t('owner:checkoutSheet.sentTitle'), message: t('owner:checkoutSheet.pushSentMessage') });
     }
 
     // Matches the web dashboard's own "Collect card payment" panel exactly
@@ -347,68 +365,68 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       return (
         <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="90%">
           <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.sectionTitle}>Collect card payment</Text>
+            <Text style={styles.sectionTitle}>{t('owner:checkoutSheet.collectCardPayment')}</Text>
             <Text style={styles.hint}>
-              Share this link with the customer. They can add a tip, then pay securely. This visit completes automatically after payment succeeds (usually within seconds).
+              {t('owner:checkoutSheet.collectCardPaymentHint')}
             </Text>
 
             {showBreakdown && cardResultInfo && (
               <View style={styles.balanceBox}>
                 <Text style={styles.balanceBoxText}>
-                  Visit balance: {money(cardResultInfo.visitDueCents)} · <Text style={styles.balanceBoxStrong}>Card charge: {money(cardResultInfo.cardTotalCents)}</Text>
+                  {t('owner:checkoutSheet.visitBalance', { balance: money(cardResultInfo.visitDueCents) })} · <Text style={styles.balanceBoxStrong}>{t('owner:checkoutSheet.cardCharge', { charge: money(cardResultInfo.cardTotalCents) })}</Text>
                 </Text>
-                <Text style={styles.balanceBoxHint}>Difference covers card processing when your salon passes fees to the customer.</Text>
+                <Text style={styles.balanceBoxHint}>{t('owner:checkoutSheet.cardChargeDiffHint')}</Text>
               </View>
             )}
 
             <View style={styles.cardActionsRow}>
               <TouchableOpacity style={styles.cardActionPrimary} onPress={() => Linking.openURL(url)}>
-                <Text style={styles.cardActionPrimaryText}>Open payment page</Text>
+                <Text style={styles.cardActionPrimaryText}>{t('owner:checkoutSheet.openPaymentPage')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cardActionSecondary} onPress={() => copyLink(url)}>
-                <Text style={styles.cardActionSecondaryText}>Copy link</Text>
+                <Text style={styles.cardActionSecondaryText}>{t('owner:checkoutSheet.copyLink')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.cardActionSecondary, !booking?.customer?.email && styles.cardActionDisabled]}
                 onPress={() => emailLink(url)}
                 disabled={!booking?.customer?.email || emailLinkSending}
               >
-                <Text style={styles.cardActionSecondaryText}>{emailLinkSending ? 'Sending…' : 'Email link'}</Text>
+                <Text style={styles.cardActionSecondaryText}>{emailLinkSending ? t('owner:checkoutSheet.sending') : t('owner:checkoutSheet.emailLink')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.cardActionSecondary, !booking?.customer_id && styles.cardActionDisabled]}
                 onPress={() => pushLink(url)}
                 disabled={!booking?.customer_id || pushLinkSending}
               >
-                <Text style={styles.cardActionSecondaryText}>{pushLinkSending ? 'Sending…' : 'Send app notification'}</Text>
+                <Text style={styles.cardActionSecondaryText}>{pushLinkSending ? t('owner:checkoutSheet.sending') : t('owner:checkoutSheet.sendAppNotification')}</Text>
               </TouchableOpacity>
             </View>
             {!booking?.customer?.email && (
-              <Text style={styles.hint}>Save a customer email on their profile to send this link by email.</Text>
+              <Text style={styles.hint}>{t('owner:checkoutSheet.saveEmailHint')}</Text>
             )}
-            <Text style={styles.hint}>App notification only reaches the customer if they've signed into the app on a device.</Text>
+            <Text style={styles.hint}>{t('owner:checkoutSheet.appNotificationHint')}</Text>
 
             <View style={styles.qrBox}>
               <Image
                 source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}` }}
                 style={styles.qrImage}
               />
-              <Text style={styles.qrHint}>Customer can scan to pay</Text>
+              <Text style={styles.qrHint}>{t('owner:checkoutSheet.scanToPay')}</Text>
             </View>
 
             <TouchableOpacity style={styles.cancelCardRow} onPress={() => { setResult(null); setCardResultInfo(null); }}>
-              <Text style={styles.cancelCardText}>Cancel card payment · pay with cash or other instead</Text>
+              <Text style={styles.cancelCardText}>{t('owner:checkoutSheet.cancelCardPayment')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.doneRow} onPress={onDone}>
-              <Text style={styles.doneText}>Done for now</Text>
+              <Text style={styles.doneText}>{t('owner:checkoutSheet.doneForNow')}</Text>
             </TouchableOpacity>
           </ScrollView>
           <ConfirmModal
             visible={!!infoModal}
             title={infoModal?.title ?? ''}
             message={infoModal?.message}
-            confirmLabel="OK"
+            confirmLabel={t('owner:checkoutSheet.ok')}
             hideCancel
             onCancel={() => setInfoModal(null)}
             onConfirm={() => setInfoModal(null)}
@@ -421,10 +439,10 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       return (
         <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="45%">
           <View style={styles.content}>
-            <Text style={styles.successTitle}>✅ Payment collected</Text>
-            <Text style={styles.successLine}>✅ Receipt sent</Text>
-            <Text style={styles.successLine}>✅ Loyalty updated</Text>
-            <Text style={styles.successLine}>{bookNext ? '✅ Next appointment booked' : preview.rebook_suggestion ? 'Not booked' : ''}</Text>
+            <Text style={styles.successTitle}>{t('owner:checkoutSheet.paymentCollected')}</Text>
+            <Text style={styles.successLine}>{t('owner:checkoutSheet.receiptSent')}</Text>
+            <Text style={styles.successLine}>{t('owner:checkoutSheet.loyaltyUpdated')}</Text>
+            <Text style={styles.successLine}>{bookNext ? t('owner:checkoutSheet.nextAppointmentBooked') : preview.rebook_suggestion ? t('owner:checkoutSheet.notBooked') : ''}</Text>
           </View>
         </SheetModal>
       );
@@ -433,10 +451,10 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     return (
       <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="90%">
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.sectionTitle}>Checkout</Text>
+          <Text style={styles.sectionTitle}>{t('owner:checkoutSheet.checkoutTitle')}</Text>
 
           {preview.checklist.every(c => c.ok) ? (
-            <Text style={styles.checklistOk}>Everything looks good.</Text>
+            <Text style={styles.checklistOk}>{t('owner:checkoutSheet.everythingLooksGood')}</Text>
           ) : (
             <View style={styles.checklistCard}>
               {preview.checklist.filter(c => !c.ok).map((c, i) => <Text key={i} style={styles.checklistItem}>⚠ {c.label}</Text>)}
@@ -444,7 +462,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
           )}
 
           {staff.filter(s => s.active).length > 1 && (
-            <Section title="Performed by">
+            <Section title={t('owner:checkoutSheet.performedBy')}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                 {staff.filter(s => s.active).map(s => (
                   <TouchableOpacity
@@ -456,11 +474,11 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              <Text style={styles.hint}>Who actually did the service -- used for commission credit.</Text>
+              <Text style={styles.hint}>{t('owner:checkoutSheet.performedByHint')}</Text>
             </Section>
           )}
 
-          <Section title="Service">
+          <Section title={t('owner:checkoutSheet.service')}>
             {addedServices.map(s => (
               <View key={s.id} style={styles.tenderRow}>
                 <Text style={styles.tenderText}>+ {s.name} — {money(s.price_cents)}</Text>
@@ -471,7 +489,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             ))}
             <TouchableOpacity style={styles.addRow} onPress={() => setShowServicePicker(v => !v)}>
               <Ionicons name="add-circle-outline" size={16} color="#F4D77A" />
-              <Text style={styles.linkText}>Add service</Text>
+              <Text style={styles.linkText}>{t('owner:checkoutSheet.addService')}</Text>
             </TouchableOpacity>
             {showServicePicker && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -484,7 +502,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             )}
           </Section>
 
-          <Section title="Products">
+          <Section title={t('owner:checkoutSheet.products')}>
             {products.map(p => (
               <Text key={p.product_id} style={styles.lineItem}>{p.quantity}× {p.product_name} — {money(p.quantity * p.price_cents_each)}</Text>
             ))}
@@ -497,7 +515,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             </ScrollView>
           </Section>
 
-          <Section title="Discount">
+          <Section title={t('owner:checkoutSheet.discount')}>
             <View style={styles.chipRow}>
               {[10, 15, 20].map(pct => (
                 <TouchableOpacity
@@ -509,25 +527,25 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity style={[styles.chip, !customDiscount && discountCents === 0 && styles.chipActive]} onPress={() => { setCustomDiscount(false); setDiscountCents(0); }}>
-                <Text style={[styles.chipText, !customDiscount && discountCents === 0 && styles.chipTextActive]}>None</Text>
+                <Text style={[styles.chipText, !customDiscount && discountCents === 0 && styles.chipTextActive]}>{t('owner:checkoutSheet.none')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.chip, customDiscount && styles.chipActive]} onPress={() => setCustomDiscount(true)}>
-                <Text style={[styles.chipText, customDiscount && styles.chipTextActive]}>Custom</Text>
+                <Text style={[styles.chipText, customDiscount && styles.chipTextActive]}>{t('owner:checkoutSheet.custom')}</Text>
               </TouchableOpacity>
             </View>
             {customDiscount && (
               <TextInput
                 style={styles.input}
-                placeholder="Discount amount ($)"
+                placeholder={t('owner:checkoutSheet.discountAmountPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={customDiscountText}
-                onChangeText={t => { setCustomDiscountText(t); setDiscountCents(Math.round((parseFloat(t) || 0) * 100)); }}
+                onChangeText={v => { setCustomDiscountText(v); setDiscountCents(Math.round((parseFloat(v) || 0) * 100)); }}
                 keyboardType="decimal-pad"
               />
             )}
           </Section>
 
-          <Section title="Tip">
+          <Section title={t('owner:checkoutSheet.tip')}>
             <View style={styles.chipRow}>
               {[18, 20, 25].map(pct => (
                 <TouchableOpacity
@@ -539,19 +557,19 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity style={[styles.chip, !customTip && tipCents === 0 && styles.chipActive]} onPress={() => { setCustomTip(false); setTipCents(0); }}>
-                <Text style={[styles.chipText, !customTip && tipCents === 0 && styles.chipTextActive]}>None</Text>
+                <Text style={[styles.chipText, !customTip && tipCents === 0 && styles.chipTextActive]}>{t('owner:checkoutSheet.none')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.chip, customTip && styles.chipActive]} onPress={() => setCustomTip(true)}>
-                <Text style={[styles.chipText, customTip && styles.chipTextActive]}>Custom</Text>
+                <Text style={[styles.chipText, customTip && styles.chipTextActive]}>{t('owner:checkoutSheet.custom')}</Text>
               </TouchableOpacity>
             </View>
             {customTip && (
               <TextInput
                 style={styles.input}
-                placeholder="Tip amount ($)"
+                placeholder={t('owner:checkoutSheet.tipAmountPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={customTipText}
-                onChangeText={t => { setCustomTipText(t); setTipCents(Math.round((parseFloat(t) || 0) * 100)); }}
+                onChangeText={v => { setCustomTipText(v); setTipCents(Math.round((parseFloat(v) || 0) * 100)); }}
                 keyboardType="decimal-pad"
               />
             )}
@@ -559,18 +577,24 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
           <BlurView intensity={90} tint="dark" style={styles.totalsCard}>
             <CardOverlay />
-            <TotalRow label="Subtotal" value={subtotal} />
-            <TotalRow label="Discount" value={-discountCents} />
-            <TotalRow label={preview.tax.label} value={taxCents} />
-            <TotalRow label="Tip" value={tipCents} />
-            <TotalRow label="Total" value={total} bold />
-            <TotalRow label="Remaining" value={checkoutRemaining} bold color={checkoutRemaining === 0 ? '#4ADE80' : '#F09595'} />
+            <TotalRow label={t('owner:checkoutSheet.subtotal')} value={subtotal} />
+            <TotalRow label={t('owner:checkoutSheet.discount')} value={-discountCents} />
+            {/* Presentation-only: preview.tax.label is agency_clients.tax_label,
+                a real per-business setting the owner can customize (see
+                booking-app's checkout-preview route), defaulting server-side
+                to the literal English string 'Tax'. Translate only that
+                known default for display; a customized label (e.g. "VAT",
+                "IVA") always passes through untouched. */}
+            <TotalRow label={preview.tax.label === 'Tax' ? t('owner:checkoutSheet.taxDefaultLabel') : preview.tax.label} value={taxCents} />
+            <TotalRow label={t('owner:checkoutSheet.tip')} value={tipCents} />
+            <TotalRow label={t('owner:checkoutSheet.totalLabel')} value={total} bold />
+            <TotalRow label={t('owner:checkoutSheet.remaining')} value={checkoutRemaining} bold color={checkoutRemaining === 0 ? '#4ADE80' : '#F09595'} />
           </BlurView>
 
-          <Section title="Payment">
-            {tenders.map((t, i) => (
+          <Section title={t('owner:checkoutSheet.payment')}>
+            {tenders.map((td, i) => (
               <View key={i} style={styles.tenderRow}>
-                <Text style={styles.tenderText}>{t.method} — {money(t.amount_cents)}</Text>
+                <Text style={styles.tenderText}>{TENDER_METHOD_LABELS[td.method]} — {money(td.amount_cents)}</Text>
                 <TouchableOpacity onPress={() => setTenders(list => list.filter((_, idx) => idx !== i))}>
                   <Ionicons name="close" size={16} color="#F09595" />
                 </TouchableOpacity>
@@ -582,23 +606,23 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {(['cash', 'card', 'venmo', 'zelle', 'cashapp', 'gift_card', 'store_credit', 'other'] as const).map(m => (
                     <TouchableOpacity key={m} style={[styles.chip, tenderMethod === m && styles.chipActive]} onPress={() => setTenderMethod(m)}>
-                      <Text style={[styles.chipText, tenderMethod === m && styles.chipTextActive]}>{m}</Text>
+                      <Text style={[styles.chipText, tenderMethod === m && styles.chipTextActive]}>{TENDER_METHOD_LABELS[m]}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
                 {tenderMethod === 'gift_card' && (
                   <View style={styles.giftRow}>
-                    <TextInput style={[styles.input, { flex: 1 }]} placeholder="Gift card code" placeholderTextColor="rgba(255,255,255,0.4)" value={giftCode} onChangeText={setGiftCode} autoCapitalize="characters" />
-                    <TouchableOpacity onPress={handleValidateGift}><Text style={styles.linkText}>Check</Text></TouchableOpacity>
+                    <TextInput style={[styles.input, { flex: 1 }]} placeholder={t('owner:checkoutSheet.giftCardCodePlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" value={giftCode} onChangeText={setGiftCode} autoCapitalize="characters" />
+                    <TouchableOpacity onPress={handleValidateGift}><Text style={styles.linkText}>{t('owner:checkoutSheet.check')}</Text></TouchableOpacity>
                   </View>
                 )}
                 {tenderMethod === 'gift_card' && giftBalance != null && (
-                  <Text style={styles.hint}>Balance: {money(giftBalance)}</Text>
+                  <Text style={styles.hint}>{t('owner:checkoutSheet.balance', { balance: money(giftBalance) })}</Text>
                 )}
                 {tenderMethod === 'store_credit' && (
-                  <Text style={styles.hint}>Available: {money(storeCreditBalance)}</Text>
+                  <Text style={styles.hint}>{t('owner:checkoutSheet.available', { balance: money(storeCreditBalance) })}</Text>
                 )}
-                <TextInput style={styles.input} placeholder="Amount ($)" placeholderTextColor="rgba(255,255,255,0.4)" value={tenderAmount} onChangeText={setTenderAmount} keyboardType="decimal-pad" />
+                <TextInput style={styles.input} placeholder={t('owner:checkoutSheet.amountPlaceholder')} placeholderTextColor="rgba(255,255,255,0.4)" value={tenderAmount} onChangeText={setTenderAmount} keyboardType="decimal-pad" />
 
                 {/* Matches the web dashboard's own "Order Total" card exactly:
                     a separate, payment-method-specific summary, not folded into
@@ -608,35 +632,35 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
                     checkout does; this box only previews what that comes out to. */}
                 {cardFeePreview && cardFeePreview.stripeFeesCents > 0 && (
                   <View style={styles.orderTotalCard}>
-                    <Text style={styles.orderTotalLabel}>ORDER TOTAL</Text>
+                    <Text style={styles.orderTotalLabel}>{t('owner:checkoutSheet.orderTotal')}</Text>
                     <View style={styles.tenderRow}>
-                      <Text style={styles.tenderText}>Service</Text>
-                      <Text style={styles.tenderText}>{money(remaining)}</Text>
+                      <Text style={styles.tenderTextPlain}>{t('owner:checkoutSheet.service')}</Text>
+                      <Text style={styles.tenderTextPlain}>{money(remaining)}</Text>
                     </View>
                     <View style={styles.tenderRow}>
-                      <Text style={styles.tenderText}>Card processing (estimate)</Text>
-                      <Text style={styles.tenderText}>+{money(cardFeePreview.stripeFeesCents)}</Text>
+                      <Text style={styles.tenderTextPlain}>{t('owner:checkoutSheet.cardProcessingEstimate')}</Text>
+                      <Text style={styles.tenderTextPlain}>+{money(cardFeePreview.stripeFeesCents)}</Text>
                     </View>
                     <View style={styles.orderTotalDueRow}>
-                      <Text style={styles.orderTotalDueLabel}>Total due</Text>
+                      <Text style={styles.orderTotalDueLabel}>{t('owner:checkoutSheet.totalDue')}</Text>
                       <Text style={styles.orderTotalDueValue}>{money(cardFeePreview.totalChargeCents)}</Text>
                     </View>
                   </View>
                 )}
 
                 <View style={styles.inlineActions}>
-                  <TouchableOpacity onPress={addTender}><Text style={styles.linkText}>Add payment</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={addTender}><Text style={styles.linkText}>{t('owner:checkoutSheet.addPayment')}</Text></TouchableOpacity>
                 </View>
               </BlurView>
             )}
           </Section>
 
           {preview.rebook_suggestion && (
-            <Section title="Rebook">
+            <Section title={t('owner:checkoutSheet.rebook')}>
               <TouchableOpacity style={styles.rebookCard} onPress={() => setBookNext(v => !v)}>
                 <Ionicons name={bookNext ? 'checkbox' : 'square-outline'} size={18} color="#F4D77A" />
                 <Text style={styles.rebookText}>
-                  Suggest next visit (usually every {preview.rebook_suggestion.interval_days} days)
+                  {t('owner:checkoutSheet.suggestNextVisit', { days: preview.rebook_suggestion.interval_days })}
                 </Text>
               </TouchableOpacity>
               {bookNext && rebookDate && rebookTime && (
@@ -651,10 +675,10 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             </Section>
           )}
 
-          <Text style={styles.hint}>An in-app notification receipt is always sent — SMS isn't reliable yet, so it's been removed here.</Text>
+          <Text style={styles.hint}>{t('owner:checkoutSheet.receiptHint')}</Text>
 
           <TouchableOpacity style={[styles.primaryButton, checkoutRemaining !== 0 && styles.primaryButtonDisabled]} onPress={handleSubmit} disabled={submitting || checkoutRemaining !== 0}>
-            {submitting ? <ActivityIndicator color="#09000F" /> : <Text style={styles.primaryButtonText}>Complete Checkout</Text>}
+            {submitting ? <ActivityIndicator color="#09000F" /> : <Text style={styles.primaryButtonText}>{t('owner:checkoutSheet.completeCheckout')}</Text>}
           </TouchableOpacity>
         </ScrollView>
 
@@ -773,6 +797,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.15)',
   },
   tenderText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF', textTransform: 'capitalize' },
+  // Same visual style as tenderText but without textTransform:'capitalize' --
+  // that transform title-cases every word, which is correct for a single
+  // tender-method name (line ~597) but was incorrectly also applying to full
+  // sentence labels in the Order Total breakdown below, turning "Card
+  // processing estimate" into "Card Processing Estimate" in English and,
+  // worse, "Procesamiento De Tarjeta (Estimado)" in Spanish.
+  tenderTextPlain: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
   addCard: {
     borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm, gap: Spacing.xs,

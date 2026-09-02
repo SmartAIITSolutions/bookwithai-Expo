@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal, View, Text, Pressable, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE } from '@/lib/config';
+import { useTranslation } from 'react-i18next';
+import { formatWeekdayShort, formatTimeShort, formatMonthYear } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -15,7 +17,14 @@ function CardOverlay() {
   );
 }
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+// 2023-01-01 was a real Sunday -- stable reference date so Intl can produce a
+// locale-correct short weekday name for the month-grid header.
+const REFERENCE_SUNDAY = new Date(2023, 0, 1);
+function weekdayShortUpperForIndex(index: number): string {
+  const d = new Date(REFERENCE_SUNDAY);
+  d.setDate(REFERENCE_SUNDAY.getDate() + index);
+  return formatWeekdayShort(d).toUpperCase();
+}
 
 interface AvailabilitySlot {
   starts_at: string;
@@ -26,12 +35,7 @@ interface AvailabilitySlot {
 }
 
 function fmtTime(isoStr: string) {
-  const d = new Date(isoStr);
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m} ${ampm}`;
+  return formatTimeShort(new Date(isoStr));
 }
 
 function toLocalDateStr(d: Date) {
@@ -57,6 +61,14 @@ interface RebookDateTimeModalProps {
 // a time that conflicts with an existing appointment or falls outside the
 // assigned staff member's working hours.
 export function RebookDateTimeModal({ visible, initialDate, salonId, serviceId, staffId, onCancel, onConfirm }: RebookDateTimeModalProps) {
+  const { t, i18n } = useTranslation(['calendar']);
+  // Bug fix — this used to be a module-level constant computed once at
+  // import time (almost always in English, before the app ever resolves a
+  // language), so it never updated when the language changed at runtime
+  // even though everything else on this screen re-renders reactively via
+  // t(). Recomputing here, keyed on i18n.language, makes it reactive like
+  // the rest of the screen -- calendar dates/availability logic untouched.
+  const WEEKDAYS = useMemo(() => [0, 1, 2, 3, 4, 5, 6].map(weekdayShortUpperForIndex), [i18n.language]);
   const [viewMonth, setViewMonth] = useState(() => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState(initialDate.getDate());
   const [selectedYear, setSelectedYear] = useState(initialDate.getFullYear());
@@ -88,9 +100,9 @@ export function RebookDateTimeModal({ visible, initialDate, salonId, serviceId, 
         if (cancelled) return;
         const available = ((json.slots ?? []) as AvailabilitySlot[]).filter(s => s.available);
         setSlots(available);
-        if (available.length === 0) setSlotsError('No available slots for this date.');
+        if (available.length === 0) setSlotsError(t('calendar:rebookModal.noAvailableSlots'));
       } catch {
-        if (!cancelled) setSlotsError('Could not load availability. Please try another date.');
+        if (!cancelled) setSlotsError(t('calendar:rebookModal.loadError'));
       } finally {
         if (!cancelled) setLoadingSlots(false);
       }
@@ -135,20 +147,20 @@ export function RebookDateTimeModal({ visible, initialDate, salonId, serviceId, 
         <Pressable style={styles.backdrop} onPress={onCancel} />
         <BlurView intensity={90} tint="dark" style={styles.card}>
           <CardOverlay />
-          <Text style={styles.title}>Pick a date & time</Text>
+          <Text style={styles.title}>{t('calendar:rebookModal.title')}</Text>
 
           <View style={styles.monthNav}>
             <TouchableOpacity onPress={() => shiftMonth(-1)} hitSlop={8}>
               <Ionicons name="chevron-back" size={18} color="#F4D77A" />
             </TouchableOpacity>
-            <Text style={styles.monthLabel}>{viewMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
+            <Text style={styles.monthLabel}>{formatMonthYear(viewMonth.getFullYear(), viewMonth.getMonth())}</Text>
             <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={8}>
               <Ionicons name="chevron-forward" size={18} color="#F4D77A" />
             </TouchableOpacity>
           </View>
 
           <View style={styles.weekdayRow}>
-            {WEEKDAYS.map(d => <Text key={d} style={styles.weekdayLabel}>{d}</Text>)}
+            {WEEKDAYS.map((d, i) => <Text key={i} style={styles.weekdayLabel}>{d}</Text>)}
           </View>
           <View style={styles.grid}>
             {cells.map((day, i) => {
@@ -177,15 +189,15 @@ export function RebookDateTimeModal({ visible, initialDate, salonId, serviceId, 
           <View style={styles.legendRow}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, styles.legendDotToday]} />
-              <Text style={styles.legendText}>Today</Text>
+              <Text style={styles.legendText}>{t('calendar:rebookModal.today')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, styles.legendDotSuggested]} />
-              <Text style={styles.legendText}>Suggested</Text>
+              <Text style={styles.legendText}>{t('calendar:rebookModal.suggested')}</Text>
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>Time</Text>
+          <Text style={styles.sectionLabel}>{t('calendar:rebookModal.time')}</Text>
           {loadingSlots ? (
             <View style={styles.timeStateBox}>
               <ActivityIndicator color="#F4D77A" />
@@ -215,9 +227,9 @@ export function RebookDateTimeModal({ visible, initialDate, salonId, serviceId, 
           )}
 
           <View style={styles.actions}>
-            <TouchableOpacity onPress={onCancel}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity onPress={onCancel}><Text style={styles.cancelText}>{t('calendar:rebookModal.cancel')}</Text></TouchableOpacity>
             <TouchableOpacity onPress={handleConfirm} disabled={!selectedSlot}>
-              <Text style={[styles.confirmText, !selectedSlot && styles.confirmTextDisabled]}>Confirm</Text>
+              <Text style={[styles.confirmText, !selectedSlot && styles.confirmTextDisabled]}>{t('calendar:rebookModal.confirm')}</Text>
             </TouchableOpacity>
           </View>
         </BlurView>

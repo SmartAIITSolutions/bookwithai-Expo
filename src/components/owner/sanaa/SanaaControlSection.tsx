@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -13,25 +14,25 @@ function CardOverlay() {
   );
 }
 
-const POINTS = [
-  'SANAA works within the rules you configure for your salon.',
-  'You can review everything SANAA has done.',
-  'You control her configuration.',
-  'You can pause SANAA at any time.',
-  'SANAA only takes actions you’ve permitted.',
-];
-
 // SANAA-P2-SPEC §22 -- "You're Always in Control." Defensible language
 // only: no "never makes mistakes" / "100% accurate" / "completely secure"
 // claims anywhere in this component.
 export function SanaaControlSection() {
+  const { t } = useTranslation(['sanaa']);
+  const POINTS = [
+    t('sanaa:controlSection.point1'),
+    t('sanaa:controlSection.point2'),
+    t('sanaa:controlSection.point3'),
+    t('sanaa:controlSection.point4'),
+    t('sanaa:controlSection.point5'),
+  ];
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>You&apos;re Always in Control</Text>
+      <Text style={styles.sectionTitle}>{t('sanaa:controlSection.sectionTitle')}</Text>
       <BlurView intensity={90} tint="dark" style={styles.card}>
         <CardOverlay />
         {POINTS.map((p, i) => (
-          <View key={p} style={[styles.row, i > 0 && styles.rowBorder]}>
+          <View key={i} style={[styles.row, i > 0 && styles.rowBorder]}>
             <Ionicons name="shield-checkmark-outline" size={16} color="#FFC857" />
             <Text style={styles.rowText}>{p}</Text>
           </View>

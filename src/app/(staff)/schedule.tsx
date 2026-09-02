@@ -3,22 +3,20 @@ import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { fetchStaffAppointments, fetchStaffShifts, staffClock, StaffAppointment } from '@/lib/api/staffApi';
 import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { formatWeekdayShort, formatTimeShort } from '@/lib/i18n/format';
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${days[d.getDay()]} ${d.getMonth() + 1}/${d.getDate()} · ${h}:${m} ${ampm}`;
+  return `${formatWeekdayShort(d)} ${d.getMonth() + 1}/${d.getDate()} · ${formatTimeShort(d)}`;
 }
 
 export default function StaffScheduleScreen() {
+  const { t } = useTranslation(['staff']);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appointments, setAppointments] = useState<StaffAppointment[]>([]);
@@ -56,14 +54,14 @@ export default function StaffScheduleScreen() {
       setClockedIn(!clockedIn);
     } else {
       notificationError();
-      Alert.alert('Could not clock in/out', result.error);
+      Alert.alert(t('staff:schedule.couldNotClockTitle'), result.error);
     }
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Schedule</Text>
+        <Text style={styles.title}>{t('staff:schedule.title')}</Text>
       </View>
 
       <Pressable style={[styles.clockBtn, clockedIn && styles.clockBtnActive]} onPress={handleClock} disabled={clocking}>
@@ -72,7 +70,7 @@ export default function StaffScheduleScreen() {
         ) : (
           <>
             <Ionicons name={clockedIn ? 'stop-circle-outline' : 'play-circle-outline'} size={22} color={Colors.white} />
-            <Text style={styles.clockBtnText}>{clockedIn ? 'Clock Out' : 'Clock In'}</Text>
+            <Text style={styles.clockBtnText}>{clockedIn ? t('staff:schedule.clockOut') : t('staff:schedule.clockIn')}</Text>
           </>
         )}
       </Pressable>
@@ -84,9 +82,9 @@ export default function StaffScheduleScreen() {
       ) : appointments.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="calendar-outline" size={48} color={Colors.textDisabled} />
-          <Text style={styles.emptyTitle}>Nothing on the books</Text>
+          <Text style={styles.emptyTitle}>{t('staff:schedule.nothingOnBooks')}</Text>
           <Text style={styles.emptySubtitle}>
-            {scope === 'all' ? "No upcoming appointments for the salon." : "You don't have any upcoming appointments."}
+            {scope === 'all' ? t('staff:schedule.noAppointmentsSalon') : t('staff:schedule.noAppointmentsOwn')}
           </Text>
         </View>
       ) : (

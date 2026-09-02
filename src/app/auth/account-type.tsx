@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -19,6 +20,7 @@ function CardOverlay() {
 }
 
 export default function AccountTypeScreen() {
+  const { t } = useTranslation(['auth']);
   return (
     <View style={styles.screen}>
       <DualBreathingBackground />
@@ -29,7 +31,7 @@ export default function AccountTypeScreen() {
             <Pressable onPress={() => router.back()} style={styles.backBtn}>
               <Ionicons name="chevron-back" size={24} color="#F4D77A" />
             </Pressable>
-            <Text style={styles.title}>Let's personalize{'\n'}your experience</Text>
+            <Text style={styles.title}>{t('auth:accountType.title')}</Text>
             <View style={styles.backBtn} />
           </View>
 
@@ -42,8 +44,8 @@ export default function AccountTypeScreen() {
                 <Ionicons name="heart-outline" size={26} color="#F4D77A" />
               </View>
               <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>I'm Booking Appointments</Text>
-                <Text style={styles.optionDesc}>Discover and book trusted beauty professionals.</Text>
+                <Text style={styles.optionTitle}>{t('auth:accountType.customerTitle')}</Text>
+                <Text style={styles.optionDesc}>{t('auth:accountType.customerDesc')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
             </BlurView>
@@ -58,19 +60,19 @@ export default function AccountTypeScreen() {
                 <Ionicons name="briefcase-outline" size={26} color="#F4D77A" />
               </View>
               <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>I Own a Beauty Business</Text>
-                <Text style={styles.optionDesc}>Manage bookings, clients, staff, payments, and grow your business.</Text>
+                <Text style={styles.optionTitle}>{t('auth:accountType.ownerTitle')}</Text>
+                <Text style={styles.optionDesc}>{t('auth:accountType.ownerDesc')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
             </BlurView>
           </Pressable>
 
           <Text style={styles.ownerNote}>
-            Set up your business right here in the app — it only takes a few minutes.
+            {t('auth:accountType.ownerNote')}
           </Text>
 
           <Pressable style={styles.switchBtn} onPress={() => router.replace('/auth/sign-in')}>
-            <Text style={styles.switchText}>Already have an account? <Text style={styles.switchLink}>Sign in</Text></Text>
+            <Text style={styles.switchText}>{t('auth:switchToSignIn')} <Text style={styles.switchLink}>{t('auth:signInLink')}</Text></Text>
           </Pressable>
 
         </View>

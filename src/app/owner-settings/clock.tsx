@@ -5,25 +5,23 @@ import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { listShifts, clockStaff, ShiftEntry } from '@/lib/api/ownerShifts';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
+import { formatTimeShort } from '@/lib/i18n/format';
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m} ${ampm}`;
+  return formatTimeShort(new Date(iso));
 }
 
 // Kiosk: staff tap their name + enter a 4-digit PIN on this shared device
 // to clock in/out. The owner's own session authorizes the request; the
 // PIN just confirms which staff member it is (shared_device mode).
 export default function ClockKioskScreen() {
+  const { t } = useTranslation(['owner']);
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [openShifts, setOpenShifts] = useState<ShiftEntry[]>([]);
@@ -65,7 +63,7 @@ export default function ClockKioskScreen() {
         setSelectedStaffId(null);
         load();
       } else {
-        Alert.alert('Could not clock in/out', result.error);
+        Alert.alert(t('owner:clockScreen.couldNotClockTitle'), result.error);
       }
     }
   }
@@ -79,12 +77,12 @@ export default function ClockKioskScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Clock In / Payroll', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:clockScreen.headerTitle'), headerBackTitle: t('owner:clockScreen.headerBackTitle') }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.sectionLabel}>Who's clocking in?</Text>
+          <Text style={styles.sectionLabel}>{t('owner:clockScreen.whoIsClockingIn')}</Text>
           <View style={styles.chipRow}>
             {staff.map(s => {
               const isOpen = openStaffIds.has(s.id);
@@ -95,7 +93,7 @@ export default function ClockKioskScreen() {
                   onPress={() => handleSelectStaff(s.id)}
                 >
                   <Text style={[styles.staffChipText, selectedStaffId === s.id && styles.staffChipTextActive]}>
-                    {s.name}{isOpen ? ' • On clock' : ''}
+                    {s.name}{isOpen ? t('owner:clockScreen.onClock') : ''}
                   </Text>
                 </TouchableOpacity>
               );
@@ -105,7 +103,7 @@ export default function ClockKioskScreen() {
           {selectedStaff && (
             <View style={styles.pinCard}>
               <Text style={styles.pinLabel}>
-                {openStaffIds.has(selectedStaff.id) ? `Clock out ${selectedStaff.name}` : `Clock in ${selectedStaff.name}`}
+                {openStaffIds.has(selectedStaff.id) ? t('owner:clockScreen.clockOutName', { name: selectedStaff.name }) : t('owner:clockScreen.clockInName', { name: selectedStaff.name })}
               </Text>
               <View style={styles.dotsRow}>
                 {[0, 1, 2, 3].map(i => (
@@ -129,13 +127,13 @@ export default function ClockKioskScreen() {
             </View>
           )}
 
-          <Text style={styles.sectionLabel}>Recent shifts</Text>
-          {recentShifts.length === 0 && <Text style={styles.emptyHint}>No shifts recorded yet.</Text>}
+          <Text style={styles.sectionLabel}>{t('owner:clockScreen.recentShifts')}</Text>
+          {recentShifts.length === 0 && <Text style={styles.emptyHint}>{t('owner:clockScreen.emptyHint')}</Text>}
           {recentShifts.map(shift => (
             <View key={shift.id} style={styles.shiftRow}>
-              <Text style={styles.shiftName}>{shift.staff?.name ?? 'Staff'}</Text>
+              <Text style={styles.shiftName}>{shift.staff?.name ?? t('owner:clockScreen.staffFallback')}</Text>
               <Text style={styles.shiftTime}>
-                {formatTime(shift.clock_in_at)} – {shift.clock_out_at ? formatTime(shift.clock_out_at) : 'now'}
+                {formatTime(shift.clock_in_at)} – {shift.clock_out_at ? formatTime(shift.clock_out_at) : t('owner:clockScreen.now')}
               </Text>
             </View>
           ))}

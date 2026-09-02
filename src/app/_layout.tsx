@@ -1,6 +1,7 @@
 import { Stack, router } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
@@ -39,6 +40,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { UpdateNagModal, STORE_URL, STORE_URL_FALLBACK } from '@/components/UpdateNagModal';
 import { AuthProvider, useAuth, getCachedRole } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
+import i18n, { initI18n } from '@/lib/i18n';
 import { queryClient } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
@@ -99,6 +101,18 @@ export default function RootLayout() {
 
   const [splashVisible, setSplashVisible] = useState(true);
   const [splashReady, setSplashReady] = useState(false);
+
+  // i18n foundation (L1) — resolved in parallel with font loading (both are
+  // local/fast: an AsyncStorage read + expo-localization's device-locale
+  // read, no network), gated the same way fontsLoaded already is below, so
+  // nothing ever renders text before the correct language is known. This
+  // is what avoids a flash of English before Spanish (or vice versa) on
+  // cold start. Does not touch auth/splash-routing logic at all -- it's a
+  // second, independent gate on the same early `return null`.
+  const [i18nReady, setI18nReady] = useState(false);
+  useEffect(() => {
+    initI18n().then(() => setI18nReady(true));
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -279,10 +293,11 @@ export default function RootLayout() {
     }
   }
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || !i18nReady) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+    <I18nextProvider i18n={i18n}>
     <QueryClientProvider client={queryClient}>
     <BottomSheetModalProvider>
     <AuthProvider>
@@ -346,6 +361,7 @@ export default function RootLayout() {
     </AuthProvider>
     </BottomSheetModalProvider>
     </QueryClientProvider>
+    </I18nextProvider>
     </GestureHandlerRootView>
   );
 }

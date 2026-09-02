@@ -31,6 +31,9 @@ import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { fetchCustomerProfile } from '@/lib/api/customerProfile';
+import { formatCentsUSD, formatWeekdayMonthDay, formatTimeShort } from '@/lib/i18n/format';
+import i18n from '@/lib/i18n';
+import { useTranslation } from 'react-i18next';
 
 function CardOverlay() {
   return (
@@ -44,23 +47,16 @@ function CardOverlay() {
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
 const API_BASE  = 'https://bookwithai.app';
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const formatPrice = formatCentsUSD;
 
 function formatDateTime(isoStr: string) {
   const d = new Date(isoStr);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}, ${h}:${m} ${ampm}`;
+  return i18n.t('booking:dateTimeAt', { date: formatWeekdayMonthDay(d), time: formatTimeShort(d) });
 }
 
 // Inner component (needs Stripe context)
 function PaymentForm() {
+  const { t } = useTranslation(['booking', 'errors']);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { user } = useAuth();
   const {
@@ -140,7 +136,7 @@ function PaymentForm() {
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data.client_secret) throw new Error(data.error || 'Failed to prepare payment');
+      if (!res.ok || !data.client_secret) throw new Error(data.error || t('booking:paymentScreen.couldNotSetUpPayment'));
 
       setChargedCents(data.total_cents ?? cents);
       setStripeAccountId(data.stripe_account_id);
@@ -168,7 +164,7 @@ function PaymentForm() {
       if (initErr) throw new Error(initErr.message);
       setReady(true);
     } catch (e: any) {
-      setError(e.message || 'Could not set up payment. Please try again.');
+      setError(e.message || t('booking:paymentScreen.couldNotSetUpPayment'));
     } finally {
       setLoading(false);
     }
@@ -184,7 +180,7 @@ function PaymentForm() {
       if (payErr) {
         if (payErr.code !== 'Canceled') {
           notificationError();
-          setError(payErr.message || 'Payment failed. Please try again.');
+          setError(payErr.message || t('booking:paymentScreen.paymentFailed'));
         }
         setPaying(false);
         return;
@@ -226,7 +222,7 @@ function PaymentForm() {
       });
 
       const booking = await bookingRes.json();
-      if (!bookingRes.ok) throw new Error(booking.error || 'Booking creation failed');
+      if (!bookingRes.ok) throw new Error(booking.error || t('errors:generic'));
 
       notificationSuccess();
       router.replace({
@@ -242,7 +238,7 @@ function PaymentForm() {
         },
       });
     } catch (e: any) {
-      setError(e.message || 'Something went wrong. Please contact the salon.');
+      setError(e.message || t('booking:paymentScreen.contactSalonError'));
       setPaying(false);
     }
   }
@@ -258,7 +254,7 @@ function PaymentForm() {
           <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Payment</Text>
+          <Text style={styles.headerTitle}>{t('booking:paymentScreen.title')}</Text>
           {salonName ? <Text style={styles.headerSub} numberOfLines={1}>{salonName}</Text> : null}
         </View>
         <View style={styles.backBtn} />
@@ -268,14 +264,14 @@ function PaymentForm() {
         {/* Booking summary */}
         <View style={styles.summaryCard}>
           <CardOverlay />
-          <Text style={styles.summaryLabel}>Booking Summary</Text>
+          <Text style={styles.summaryLabel}>{t('booking:paymentScreen.bookingSummary')}</Text>
           <View style={styles.summaryRow}>
             <Ionicons name="calendar-outline" size={16} color="#F4D77A" />
             <Text style={styles.summaryText}>{startsAt ? formatDateTime(startsAt) : '—'}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Ionicons name="person-outline" size={16} color="#F4D77A" />
-            <Text style={styles.summaryText}>{staffName || 'Any Available'}</Text>
+            <Text style={styles.summaryText}>{staffName || t('booking:staffScreen.anyAvailable')}</Text>
           </View>
           {services.map((s, i) => (
             <View key={i} style={styles.summaryRow}>
@@ -286,8 +282,8 @@ function PaymentForm() {
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
-              {isDeposit ? 'Deposit due now' : (
-                <>Total <Text style={styles.totalNote}>(incl. Taxes and Fees)</Text></>
+              {isDeposit ? t('booking:paymentScreen.depositDueNow') : (
+                <>{t('booking:paymentScreen.totalLabel')} <Text style={styles.totalNote}>{t('booking:paymentScreen.totalTaxNote')}</Text></>
               )}
             </Text>
             <Text style={styles.totalValue}>{formatPrice(chargedCents)}</Text>
@@ -295,15 +291,15 @@ function PaymentForm() {
           {isDeposit && fullPriceCents != null && (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryText}>
-                Balance of {formatPrice(fullPriceCents - chargedCents)} due at your appointment
+                {t('booking:paymentScreen.balanceDueAtAppointment', { amount: formatPrice(fullPriceCents - chargedCents) })}
               </Text>
             </View>
           )}
           {isDeposit && (
             <Text style={styles.depositPolicyText}>
               {depositRefundPolicyEnabled
-                ? `Deposit refundable if you cancel at least ${depositRefundCutoffHours} hours before your appointment. Cancelling later, or a no-show, forfeits it.`
-                : 'Deposit refunds, if any, are handled directly by the salon.'}
+                ? t('booking:paymentScreen.depositRefundable', { hours: depositRefundCutoffHours })
+                : t('booking:paymentScreen.depositRefundBySalon')}
             </Text>
           )}
         </View>
@@ -320,7 +316,7 @@ function PaymentForm() {
         <View style={styles.infoCard}>
           <Ionicons name="lock-closed-outline" size={18} color="#F4D77A" />
           <Text style={styles.infoText}>
-            Payment is processed securely via Stripe. Your card details are never stored.
+            {t('booking:paymentScreen.securePaymentNote')}
           </Text>
         </View>
 
@@ -332,7 +328,7 @@ function PaymentForm() {
         {loading ? (
           <View style={styles.loadingRow}>
             <BreathingHeart size={18} color="#F4D77A" />
-            <Text style={styles.loadingText}>Preparing payment...</Text>
+            <Text style={styles.loadingText}>{t('booking:paymentScreen.preparingPayment')}</Text>
           </View>
         ) : (
           <Reanimated.View style={payBtnBreatheStyle}>
@@ -346,7 +342,9 @@ function PaymentForm() {
                 <Reanimated.View style={[styles.payBtnContent, payTextSpinStyle]}>
                   <Ionicons name="card-outline" size={20} color="#09000F" />
                   <Text style={styles.payBtnText}>
-                    {isDeposit ? 'Pay deposit ' : 'Pay '}{formatPrice(chargedCents)}
+                    {isDeposit
+                      ? t('booking:paymentScreen.payDeposit', { amount: formatPrice(chargedCents) })
+                      : t('booking:paymentScreen.pay', { amount: formatPrice(chargedCents) })}
                   </Text>
                 </Reanimated.View>
               )}

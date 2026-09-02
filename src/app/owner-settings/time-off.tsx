@@ -5,21 +5,20 @@ import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { listTimeOff, createTimeOff, decideTimeOff, TimeOffEntry } from '@/lib/api/ownerTimeOff';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { CalendarDatePicker } from '@/components/owner/CalendarDatePicker';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { formatWeekdayMonthDayYear } from '@/lib/i18n/format';
 
 function formatDateDisplay(dateStr: string): string {
   const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return dateStr;
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return `${DAY_NAMES[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return formatWeekdayMonthDayYear(d);
 }
 
 function todayDateStr(): string {
@@ -34,6 +33,12 @@ function statusColor(status: TimeOffEntry['status']) {
 }
 
 export default function TimeOffScreen() {
+  const { t } = useTranslation(['owner']);
+  const STATUS_LABELS: Record<TimeOffEntry['status'], string> = {
+    approved: t('owner:timeOffScreen.approved'),
+    denied: t('owner:timeOffScreen.denied'),
+    pending: t('owner:timeOffScreen.pending'),
+  };
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<TimeOffEntry[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -57,11 +62,11 @@ export default function TimeOffScreen() {
 
   async function handleCreate() {
     const missing: string[] = [];
-    if (!staffId) missing.push('staff member');
-    if (!startDate.trim()) missing.push('start date');
-    if (!endDate.trim()) missing.push('end date');
+    if (!staffId) missing.push(t('owner:timeOffScreen.missingStaffMember'));
+    if (!startDate.trim()) missing.push(t('owner:timeOffScreen.missingStartDate'));
+    if (!endDate.trim()) missing.push(t('owner:timeOffScreen.missingEndDate'));
     if (missing.length > 0) {
-      Alert.alert('Missing info', `Please select a ${missing.join(', ')}.`);
+      Alert.alert(t('owner:timeOffScreen.missingInfoTitle'), t('owner:timeOffScreen.missingInfoMessage', { fields: missing.join(', ') }));
       return;
     }
     setSaving(true);
@@ -71,7 +76,7 @@ export default function TimeOffScreen() {
       setAdding(false); setStaffId(null); setStartDate(''); setEndDate(''); setReason(''); setOpenField(null);
       load();
     } else {
-      Alert.alert('Could not save', result.error);
+      Alert.alert(t('owner:timeOffScreen.couldNotSaveTitle'), result.error);
     }
   }
 
@@ -80,7 +85,7 @@ export default function TimeOffScreen() {
     const result = await decideTimeOff(id, status);
     setDecidingId(null);
     if (result.ok) load();
-    else Alert.alert('Could not update', result.error);
+    else Alert.alert(t('owner:timeOffScreen.couldNotUpdateTitle'), result.error);
   }
 
   const pending = entries.filter(e => e.status === 'pending');
@@ -89,20 +94,20 @@ export default function TimeOffScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Time Off', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:timeOffScreen.headerTitle'), headerBackTitle: t('owner:timeOffScreen.headerBackTitle') }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {pending.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>Pending requests</Text>
+              <Text style={styles.sectionLabel}>{t('owner:timeOffScreen.pendingRequests')}</Text>
               {pending.map(e => (
                 <View key={e.id} style={styles.card}>
                   <View style={styles.cardTop}>
-                    <Text style={styles.staffName}>{e.staff?.name ?? 'Staff'}</Text>
+                    <Text style={styles.staffName}>{e.staff?.name ?? t('owner:timeOffScreen.staffFallback')}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: statusColor(e.status) + '20' }]}>
-                      <Text style={[styles.statusText, { color: statusColor(e.status) }]}>Pending</Text>
+                      <Text style={[styles.statusText, { color: statusColor(e.status) }]}>{t('owner:timeOffScreen.pending')}</Text>
                     </View>
                   </View>
                   <Text style={styles.dateRange}>{e.start_date} – {e.end_date}</Text>
@@ -113,10 +118,10 @@ export default function TimeOffScreen() {
                     ) : (
                       <>
                         <TouchableOpacity style={styles.denyBtn} onPress={() => handleDecide(e.id, 'denied')}>
-                          <Text style={styles.denyBtnText}>Deny</Text>
+                          <Text style={styles.denyBtnText}>{t('owner:timeOffScreen.deny')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.approveBtn} onPress={() => handleDecide(e.id, 'approved')}>
-                          <Text style={styles.approveBtnText}>Approve</Text>
+                          <Text style={styles.approveBtnText}>{t('owner:timeOffScreen.approve')}</Text>
                         </TouchableOpacity>
                       </>
                     )}
@@ -126,17 +131,17 @@ export default function TimeOffScreen() {
             </>
           )}
 
-          <Text style={styles.sectionLabel}>{decided.length === 0 && pending.length === 0 ? '' : 'History'}</Text>
+          <Text style={styles.sectionLabel}>{decided.length === 0 && pending.length === 0 ? '' : t('owner:timeOffScreen.history')}</Text>
           {decided.length === 0 && pending.length === 0 && (
-            <Text style={styles.emptyHint}>No time off recorded yet.</Text>
+            <Text style={styles.emptyHint}>{t('owner:timeOffScreen.emptyHint')}</Text>
           )}
           {decided.map(e => (
             <View key={e.id} style={styles.card}>
               <View style={styles.cardTop}>
-                <Text style={styles.staffName}>{e.staff?.name ?? 'Staff'}</Text>
+                <Text style={styles.staffName}>{e.staff?.name ?? t('owner:timeOffScreen.staffFallback')}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: statusColor(e.status) + '20' }]}>
                   <Text style={[styles.statusText, { color: statusColor(e.status) }]}>
-                    {e.status.charAt(0).toUpperCase() + e.status.slice(1)}
+                    {STATUS_LABELS[e.status]}
                   </Text>
                 </View>
               </View>
@@ -147,7 +152,7 @@ export default function TimeOffScreen() {
 
           {adding ? (
             <View style={styles.addCard}>
-              <Text style={styles.fieldLabel}>Staff member</Text>
+              <Text style={styles.fieldLabel}>{t('owner:timeOffScreen.staffMember')}</Text>
               <View style={styles.chipRow}>
                 {staff.map(s => (
                   <TouchableOpacity
@@ -159,13 +164,13 @@ export default function TimeOffScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.fieldLabel}>Start date</Text>
+              <Text style={styles.fieldLabel}>{t('owner:timeOffScreen.startDate')}</Text>
               <TouchableOpacity
                 style={styles.dateField}
                 onPress={() => setOpenField(openField === 'start' ? null : 'start')}
               >
                 <Text style={startDate ? styles.dateFieldText : styles.dateFieldPlaceholder}>
-                  {startDate ? formatDateDisplay(startDate) : 'Select date'}
+                  {startDate ? formatDateDisplay(startDate) : t('owner:timeOffScreen.selectDate')}
                 </Text>
                 <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
               </TouchableOpacity>
@@ -177,13 +182,13 @@ export default function TimeOffScreen() {
                 />
               )}
 
-              <Text style={styles.fieldLabel}>End date</Text>
+              <Text style={styles.fieldLabel}>{t('owner:timeOffScreen.endDate')}</Text>
               <TouchableOpacity
                 style={styles.dateField}
                 onPress={() => setOpenField(openField === 'end' ? null : 'end')}
               >
                 <Text style={endDate ? styles.dateFieldText : styles.dateFieldPlaceholder}>
-                  {endDate ? formatDateDisplay(endDate) : 'Select date'}
+                  {endDate ? formatDateDisplay(endDate) : t('owner:timeOffScreen.selectDate')}
                 </Text>
                 <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
               </TouchableOpacity>
@@ -194,18 +199,18 @@ export default function TimeOffScreen() {
                   onChange={(d) => { setEndDate(d); setOpenField(null); }}
                 />
               )}
-              <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={Colors.textDisabled} value={reason} onChangeText={setReason} />
+              <TextInput style={styles.input} placeholder={t('owner:timeOffScreen.reasonPlaceholder')} placeholderTextColor={Colors.textDisabled} value={reason} onChangeText={setReason} />
               <View style={styles.inlineFormActions}>
-                <TouchableOpacity onPress={() => { setAdding(false); setOpenField(null); }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { setAdding(false); setOpenField(null); }}><Text style={styles.cancelText}>{t('owner:timeOffScreen.cancel')}</Text></TouchableOpacity>
                 <TouchableOpacity onPress={handleCreate} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>{t('owner:timeOffScreen.save')}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
               <Ionicons name="add" size={18} color={Colors.primary} />
-              <Text style={styles.addRowText}>Set time off for a staff member</Text>
+              <Text style={styles.addRowText}>{t('owner:timeOffScreen.setTimeOff')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>

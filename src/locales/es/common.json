@@ -1,0 +1,75 @@
+{
+  "save": "Guardar",
+  "cancel": "Cancelar",
+  "continue": "Continuar",
+  "done": "Listo",
+  "back": "Atrás",
+  "delete": "Eliminar",
+  "confirm": "Confirmar",
+  "ok": "OK",
+  "loading": "Cargando…",
+  "retry": "Intentar de nuevo",
+  "later": "Más tarde",
+  "customerFallback": "Cliente",
+  "serviceFallback": "Servicio",
+  "minutes_one": "{{count}} minuto",
+  "minutes_other": "{{count}} minutos",
+  "status": {
+    "cancelled": "Cancelada",
+    "noShow": "Ausente",
+    "completed": "Completada",
+    "paid": "Pagada",
+    "paymentPending": "Pago Pendiente",
+    "inService": "En Servicio",
+    "checkedIn": "Registrada",
+    "late": "Atrasada",
+    "arrivingSoon": "Por Llegar",
+    "confirmed": "Confirmada",
+    "pending": "Pendiente"
+  },
+  "actions": {
+    "checkIn": "REGISTRAR ENTRADA",
+    "startService": "INICIAR SERVICIO",
+    "markComplete": "MARCAR SERVICIO COMPLETO",
+    "completeAndCharge": "COMPLETAR Y COBRAR",
+    "readyForCheckout": "LISTO PARA COBRAR",
+    "bookNextAppointment": "RESERVAR PRÓXIMA CITA"
+  },
+  "tabs": {
+    "discover": "Descubrir",
+    "mySalons": "Mis Salones",
+    "myBooking": "Mis Citas",
+    "account": "Cuenta",
+    "dashboard": "Panel",
+    "calendar": "Calendario",
+    "customers": "Clientes",
+    "more": "Más",
+    "schedule": "Horario",
+    "timeOff": "Tiempo Libre",
+    "earnings": "Ganancias"
+  },
+  "a11y": {
+    "goBack": "Volver",
+    "listView": "Vista de lista",
+    "mapView": "Vista de mapa",
+    "openQrScanner": "Abrir escáner de código QR",
+    "addSalon": "Agregar un salón",
+    "addFavorite": "Agregar a favoritos",
+    "removeFavorite": "Quitar de favoritos",
+    "addSalonToFavorites": "Agregar este salón a favoritos",
+    "removeFromFavorites": "Quitar de favoritos"
+  },
+  "update": {
+    "available": "Hay una nueva versión disponible",
+    "updateNow": "Actualizar Ahora",
+    "defaultSubtitle": "Actualiza a la versión más reciente para obtener las últimas mejoras y funciones."
+  },
+  "qrScanner": {
+    "cameraAccessNeeded": "Se necesita acceso a la cámara",
+    "cameraAccessBody": "Para escanear el código QR de un salón, Book With AI necesita acceso a tu cámara.",
+    "allowCamera": "Permitir cámara",
+    "cameraAccessDenied": "Se denegó el acceso a la cámara. Ve a Configuración → Book With AI → Cámara para habilitarlo.",
+    "cancel": "Cancelar",
+    "hint": "Apunta al código QR de Book With AI de un salón"
+  }
+}

@@ -2,6 +2,7 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavIcon } from '@/components/NavIcon';
 import { SanaaNavTabIcon } from '@/components/SanaaNavTabIcon';
@@ -26,6 +27,7 @@ const COLORS = {
 // Calendar · Customers · SANAA · More. No floating action button — primary
 // actions live inside each screen, never floating over content.
 export default function OwnerTabsLayout() {
+  const { t } = useTranslation(['common']);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
@@ -85,7 +87,7 @@ export default function OwnerTabsLayout() {
         <Tabs.Screen
           name="dashboard"
           options={{
-            title: 'Dashboard',
+            title: t('common:tabs.dashboard'),
             tabBarIcon: ({ focused }) => (
               <NavIcon name={focused ? 'home' : 'home-outline'} focused={focused} />
             ),
@@ -94,7 +96,7 @@ export default function OwnerTabsLayout() {
         <Tabs.Screen
           name="calendar"
           options={{
-            title: 'Calendar',
+            title: t('common:tabs.calendar'),
             tabBarIcon: ({ focused }) => (
               <NavIcon name={focused ? 'calendar' : 'calendar-outline'} focused={focused} />
             ),
@@ -103,7 +105,7 @@ export default function OwnerTabsLayout() {
         <Tabs.Screen
           name="customers"
           options={{
-            title: 'Customers',
+            title: t('common:tabs.customers'),
             tabBarIcon: ({ focused }) => (
               <NavIcon name={focused ? 'people' : 'people-outline'} focused={focused} />
             ),
@@ -121,7 +123,7 @@ export default function OwnerTabsLayout() {
         <Tabs.Screen
           name="more"
           options={{
-            title: 'More',
+            title: t('common:tabs.more'),
             tabBarIcon: ({ focused }) => (
               <NavIcon name={focused ? 'grid' : 'grid-outline'} focused={focused} />
             ),

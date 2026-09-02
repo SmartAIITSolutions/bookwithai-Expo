@@ -16,6 +16,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useFavorites } from '@/lib/favorites/FavoritesContext';
 import { type FavoriteSalon } from '@/lib/api/favoriteSalons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -28,6 +29,7 @@ function CardOverlay() {
 }
 
 export default function MySalonsScreen() {
+  const { t } = useTranslation(['common', 'booking']);
   const { user, loading: authLoading } = useAuth();
   const { width, height } = useWindowDimensions();
   const { salons, loading, refresh } = useFavorites();
@@ -65,13 +67,13 @@ export default function MySalonsScreen() {
                 <Ionicons name="heart-outline" size={32} color="#F4D77A" />
               </View>
             </View>
-            <Text style={styles.emptyTitle}>Your saved salons live here</Text>
+            <Text style={styles.emptyTitle}>{t('booking:mySalons.signedOutTitle')}</Text>
             <View style={styles.emptyDivider} />
             <Text style={styles.emptySubtitle}>
-              Sign in to save the salons you love for quick, one-tap booking.
+              {t('booking:mySalons.signedOutSubtitle')}
             </Text>
             <Pressable style={styles.signInBtn} onPress={() => router.push('/auth')}>
-              <Text style={styles.signInBtnText}>Sign In</Text>
+              <Text style={styles.signInBtnText}>{t('booking:mySalons.signIn')}</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -85,7 +87,7 @@ export default function MySalonsScreen() {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Add a salon"
+        accessibilityLabel={t('common:a11y.addSalon')}
         onPress={handleAddSalon}
         style={({ pressed }) => [styles.addSalonBtn, { top: insets.top + 8 }, pressed && { opacity: 0.7 }]}>
         <View style={styles.addSalonCircle}>
@@ -93,12 +95,12 @@ export default function MySalonsScreen() {
             <TabIcon Icon={CalendarDays} color={TAB_ICON_COLORS.gold} size={26} focused />
           </BlurView>
         </View>
-        <Text style={styles.addSalonLabel}>Find Salon</Text>
+        <Text style={styles.addSalonLabel}>{t('booking:mySalons.findSalon')}</Text>
       </Pressable>
 
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>My Salons</Text>
+          <Text style={styles.title}>{t('booking:mySalons.title')}</Text>
           <View style={[styles.sparkle, { top: 2, left: 118, width: 3, height: 3 }]} />
           <View style={[styles.sparkle, { top: 18, left: 138, width: 2, height: 2 }]} />
           <View style={[styles.sparkle, { top: 30, left: 100, width: 2, height: 2 }]} />
@@ -128,13 +130,13 @@ export default function MySalonsScreen() {
                 <Ionicons name="heart-outline" size={32} color="#F4D77A" />
               </View>
             </View>
-            <Text style={styles.emptyTitle}>No saved salons yet</Text>
+            <Text style={styles.emptyTitle}>{t('booking:mySalons.emptyTitle')}</Text>
             <View style={styles.emptyDivider} />
             <Text style={styles.emptySubtitle}>
-              Tap the heart on a salon's page to save it here for next time.
+              {t('booking:mySalons.emptySubtitle')}
             </Text>
             <Pressable style={styles.signInBtn} onPress={handleAddSalon}>
-              <Text style={styles.signInBtnText}>Find a Salon</Text>
+              <Text style={styles.signInBtnText}>{t('booking:mySalons.findASalon')}</Text>
             </Pressable>
           </View>
         ) : (

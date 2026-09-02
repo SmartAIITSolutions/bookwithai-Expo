@@ -4,6 +4,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -15,15 +16,6 @@ function CardOverlay() {
   );
 }
 
-const BEATS: { icon: keyof typeof Ionicons.glyphMap; caption: string }[] = [
-  { icon: 'cut-outline', caption: "You're mid-service with a client." },
-  { icon: 'call-outline', caption: 'The salon phone rings.' },
-  { icon: 'hand-left-outline', caption: "You can't stop to answer it." },
-  { icon: 'sparkles-outline', caption: 'SANAA picks up instead.' },
-  { icon: 'checkmark-circle-outline', caption: 'The customer gets help.' },
-  { icon: 'calendar-outline', caption: 'It shows up in Book With AI.' },
-];
-
 // SANAA-P2-SPEC §7 -- the pain -> solution sequence, built as a restrained
 // in-app animated sequence rather than a video file (no video asset exists
 // or is being fabricated for this, per §8). Per correction #6: plays once,
@@ -31,6 +23,15 @@ const BEATS: { icon: keyof typeof Ionicons.glyphMap; caption: string }[] = [
 // ScrollView, no "tap to continue"), respects reduced-motion, and doesn't
 // auto-loop or replay.
 export function SanaaCinematicExperience() {
+  const { t } = useTranslation(['sanaa']);
+  const BEATS: { icon: keyof typeof Ionicons.glyphMap; caption: string }[] = [
+    { icon: 'cut-outline', caption: t('sanaa:cinematic.beat1') },
+    { icon: 'call-outline', caption: t('sanaa:cinematic.beat2') },
+    { icon: 'hand-left-outline', caption: t('sanaa:cinematic.beat3') },
+    { icon: 'sparkles-outline', caption: t('sanaa:cinematic.beat4') },
+    { icon: 'checkmark-circle-outline', caption: t('sanaa:cinematic.beat5') },
+    { icon: 'calendar-outline', caption: t('sanaa:cinematic.beat6') },
+  ];
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -57,7 +58,7 @@ export function SanaaCinematicExperience() {
   );
 }
 
-function BeatContent({ beat }: { beat: (typeof BEATS)[number] }) {
+function BeatContent({ beat }: { beat: { icon: keyof typeof Ionicons.glyphMap; caption: string } }) {
   return (
     <>
       <View style={styles.iconCircle}>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, Pressable, Linking, Platform } from 'rea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { fetchLatestAppVersion, isVersionNewer } from '@/lib/api/appVersion';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
@@ -20,6 +21,7 @@ export const STORE_URL_FALLBACK = 'https://play.google.com/store/apps/details?id
 // outage can never block the app itself. Remembers the dismissed version so
 // it doesn't re-nag every single launch once someone's said "Later".
 export function UpdateNagModal() {
+  const { t } = useTranslation(['common']);
   const [visible, setVisible] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [releaseNotes, setReleaseNotes] = useState<string | null>(null);
@@ -69,17 +71,17 @@ export function UpdateNagModal() {
             <Ionicons name="sparkles" size={24} color="#F4D77A" />
           </View>
 
-          <Text style={styles.title}>A new version is available</Text>
+          <Text style={styles.title}>{t('common:update.available')}</Text>
           <Text style={styles.subtitle}>
-            {releaseNotes?.trim() || 'Update to the latest version for the newest fixes and features.'}
+            {releaseNotes?.trim() || t('common:update.defaultSubtitle')}
           </Text>
 
           <View style={styles.actions}>
             <Pressable style={styles.laterBtn} onPress={handleLater}>
-              <Text style={styles.laterText}>Later</Text>
+              <Text style={styles.laterText}>{t('common:later')}</Text>
             </Pressable>
             <Pressable style={styles.updateBtn} onPress={handleUpdate}>
-              <Text style={styles.updateText}>Update Now</Text>
+              <Text style={styles.updateText}>{t('common:update.updateNow')}</Text>
             </Pressable>
           </View>
         </View>

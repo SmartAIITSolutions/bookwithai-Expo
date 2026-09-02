@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -19,21 +20,22 @@ function CardOverlay() {
 // no tappable CTA, no price/scope/SLA -- correction #8, it must not look
 // bookable until that fulfillment actually exists.
 export function SanaaSetupOptions() {
+  const { t } = useTranslation(['sanaa']);
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Getting Set Up</Text>
+      <Text style={styles.sectionTitle}>{t('sanaa:setupOptions.sectionTitle')}</Text>
       <View style={styles.grid}>
         <BlurView intensity={90} tint="dark" style={styles.card}>
           <CardOverlay />
           <Ionicons name="hand-left-outline" size={22} color="#FFC857" />
-          <Text style={styles.cardTitle}>Self Setup</Text>
-          <Text style={styles.cardBody}>Guided, self-service, no coding required — no need to wait on our team.</Text>
+          <Text style={styles.cardTitle}>{t('sanaa:setupOptions.selfSetupTitle')}</Text>
+          <Text style={styles.cardBody}>{t('sanaa:setupOptions.selfSetupBody')}</Text>
         </BlurView>
         <BlurView intensity={90} tint="dark" style={styles.card}>
           <CardOverlay />
           <Ionicons name="sparkles-outline" size={22} color="#FFC857" />
-          <Text style={styles.cardTitle}>Concierge Setup</Text>
-          <Text style={styles.cardBody}>Prefer help? We can set SANAA up with you. Details coming soon.</Text>
+          <Text style={styles.cardTitle}>{t('sanaa:setupOptions.conciergeSetupTitle')}</Text>
+          <Text style={styles.cardBody}>{t('sanaa:setupOptions.conciergeSetupBody')}</Text>
         </BlurView>
       </View>
     </View>

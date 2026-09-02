@@ -2,8 +2,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
-import { SANAA_CAPABILITIES } from '@/lib/sanaa/discoveryContent';
+import { getSanaaCapabilities } from '@/lib/sanaa/discoveryContent';
 
 function CardOverlay() {
   return (
@@ -17,11 +18,12 @@ function CardOverlay() {
 // SANAA-P2-SPEC §17 -- exactly 6 locked categories, concise labels only.
 // Not a 30-feature inventory; detailed subclaims belong to P3.
 export function SanaaCapabilities() {
+  const { t } = useTranslation(['sanaa']);
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>What She Handles</Text>
+      <Text style={styles.sectionTitle}>{t('sanaa:capabilities.sectionTitle')}</Text>
       <View style={styles.grid}>
-        {SANAA_CAPABILITIES.map((c) => (
+        {getSanaaCapabilities().map((c) => (
           <BlurView key={c.label} intensity={90} tint="dark" style={styles.card}>
             <CardOverlay />
             <Ionicons name={c.icon as keyof typeof Ionicons.glyphMap} size={22} color="#FFC857" />

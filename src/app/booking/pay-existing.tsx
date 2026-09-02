@@ -23,6 +23,9 @@ import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { supabase } from '@/lib/supabase';
 import { API_BASE } from '@/lib/config';
+import { formatCentsUSD, formatWeekdayMonthDay, formatTimeShort } from '@/lib/i18n/format';
+import i18n from '@/lib/i18n';
+import { useTranslation } from 'react-i18next';
 
 function CardOverlay() {
   return (
@@ -35,23 +38,16 @@ function CardOverlay() {
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+const formatPrice = formatCentsUSD;
 
 function formatDateTime(isoStr?: string) {
   if (!isoStr) return '—';
   const d = new Date(isoStr);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}, ${h}:${m} ${ampm}`;
+  return i18n.t('booking:dateTimeAt', { date: formatWeekdayMonthDay(d), time: formatTimeShort(d) });
 }
 
 function PayExistingForm() {
+  const { t } = useTranslation(['booking', 'common']);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { bookingId, priceCents, salonName, serviceName, startsAt } = useLocalSearchParams<{
     bookingId: string; priceCents: string; salonName: string; serviceName: string; startsAt?: string;
@@ -78,13 +74,13 @@ function PayExistingForm() {
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('You need to be signed in to pay.');
+        if (!session) throw new Error(t('booking:payExistingScreen.signInToPay'));
         const res = await fetch(`${API_BASE}/api/mobile/my-bookings`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         const json = await res.json();
         const booking = (json.data || []).find((b: any) => b.id === bookingId);
-        if (!booking) throw new Error('Booking not found');
+        if (!booking) throw new Error(t('booking:payExistingScreen.bookingNotFound'));
         setPrice(booking.price_cents ?? 0);
         setDetails({
           salonName: booking.agency_clients?.business_name ?? '',
@@ -92,7 +88,7 @@ function PayExistingForm() {
           startsAt: booking.starts_at ?? '',
         });
       } catch (e: any) {
-        setLoadError(e.message || 'Could not load this booking.');
+        setLoadError(e.message || t('booking:payExistingScreen.couldNotLoadBooking'));
       } finally {
         setLoadingDetails(false);
       }
@@ -105,7 +101,7 @@ function PayExistingForm() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('You need to be signed in to pay.');
+      if (!session) throw new Error(t('booking:payExistingScreen.signInToPay'));
 
       const intentRes = await fetch(`${API_BASE}/api/mobile/bookings/${bookingId}/payment-intent`, {
         method: 'POST',
@@ -116,7 +112,7 @@ function PayExistingForm() {
         body: JSON.stringify({ tip_cents: tipCents }),
       });
       const intent = await intentRes.json();
-      if (!intentRes.ok || !intent.client_secret) throw new Error(intent.error || 'Failed to prepare payment');
+      if (!intentRes.ok || !intent.client_secret) throw new Error(intent.error || t('booking:payExistingScreen.couldNotPreparePayment'));
 
       const { error: initErr } = await initPaymentSheet({
         paymentIntentClientSecret: intent.client_secret,
@@ -131,7 +127,7 @@ function PayExistingForm() {
       if (payErr) {
         if (payErr.code !== 'Canceled') {
           notificationError();
-          setError(payErr.message || 'Payment failed. Please try again.');
+          setError(payErr.message || t('booking:payExistingScreen.paymentFailed'));
         }
         setPaying(false);
         return;
@@ -146,14 +142,14 @@ function PayExistingForm() {
         body: JSON.stringify({ payment_intent_id: intent.payment_intent_id }),
       });
       const confirm = await confirmRes.json();
-      if (!confirmRes.ok) throw new Error(confirm.error || 'Could not confirm payment. Please contact the salon.');
+      if (!confirmRes.ok) throw new Error(confirm.error || t('booking:payExistingScreen.couldNotConfirmPayment'));
 
       notificationSuccess();
-      Alert.alert('Payment Confirmed', 'Your appointment is confirmed.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/my-booking') },
+      Alert.alert(t('booking:payExistingScreen.paymentConfirmedTitle'), t('booking:payExistingScreen.paymentConfirmedMessage'), [
+        { text: t('common:ok'), onPress: () => router.replace('/(tabs)/my-booking') },
       ]);
     } catch (e: any) {
-      setError(e.message || 'Something went wrong. Please contact the salon.');
+      setError(e.message || t('booking:payExistingScreen.contactSalonError'));
       setPaying(false);
     }
   }
@@ -169,7 +165,7 @@ function PayExistingForm() {
             <Ionicons name="chevron-back" size={24} color="#F4D77A" />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Pay Now</Text>
+            <Text style={styles.headerTitle}>{t('booking:payExistingScreen.title')}</Text>
             {details.salonName ? <Text style={styles.headerSub} numberOfLines={1}>{details.salonName}</Text> : null}
           </View>
           <View style={styles.backBtn} />
@@ -178,7 +174,7 @@ function PayExistingForm() {
         {loadingDetails ? (
           <View style={styles.loadingRow}>
             <BreathingHeart size={18} color="#F4D77A" />
-            <Text style={styles.loadingText}>Loading booking...</Text>
+            <Text style={styles.loadingText}>{t('booking:payExistingScreen.loadingBooking')}</Text>
           </View>
         ) : loadError ? (
           <View style={styles.errorBanner}>
@@ -189,7 +185,7 @@ function PayExistingForm() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           <View style={styles.summaryCard}>
             <CardOverlay />
-            <Text style={styles.summaryLabel}>Appointment</Text>
+            <Text style={styles.summaryLabel}>{t('booking:payExistingScreen.appointmentLabel')}</Text>
             <View style={styles.summaryRow}>
               <Ionicons name="calendar-outline" size={16} color="#F4D77A" />
               <Text style={styles.summaryText}>{formatDateTime(details.startsAt)}</Text>
@@ -204,7 +200,7 @@ function PayExistingForm() {
 
           <View style={styles.summaryCard}>
             <CardOverlay />
-            <Text style={styles.summaryLabel}>Add a Tip</Text>
+            <Text style={styles.summaryLabel}>{t('booking:payExistingScreen.addTip')}</Text>
             <View style={styles.chipRow}>
               {tipOptions.map((pct) => {
                 const amount = Math.round(price * pct / 100);
@@ -221,19 +217,19 @@ function PayExistingForm() {
               <Pressable
                 style={[styles.chip, !customTip && tipCents === 0 && styles.chipActive]}
                 onPress={() => { setCustomTip(false); setTipCents(0); }}>
-                <Text style={[styles.chipText, !customTip && tipCents === 0 && styles.chipTextActive]}>None</Text>
+                <Text style={[styles.chipText, !customTip && tipCents === 0 && styles.chipTextActive]}>{t('booking:payExistingScreen.none')}</Text>
               </Pressable>
               <Pressable style={[styles.chip, customTip && styles.chipActive]} onPress={() => setCustomTip(true)}>
-                <Text style={[styles.chipText, customTip && styles.chipTextActive]}>Custom</Text>
+                <Text style={[styles.chipText, customTip && styles.chipTextActive]}>{t('booking:payExistingScreen.custom')}</Text>
               </Pressable>
             </View>
             {customTip && (
               <TextInput
                 style={styles.input}
-                placeholder="Tip amount ($)"
+                placeholder={t('booking:payExistingScreen.tipAmountPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={customTipText}
-                onChangeText={(t) => { setCustomTipText(t); setTipCents(Math.round((parseFloat(t) || 0) * 100)); }}
+                onChangeText={(v) => { setCustomTipText(v); setTipCents(Math.round((parseFloat(v) || 0) * 100)); }}
                 keyboardType="decimal-pad"
               />
             )}
@@ -242,18 +238,18 @@ function PayExistingForm() {
           <View style={styles.summaryCard}>
             <CardOverlay />
             <View style={styles.summaryRow}>
-              <Text style={styles.breakdownLabel}>Service</Text>
+              <Text style={styles.breakdownLabel}>{t('booking:payExistingScreen.service')}</Text>
               <Text style={styles.breakdownValue}>{formatPrice(price)}</Text>
             </View>
             {tipCents > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={styles.breakdownLabel}>Tip</Text>
+                <Text style={styles.breakdownLabel}>{t('booking:payExistingScreen.tip')}</Text>
                 <Text style={styles.breakdownValue}>{formatPrice(tipCents)}</Text>
               </View>
             )}
             <View style={styles.divider} />
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalLabel}>{t('booking:payExistingScreen.totalLabel')}</Text>
               <Text style={styles.totalValue}>{formatPrice(totalCents)}</Text>
             </View>
           </View>
@@ -268,7 +264,7 @@ function PayExistingForm() {
           <View style={styles.infoCard}>
             <Ionicons name="lock-closed-outline" size={18} color="#F4D77A" />
             <Text style={styles.infoText}>
-              Payment is processed securely via Stripe. Your card details are never stored.
+              {t('booking:payExistingScreen.securePaymentNote')}
             </Text>
           </View>
 
@@ -287,7 +283,7 @@ function PayExistingForm() {
             ) : (
               <View style={styles.payBtnContent}>
                 <Ionicons name="card-outline" size={20} color="#09000F" />
-                <Text style={styles.payBtnText}>Pay {formatPrice(totalCents)}</Text>
+                <Text style={styles.payBtnText}>{t('booking:payExistingScreen.pay', { amount: formatPrice(totalCents) })}</Text>
               </View>
             )}
           </Pressable>

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { OwnerBooking, customerDisplayName } from '@/lib/api/ownerBookings';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 interface WaitingQueueProps {
@@ -42,6 +43,7 @@ function WaitingOverlay() {
 // Phase 2 Waiting Experience — checked in, not yet started, with a live
 // wait timer so nobody sits forgotten. Priority customers surface first.
 export function WaitingQueue({ bookings, onOpen }: WaitingQueueProps) {
+  const { t } = useTranslation(['calendar']);
   const [, forceTick] = useState(0);
 
   useEffect(() => {
@@ -59,7 +61,7 @@ export function WaitingQueue({ bookings, onOpen }: WaitingQueueProps) {
       <WaitingOverlay />
       <View style={styles.header}>
         <View style={styles.liveDot} />
-        <Text style={styles.title}>Waiting</Text>
+        <Text style={styles.title}>{t('calendar:queue.waitingTitle')}</Text>
       </View>
       {waiting.map((b, i) => {
         const minutes = Math.max(0, Math.round((Date.now() - new Date(b.checked_in_at!).getTime()) / 60000));
@@ -71,8 +73,8 @@ export function WaitingQueue({ bookings, onOpen }: WaitingQueueProps) {
               <Text style={styles.name}>{customerDisplayName(b)}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[styles.timer, minutes >= 10 && styles.timerLate]}>{minutes}m waiting</Text>
-              {expected != null && <Text style={styles.expected}>~{expected}m more</Text>}
+              <Text style={[styles.timer, minutes >= 10 && styles.timerLate]}>{t('calendar:queue.minutesWaiting', { count: minutes })}</Text>
+              {expected != null && <Text style={styles.expected}>{t('calendar:queue.expectedMoreMinutes', { count: expected })}</Text>}
             </View>
           </TouchableOpacity>
         );

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
-import { SANAA_DEMO_SCENARIOS, SanaaDemoScenarioId } from '@/lib/sanaa/discoveryContent';
+import { getSanaaDemoScenarios, SanaaDemoScenarioId } from '@/lib/sanaa/discoveryContent';
 import { SanaaDemoScenarioSelector } from './SanaaDemoScenarioSelector';
 import { SanaaDemoPlayer } from './SanaaDemoPlayer';
 import { SanaaSeePlansButton } from './SanaaSeePlansButton';
@@ -22,8 +23,10 @@ function CardOverlay() {
 // demo player followed by compact scenario selector cards, not six equally
 // giant CTAs.
 export function SanaaDemoSection() {
+  const { t } = useTranslation(['sanaa']);
   const [selectedId, setSelectedId] = useState<SanaaDemoScenarioId>('booking');
-  const scenario = SANAA_DEMO_SCENARIOS.find((s) => s.id === selectedId)!;
+  const scenarios = getSanaaDemoScenarios();
+  const scenario = scenarios.find((s) => s.id === selectedId)!;
 
   function handleSelect(id: SanaaDemoScenarioId) {
     setSelectedId(id);
@@ -32,7 +35,7 @@ export function SanaaDemoSection() {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>See SANAA in Action</Text>
+      <Text style={styles.sectionTitle}>{t('sanaa:demoSection.sectionTitle')}</Text>
       <BlurView intensity={90} tint="dark" style={styles.card}>
         <CardOverlay />
         <Text style={styles.scenarioTitle}>{scenario.title}</Text>
@@ -41,7 +44,7 @@ export function SanaaDemoSection() {
           <SanaaDemoPlayer scenario={scenario} />
         </View>
       </BlurView>
-      <SanaaDemoScenarioSelector scenarios={SANAA_DEMO_SCENARIOS} selectedId={selectedId} onSelect={handleSelect} />
+      <SanaaDemoScenarioSelector scenarios={scenarios} selectedId={selectedId} onSelect={handleSelect} />
       <SanaaSeePlansButton variant="secondary" location="post_demo" />
     </View>
   );

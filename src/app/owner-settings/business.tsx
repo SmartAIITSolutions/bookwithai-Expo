@@ -6,18 +6,24 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack, router } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { getBusiness, updateBusiness, addHoliday, removeHoliday, Business, Holiday } from '@/lib/api/ownerBusiness';
 import { listClosures, addClosure, removeClosure, BusinessClosure } from '@/lib/api/ownerDailyOps';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { DAY_KEYS, DEFAULT_SCHEDULE, type WeekSchedule } from '@/lib/calendar/timeGrid';
+import { formatWeekdayLong, formatHourOnly } from '@/lib/i18n/format';
 
-const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const REFERENCE_SUNDAY = new Date(2023, 0, 1);
+function weekdayLongForIndex(index: number): string {
+  const d = new Date(REFERENCE_SUNDAY);
+  d.setDate(REFERENCE_SUNDAY.getDate() + index);
+  return formatWeekdayLong(d);
+}
 
 function formatHour(h: number): string {
   const hh = ((h % 24) + 24) % 24;
-  const period = hh >= 12 ? 'PM' : 'AM';
-  const twelve = hh % 12 === 0 ? 12 : hh % 12;
-  return `${twelve}${period}`;
+  const d = new Date(2024, 0, 1, hh, 0);
+  return formatHourOnly(d);
 }
 
 function CardOverlay() {
@@ -38,6 +44,7 @@ function CardOverlay() {
 // several owner-settings screens) was never brought over from the original
 // light theme; only the visual layer changed here, no logic touched.
 export default function BusinessSetupScreen() {
+  const { t } = useTranslation(['owner']);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [business, setBusiness] = useState<Business | null>(null);
@@ -116,20 +123,20 @@ export default function BusinessSetupScreen() {
       deposit_refund_cutoff_hours: business.deposit_refund_cutoff_hours,
     });
     setSaving(false);
-    if (!result.ok) Alert.alert('Could not save', result.error);
+    if (!result.ok) Alert.alert(t('owner:businessScreen.couldNotSaveTitle'), result.error);
   }
 
   async function handleSaveSchedule() {
     setSavingSchedule(true);
     const result = await updateBusiness({ week_schedule: schedule });
     setSavingSchedule(false);
-    if (!result.ok) Alert.alert('Could not save', result.error);
+    if (!result.ok) Alert.alert(t('owner:businessScreen.couldNotSaveTitle'), result.error);
     else { setScheduleSaved(true); setTimeout(() => setScheduleSaved(false), 2500); }
   }
 
   async function handleAddHoliday() {
     if (!newDate.trim() || !newName.trim() || !newMessage.trim()) {
-      Alert.alert('Missing info', 'Date, name, and message are all required.');
+      Alert.alert(t('owner:businessScreen.missingInfoTitle'), t('owner:businessScreen.missingInfoMessage'));
       return;
     }
     const result = await addHoliday({ date: newDate.trim(), name: newName.trim(), message: newMessage.trim() });
@@ -137,19 +144,19 @@ export default function BusinessSetupScreen() {
       setNewDate(''); setNewName(''); setNewMessage(''); setAddingHoliday(false);
       load();
     } else {
-      Alert.alert('Could not add holiday', result.error);
+      Alert.alert(t('owner:businessScreen.couldNotAddHolidayTitle'), result.error);
     }
   }
 
   async function handleRemoveHoliday(id: string) {
     const result = await removeHoliday(id);
     if (result.ok) setHolidays(h => h.filter(x => x.id !== id));
-    else Alert.alert('Could not remove', result.error);
+    else Alert.alert(t('owner:businessScreen.couldNotRemoveTitle'), result.error);
   }
 
   async function handleAddClosure() {
     if (!closureStart.trim() || !closureEnd.trim()) {
-      Alert.alert('Missing info', 'Start and end dates are required (YYYY-MM-DD).');
+      Alert.alert(t('owner:businessScreen.missingInfoTitle'), t('owner:businessScreen.missingInfoClosureMessage'));
       return;
     }
     const result = await addClosure(closureStart.trim(), closureEnd.trim(), closureReason.trim() || undefined);
@@ -157,20 +164,20 @@ export default function BusinessSetupScreen() {
       setClosureStart(''); setClosureEnd(''); setClosureReason(''); setAddingClosure(false);
       load();
     } else {
-      Alert.alert('Could not add closure', result.error);
+      Alert.alert(t('owner:businessScreen.couldNotAddClosureTitle'), result.error);
     }
   }
 
   async function handleRemoveClosure(id: string) {
     const result = await removeClosure(id);
     if (result.ok) setClosures(c => c.filter(x => x.id !== id));
-    else Alert.alert('Could not remove', result.error);
+    else Alert.alert(t('owner:businessScreen.couldNotRemoveTitle'), result.error);
   }
 
   if (loading || !business) {
     return (
       <View style={styles.centered}>
-        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Business Setup' }} />
+        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:businessScreen.headerTitle') }} />
         <BreathingHeart size={40} color="#F4D77A" />
       </View>
     );
@@ -179,28 +186,28 @@ export default function BusinessSetupScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Business Setup', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:businessScreen.headerTitle'), headerBackTitle: t('owner:businessScreen.headerBackTitle') }} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Section title="Business Info">
-          <Field label="Business name" value={business.business_name} onChangeText={v => set('business_name', v)} />
-          <Field label="Phone" value={business.owner_phone ?? ''} onChangeText={v => set('owner_phone', v)} keyboardType="phone-pad" />
+        <Section title={t('owner:businessScreen.businessInfo')}>
+          <Field label={t('owner:businessScreen.businessName')} value={business.business_name} onChangeText={v => set('business_name', v)} />
+          <Field label={t('owner:businessScreen.phone')} value={business.owner_phone ?? ''} onChangeText={v => set('owner_phone', v)} keyboardType="phone-pad" />
         </Section>
 
-        <Section title="Address">
-          <Field label="Address line 1" value={business.address_line1 ?? ''} onChangeText={v => set('address_line1', v)} />
-          <Field label="Address line 2" value={business.address_line2 ?? ''} onChangeText={v => set('address_line2', v)} />
-          <Field label="City" value={business.city ?? ''} onChangeText={v => set('city', v)} />
-          <Field label="State" value={business.state ?? ''} onChangeText={v => set('state', v)} />
-          <Field label="Postal code" value={business.postal_code ?? ''} onChangeText={v => set('postal_code', v)} keyboardType="number-pad" />
+        <Section title={t('owner:businessScreen.address')}>
+          <Field label={t('owner:businessScreen.addressLine1')} value={business.address_line1 ?? ''} onChangeText={v => set('address_line1', v)} />
+          <Field label={t('owner:businessScreen.addressLine2')} value={business.address_line2 ?? ''} onChangeText={v => set('address_line2', v)} />
+          <Field label={t('owner:businessScreen.city')} value={business.city ?? ''} onChangeText={v => set('city', v)} />
+          <Field label={t('owner:businessScreen.state')} value={business.state ?? ''} onChangeText={v => set('state', v)} />
+          <Field label={t('owner:businessScreen.postalCode')} value={business.postal_code ?? ''} onChangeText={v => set('postal_code', v)} keyboardType="number-pad" />
         </Section>
 
-        <Section title="Operating Hours">
+        <Section title={t('owner:businessScreen.operatingHours')}>
           {DAY_KEYS.map((key, idx) => {
             const day = schedule[key] ?? DEFAULT_SCHEDULE[key];
             return (
               <View key={key} style={[styles.dayRow, idx > 0 && styles.dayRowBorder]}>
                 <View style={styles.dayRowTop}>
-                  <Text style={styles.dayLabel}>{DAY_LABELS[idx]}</Text>
+                  <Text style={styles.dayLabel}>{weekdayLongForIndex(idx)}</Text>
                   <Switch
                     value={day.open}
                     onValueChange={(v) => setDay(key, { open: v })}
@@ -209,8 +216,8 @@ export default function BusinessSetupScreen() {
                 </View>
                 {day.open && (
                   <View style={styles.dayRowHours}>
-                    <HourStepper label="Open" hour={day.start} onChange={(h) => setDay(key, { start: h })} />
-                    <HourStepper label="Close" hour={day.end} onChange={(h) => setDay(key, { end: h })} />
+                    <HourStepper label={t('owner:businessScreen.open')} hour={day.start} onChange={(h) => setDay(key, { start: h })} />
+                    <HourStepper label={t('owner:businessScreen.close')} hour={day.end} onChange={(h) => setDay(key, { end: h })} />
                   </View>
                 )}
               </View>
@@ -218,41 +225,41 @@ export default function BusinessSetupScreen() {
           })}
           <TouchableOpacity style={styles.saveSmallButton} onPress={handleSaveSchedule} disabled={savingSchedule}>
             <Text style={styles.saveSmallButtonText}>
-              {scheduleSaved ? '✓ Hours saved!' : savingSchedule ? 'Saving…' : 'Save operating hours'}
+              {scheduleSaved ? t('owner:businessScreen.hoursSavedConfirmation') : savingSchedule ? t('owner:businessScreen.saving') : t('owner:businessScreen.saveOperatingHours')}
             </Text>
           </TouchableOpacity>
-          <Text style={styles.emptyHint}>This is what SANAA and your online booking page use to know when you're open.</Text>
+          <Text style={styles.emptyHint}>{t('owner:businessScreen.operatingHoursHint')}</Text>
         </Section>
 
-        <Section title="Policies">
+        <Section title={t('owner:businessScreen.policies')}>
           <Field
-            label="Cancellation policy"
+            label={t('owner:businessScreen.cancellationPolicy')}
             value={business.cancellation_policy ?? ''}
             onChangeText={v => set('cancellation_policy', v)}
             multiline
           />
           <Field
-            label="Rescheduling policy"
+            label={t('owner:businessScreen.reschedulingPolicy')}
             value={business.rescheduling_policy ?? ''}
             onChangeText={v => set('rescheduling_policy', v)}
             multiline
           />
           <Field
-            label="Store policy"
+            label={t('owner:businessScreen.storePolicy')}
             value={business.store_policy ?? ''}
             onChangeText={v => set('store_policy', v)}
             multiline
           />
           <Field
-            label="Max bookings per day (blank = no cap)"
+            label={t('owner:businessScreen.maxBookingsPerDay')}
             value={business.max_daily_bookings != null ? String(business.max_daily_bookings) : ''}
             onChangeText={v => set('max_daily_bookings', v.trim() ? parseInt(v, 10) : null)}
             keyboardType="number-pad"
           />
         </Section>
 
-        <Section title="Morning Brief">
-          <Text style={styles.fieldLabel}>Delivered daily at:</Text>
+        <Section title={t('owner:businessScreen.morningBrief')}>
+          <Text style={styles.fieldLabel}>{t('owner:businessScreen.deliveredDailyAt')}</Text>
           <View style={styles.hourRow}>
             {[6, 7, 8, 9].map(h => (
               <TouchableOpacity
@@ -261,67 +268,67 @@ export default function BusinessSetupScreen() {
                 onPress={() => set('morning_brief_hour', h)}
               >
                 <Text style={[styles.hourChipText, business.morning_brief_hour === h && styles.hourChipTextActive]}>
-                  {h > 12 ? h - 12 : h}{h >= 12 ? 'PM' : 'AM'}
+                  {formatHour(h)}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </Section>
 
-        <Section title="Staff Login">
-          <Text style={styles.fieldLabel}>How does your team clock in and access their schedule?</Text>
+        <Section title={t('owner:businessScreen.staffLogin')}>
+          <Text style={styles.fieldLabel}>{t('owner:businessScreen.staffLoginQuestion')}</Text>
           <View style={styles.staffModeCol}>
             <TouchableOpacity
               style={[styles.staffModeOption, business.staff_login_mode === 'shared_device' && styles.staffModeOptionActive]}
               onPress={() => set('staff_login_mode', 'shared_device')}
             >
               <Text style={[styles.staffModeTitle, business.staff_login_mode === 'shared_device' && styles.staffModeTitleActive]}>
-                Shared device
+                {t('owner:businessScreen.sharedDevice')}
               </Text>
-              <Text style={styles.staffModeDesc}>Staff tap their name + a PIN on one front-desk device to clock in.</Text>
+              <Text style={styles.staffModeDesc}>{t('owner:businessScreen.sharedDeviceDesc')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.staffModeOption, business.staff_login_mode === 'individual_accounts' && styles.staffModeOptionActive]}
               onPress={() => set('staff_login_mode', 'individual_accounts')}
             >
               <Text style={[styles.staffModeTitle, business.staff_login_mode === 'individual_accounts' && styles.staffModeTitleActive]}>
-                Individual accounts
+                {t('owner:businessScreen.individualAccounts')}
               </Text>
-              <Text style={styles.staffModeDesc}>Each staff member signs in on their own device with their own account.</Text>
+              <Text style={styles.staffModeDesc}>{t('owner:businessScreen.individualAccountsDesc')}</Text>
             </TouchableOpacity>
           </View>
         </Section>
 
-        <Section title="Check-in & Checkout Style">
-          <Text style={styles.fieldLabel}>How should checking a client in and out work?</Text>
+        <Section title={t('owner:businessScreen.checkinCheckoutStyle')}>
+          <Text style={styles.fieldLabel}>{t('owner:businessScreen.checkinCheckoutQuestion')}</Text>
           <View style={styles.staffModeCol}>
             <TouchableOpacity
               style={[styles.staffModeOption, business.checkin_flow_mode === 'full' && styles.staffModeOptionActive]}
               onPress={() => set('checkin_flow_mode', 'full')}
             >
               <Text style={[styles.staffModeTitle, business.checkin_flow_mode === 'full' && styles.staffModeTitleActive]}>
-                Full flow (default)
+                {t('owner:businessScreen.fullFlow')}
               </Text>
-              <Text style={styles.staffModeDesc}>Check In, Start Service, Mark Complete, then Checkout — four steps, good for tracking real service time and handoffs between staff.</Text>
+              <Text style={styles.staffModeDesc}>{t('owner:businessScreen.fullFlowDesc')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.staffModeOption, business.checkin_flow_mode === 'quick' && styles.staffModeOptionActive]}
               onPress={() => set('checkin_flow_mode', 'quick')}
             >
               <Text style={[styles.staffModeTitle, business.checkin_flow_mode === 'quick' && styles.staffModeTitleActive]}>
-                Quick flow
+                {t('owner:businessScreen.quickFlow')}
               </Text>
-              <Text style={styles.staffModeDesc}>One "Complete & Charge" button — best for solo or home-based salons with no one to hand a client off to between steps.</Text>
+              <Text style={styles.staffModeDesc}>{t('owner:businessScreen.quickFlowDesc')}</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.emptyHint}>The Queue view (in Calendar) is always available too, for busy walk-in-heavy salons.</Text>
+          <Text style={styles.emptyHint}>{t('owner:businessScreen.queueHint')}</Text>
         </Section>
 
-        <Section title="Payments">
+        <Section title={t('owner:businessScreen.payments')}>
           <View style={styles.switchRow}>
             <View style={{ flex: 1, paddingRight: Spacing.md }}>
-              <Text style={styles.fieldLabel}>Require online payment</Text>
-              <Text style={styles.emptyHint}>Customers must pay when booking.</Text>
+              <Text style={styles.fieldLabel}>{t('owner:businessScreen.requireOnlinePayment')}</Text>
+              <Text style={styles.emptyHint}>{t('owner:businessScreen.requireOnlinePaymentHint')}</Text>
             </View>
             <Switch
               value={business.require_online_payment}
@@ -332,16 +339,16 @@ export default function BusinessSetupScreen() {
 
           {business.require_online_payment && (
             <View style={{ marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' }}>
-              <Text style={styles.fieldLabel}>Deposit at booking</Text>
-              <Text style={styles.emptyHint}>Charge only part of the total online, collect the rest at checkout. Individual services can override this.</Text>
+              <Text style={styles.fieldLabel}>{t('owner:businessScreen.depositAtBooking')}</Text>
+              <Text style={styles.emptyHint}>{t('owner:businessScreen.depositAtBookingHint')}</Text>
               <View style={styles.depositTypeRow}>
-                {(['none', 'percent', 'fixed'] as const).map(t => (
+                {(['none', 'percent', 'fixed'] as const).map(dt => (
                   <TouchableOpacity
-                    key={t}
-                    style={[styles.depositTypeChip, business.deposit_type === t && styles.depositTypeChipActive]}
-                    onPress={() => set('deposit_type', t)}>
-                    <Text style={[styles.depositTypeChipText, business.deposit_type === t && styles.depositTypeChipTextActive]}>
-                      {t === 'none' ? 'Full payment' : t === 'percent' ? 'Percentage' : 'Fixed amount'}
+                    key={dt}
+                    style={[styles.depositTypeChip, business.deposit_type === dt && styles.depositTypeChipActive]}
+                    onPress={() => set('deposit_type', dt)}>
+                    <Text style={[styles.depositTypeChipText, business.deposit_type === dt && styles.depositTypeChipTextActive]}>
+                      {dt === 'none' ? t('owner:businessScreen.depositFullPayment') : dt === 'percent' ? t('owner:businessScreen.depositPercentage') : t('owner:businessScreen.depositFixedAmount')}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -350,7 +357,7 @@ export default function BusinessSetupScreen() {
                 <View style={styles.inputRow}>
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
-                    placeholder="Deposit %"
+                    placeholder={t('owner:businessScreen.depositPercentPlaceholder')}
                     placeholderTextColor="rgba(255,255,255,0.35)"
                     value={depositPercentInput}
                     onChangeText={(v) => {
@@ -367,7 +374,7 @@ export default function BusinessSetupScreen() {
                   <Text style={styles.inputPrefix}>$</Text>
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
-                    placeholder="0.00"
+                    placeholder={t('owner:businessScreen.depositAmountPlaceholder')}
                     placeholderTextColor="rgba(255,255,255,0.35)"
                     value={depositAmountInput}
                     onChangeText={(v) => {
@@ -383,8 +390,8 @@ export default function BusinessSetupScreen() {
                 <View style={{ marginTop: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)' }}>
                   <View style={styles.switchRow}>
                     <View style={{ flex: 1, paddingRight: Spacing.md }}>
-                      <Text style={styles.fieldLabel}>Automatically enforce a cancellation cutoff</Text>
-                      <Text style={styles.emptyHint}>On: cancelling far enough ahead auto-refunds the deposit, cancelling late (or a no-show) auto-forfeits it. Off: nothing happens automatically; you decide manually when cancelling.</Text>
+                      <Text style={styles.fieldLabel}>{t('owner:businessScreen.enforceCancellationCutoff')}</Text>
+                      <Text style={styles.emptyHint}>{t('owner:businessScreen.enforceCancellationCutoffHint')}</Text>
                     </View>
                     <Switch
                       value={business.deposit_refund_policy_enabled}
@@ -396,7 +403,7 @@ export default function BusinessSetupScreen() {
                     <View style={[styles.inputRow, { marginTop: Spacing.sm }]}>
                       <TextInput
                         style={[styles.input, { flex: 1 }]}
-                        placeholder="Hours before appointment"
+                        placeholder={t('owner:businessScreen.hoursBeforeAppointment')}
                         placeholderTextColor="rgba(255,255,255,0.35)"
                         value={cutoffHoursInput}
                         onChangeText={(v) => {
@@ -405,7 +412,7 @@ export default function BusinessSetupScreen() {
                         }}
                         keyboardType="number-pad"
                       />
-                      <Text style={styles.inputSuffix}>hours</Text>
+                      <Text style={styles.inputSuffix}>{t('owner:businessScreen.hoursSuffix')}</Text>
                     </View>
                   )}
                 </View>
@@ -414,11 +421,11 @@ export default function BusinessSetupScreen() {
           )}
         </Section>
 
-        <Section title="Salon Directory">
+        <Section title={t('owner:businessScreen.salonDirectory')}>
           <View style={styles.switchRow}>
             <View style={{ flex: 1, paddingRight: Spacing.md }}>
-              <Text style={styles.fieldLabel}>Show my salon in the customer app's Discover list</Text>
-              <Text style={styles.emptyHint}>Off hides you from browsing customers — clients who already have your link or QR code can still book.</Text>
+              <Text style={styles.fieldLabel}>{t('owner:businessScreen.showInDiscoverList')}</Text>
+              <Text style={styles.emptyHint}>{t('owner:businessScreen.showInDiscoverListHint')}</Text>
             </View>
             <Switch
               value={business.publicly_listed}
@@ -428,9 +435,9 @@ export default function BusinessSetupScreen() {
           </View>
         </Section>
 
-        <Section title="Holiday Hours">
+        <Section title={t('owner:businessScreen.holidayHours')}>
           {holidays.length === 0 && (
-            <Text style={styles.emptyHint}>Add dates you're closed — SANAA reads these automatically to callers too.</Text>
+            <Text style={styles.emptyHint}>{t('owner:businessScreen.holidayHoursEmptyHint')}</Text>
           )}
           {holidays.map(h => (
             <View key={h.id} style={styles.holidayRow}>
@@ -447,44 +454,44 @@ export default function BusinessSetupScreen() {
             <View style={styles.inlineForm}>
               <TextInput
                 style={styles.input}
-                placeholder="Date (YYYY-MM-DD)"
+                placeholder={t('owner:businessScreen.holidayDatePlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 value={newDate}
                 onChangeText={setNewDate}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Name (e.g. Christmas Day)"
+                placeholder={t('owner:businessScreen.holidayNamePlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 value={newName}
                 onChangeText={setNewName}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Message (what SANAA/customers hear)"
+                placeholder={t('owner:businessScreen.holidayMessagePlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 value={newMessage}
                 onChangeText={setNewMessage}
               />
               <View style={styles.inlineFormActions}>
                 <TouchableOpacity onPress={() => setAddingHoliday(false)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={styles.cancelText}>{t('owner:businessScreen.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAddHoliday}>
-                  <Text style={styles.addRowText}>Save</Text>
+                  <Text style={styles.addRowText}>{t('owner:businessScreen.save')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAddingHoliday(true)}>
               <Ionicons name="add" size={18} color="#F4D77A" />
-              <Text style={styles.addRowText}>Add closed date</Text>
+              <Text style={styles.addRowText}>{t('owner:businessScreen.addClosedDate')}</Text>
             </TouchableOpacity>
           )}
         </Section>
 
-        <Section title="Business Closures">
-          <Text style={styles.emptyHint}>Multi-day closures (vacation, renovation) — distinct from single-day holiday hours above.</Text>
+        <Section title={t('owner:businessScreen.businessClosures')}>
+          <Text style={styles.emptyHint}>{t('owner:businessScreen.businessClosuresHint')}</Text>
           {closures.map(c => (
             <View key={c.id} style={styles.holidayRow}>
               <View style={{ flex: 1 }}>
@@ -498,24 +505,24 @@ export default function BusinessSetupScreen() {
           ))}
           {addingClosure ? (
             <View style={styles.inlineForm}>
-              <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor="rgba(255,255,255,0.35)" value={closureStart} onChangeText={setClosureStart} />
-              <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor="rgba(255,255,255,0.35)" value={closureEnd} onChangeText={setClosureEnd} />
-              <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor="rgba(255,255,255,0.35)" value={closureReason} onChangeText={setClosureReason} />
+              <TextInput style={styles.input} placeholder={t('owner:businessScreen.startDatePlaceholder')} placeholderTextColor="rgba(255,255,255,0.35)" value={closureStart} onChangeText={setClosureStart} />
+              <TextInput style={styles.input} placeholder={t('owner:businessScreen.endDatePlaceholder')} placeholderTextColor="rgba(255,255,255,0.35)" value={closureEnd} onChangeText={setClosureEnd} />
+              <TextInput style={styles.input} placeholder={t('owner:businessScreen.reasonPlaceholder')} placeholderTextColor="rgba(255,255,255,0.35)" value={closureReason} onChangeText={setClosureReason} />
               <View style={styles.inlineFormActions}>
-                <TouchableOpacity onPress={() => setAddingClosure(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
-                <TouchableOpacity onPress={handleAddClosure}><Text style={styles.addRowText}>Save</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setAddingClosure(false)}><Text style={styles.cancelText}>{t('owner:businessScreen.cancel')}</Text></TouchableOpacity>
+                <TouchableOpacity onPress={handleAddClosure}><Text style={styles.addRowText}>{t('owner:businessScreen.save')}</Text></TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAddingClosure(true)}>
               <Ionicons name="add" size={18} color="#F4D77A" />
-              <Text style={styles.addRowText}>Add closure</Text>
+              <Text style={styles.addRowText}>{t('owner:businessScreen.addClosure')}</Text>
             </TouchableOpacity>
           )}
         </Section>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-          {saving ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.saveButtonText}>Save</Text>}
+          {saving ? <BreathingHeart size={18} color="#09000F" /> : <Text style={styles.saveButtonText}>{t('owner:businessScreen.save')}</Text>}
         </TouchableOpacity>
       </ScrollView>
     </View>

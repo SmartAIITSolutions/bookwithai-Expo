@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import { useTranslation } from 'react-i18next';
 import { BlurMask, Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
 import { FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function LegalWebScreen({ title, url }: Props) {
+  const { t } = useTranslation(['legal']);
   useEffect(() => {
     WebBrowser.openBrowserAsync(url, {
       presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
@@ -64,15 +66,15 @@ export function LegalWebScreen({ title, url }: Props) {
           </View>
         </View>
 
-        <Text style={styles.message}>Opening {title}...</Text>
-        <Text style={styles.sub}>If the page didn't open, tap below.</Text>
+        <Text style={styles.message}>{t('legal:webScreen.opening', { title })}</Text>
+        <Text style={styles.sub}>{t('legal:webScreen.notOpenedHint')}</Text>
         <Pressable style={({ pressed }) => [styles.openBtn, pressed && { opacity: 0.85 }]} onPress={handleOpen}>
           <Ionicons name="open-outline" size={18} color="#09000F" />
-          <Text style={styles.openBtnText}>Open {title}</Text>
+          <Text style={styles.openBtnText}>{t('legal:webScreen.open', { title })}</Text>
         </Pressable>
         <Pressable style={({ pressed }) => [styles.tryAgainBtn, pressed && { opacity: 0.7 }]} onPress={handleOpen}>
           <Ionicons name="refresh-outline" size={14} color="#F4D77A" />
-          <Text style={styles.tryAgainText}>Try Again</Text>
+          <Text style={styles.tryAgainText}>{t('legal:webScreen.tryAgain')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

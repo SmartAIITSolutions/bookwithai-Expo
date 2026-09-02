@@ -3,21 +3,22 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { fetchStaffCommissions, StaffCommissionEntry } from '@/lib/api/staffApi';
 import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
+import { formatCentsUSD, formatMonthDayYear } from '@/lib/i18n/format';
 
 function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatCentsUSD(cents);
 }
 
 function formatDate(iso: string) {
-  const d = new Date(iso);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return formatMonthDayYear(new Date(iso));
 }
 
 export default function StaffEarningsScreen() {
+  const { t } = useTranslation(['staff']);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [entries, setEntries] = useState<StaffCommissionEntry[]>([]);
@@ -43,7 +44,7 @@ export default function StaffEarningsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Earnings</Text>
+        <Text style={styles.title}>{t('staff:earnings.title')}</Text>
       </View>
 
       {loading ? (
@@ -59,14 +60,14 @@ export default function StaffEarningsScreen() {
             refreshControl={<InvisibleRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
             ListHeaderComponent={
               <View style={styles.totalCard}>
-                <Text style={styles.totalLabel}>Total commission earned</Text>
+                <Text style={styles.totalLabel}>{t('staff:earnings.totalCommissionEarned')}</Text>
                 <Text style={styles.totalValue}>{formatPrice(totalCents)}</Text>
               </View>
             }
             ListEmptyComponent={
               <View style={styles.empty}>
                 <Ionicons name="cash-outline" size={40} color={Colors.textDisabled} />
-                <Text style={styles.emptyHint}>No commission earned yet.</Text>
+                <Text style={styles.emptyHint}>{t('staff:earnings.noCommissionYet')}</Text>
               </View>
             }
             renderItem={({ item }) => (
@@ -75,7 +76,7 @@ export default function StaffEarningsScreen() {
                   <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
                   <Text style={styles.cardAmount}>{formatPrice(item.amount_cents)}</Text>
                 </View>
-                <Text style={styles.cardRate}>{item.rate_pct_used}% rate</Text>
+                <Text style={styles.cardRate}>{t('staff:earnings.ratePct', { pct: item.rate_pct_used })}</Text>
               </View>
             )}
           />

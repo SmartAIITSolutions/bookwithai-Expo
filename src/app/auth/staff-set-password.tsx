@@ -9,12 +9,14 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { linkStaffInvite } from '@/lib/api/staffApi';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 // Landed here right after a staff invite link establishes a session (see
 // _layout.tsx). Links the account to its staff row, then requires a real
 // password before entering the app (the invite session has no password set).
 export default function StaffSetPasswordScreen() {
+  const { t } = useTranslation(['auth', 'errors']);
   const { refreshProfile } = useAuth();
   const [linking, setLinking] = useState(true);
   const [staffName, setStaffName] = useState<string | null>(null);
@@ -33,18 +35,18 @@ export default function StaffSetPasswordScreen() {
 
   async function handleSetPassword() {
     if (password.length < 8) {
-      Alert.alert('Password too short', 'Use at least 8 characters.');
+      Alert.alert(t('errors:auth.passwordTooShortTitle'), t('errors:auth.useAtLeast8Chars'));
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert("Passwords don't match", 'Please re-enter to confirm.');
+      Alert.alert(t('errors:auth.passwordsDontMatchTitle'), t('errors:auth.reenterToConfirm'));
       return;
     }
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ password });
     setSaving(false);
     if (error) {
-      Alert.alert('Could not set password', error.message);
+      Alert.alert(t('errors:auth.couldNotSetPasswordTitle'), error.message);
       return;
     }
     await refreshProfile();
@@ -65,10 +67,10 @@ export default function StaffSetPasswordScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <Text style={styles.title}>Invite link expired</Text>
-          <Text style={styles.subtitle}>{linkError} Ask your manager to resend the invite.</Text>
+          <Text style={styles.title}>{t('auth:staffSetPassword.inviteExpiredTitle')}</Text>
+          <Text style={styles.subtitle}>{linkError} {t('auth:staffSetPassword.askManagerToResend')}</Text>
           <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/auth')}>
-            <Text style={styles.secondaryBtnText}>Back to Sign In</Text>
+            <Text style={styles.secondaryBtnText}>{t('auth:staffSetPassword.backToSignIn')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -79,35 +81,35 @@ export default function StaffSetPasswordScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.content}>
-          <Text style={styles.title}>Welcome{staffName ? `, ${staffName}` : ''}</Text>
-          <Text style={styles.subtitle}>Set a password to finish creating your account.</Text>
+          <Text style={styles.title}>{staffName ? t('auth:staffSetPassword.welcomeWithName', { name: staffName }) : t('auth:staffSetPassword.welcome')}</Text>
+          <Text style={styles.subtitle}>{t('auth:staffSetPassword.subtitle')}</Text>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t('auth:staffSetPassword.passwordLabel')}</Text>
             <TextInput
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="At least 8 characters"
+              placeholder={t('auth:staffSetPassword.passwordPlaceholder')}
               placeholderTextColor={Colors.textDisabled}
               secureTextEntry
               autoFocus
             />
           </View>
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Confirm password</Text>
+            <Text style={styles.label}>{t('auth:staffSetPassword.confirmLabel')}</Text>
             <TextInput
               style={styles.input}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              placeholder="Re-enter password"
+              placeholder={t('auth:staffSetPassword.confirmPlaceholder')}
               placeholderTextColor={Colors.textDisabled}
               secureTextEntry
             />
           </View>
 
           <Pressable style={styles.primaryBtn} onPress={handleSetPassword} disabled={saving}>
-            {saving ? <BreathingHeart size={18} color={Colors.white} /> : <Text style={styles.primaryBtnText}>Continue</Text>}
+            {saving ? <BreathingHeart size={18} color={Colors.white} /> : <Text style={styles.primaryBtnText}>{t('auth:staffSetPassword.continueButton')}</Text>}
           </Pressable>
         </View>
       </KeyboardAvoidingView>

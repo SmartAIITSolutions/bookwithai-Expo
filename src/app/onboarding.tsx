@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { View, ScrollView, Dimensions, StyleSheet, Pressable, Text } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { OnboardingSlide } from '@/components/onboarding/OnboardingSlide';
 import { Slide4Final } from '@/components/onboarding/Slide4Final';
 import { ProgressDots } from '@/components/onboarding/ProgressDots';
@@ -9,28 +10,12 @@ import { Colors, FontFamily, FontSize, Spacing } from '@/constants/Theme';
 
 const { width } = Dimensions.get('window');
 
-const SLIDES = [
-  {
-    headline: 'Beauty Booking.\nMade Beautiful.',
-    subtext:
-      'Discover trusted salons, barbers, nail studios, spas, and beauty professionals—all in one place.',
-    heroImage: require('@/assets/images/onboarding-slide-1.png'),
-    heroPlaceholderLabel: 'Slide 1 hero — luxury salon reception photo',
-  },
-  {
-    headline: 'Book Anytime.\nAnywhere.',
-    subtext:
-      'View services, choose your favorite professional, and book your appointment in just a few taps.',
-    heroImage: require('@/assets/images/onboarding-slide-2.png'),
-    heroPlaceholderLabel: 'Slide 2 hero — hand holding phone with booking screen',
-  },
-  {
-    headline: 'Stay Organized.',
-    subtext:
-      'Get confirmations, reminders, and manage all your appointments in one place.',
-    heroImage: require('@/assets/images/onboarding-slide-3.png'),
-    heroPlaceholderLabel: 'Slide 3 hero — iPhone mockup with reminder notification',
-  },
+// Internal dev-only labels for the placeholder shown if heroImage is null
+// (never true for these 3 slides) — not real user-facing text, left untranslated.
+const SLIDE_META = [
+  { heroImage: require('@/assets/images/onboarding-slide-1.png'), heroPlaceholderLabel: 'Slide 1 hero — luxury salon reception photo' },
+  { heroImage: require('@/assets/images/onboarding-slide-2.png'), heroPlaceholderLabel: 'Slide 2 hero — hand holding phone with booking screen' },
+  { heroImage: require('@/assets/images/onboarding-slide-3.png'), heroPlaceholderLabel: 'Slide 3 hero — iPhone mockup with reminder notification' },
 ];
 
 const ONBOARDING_KEY = 'bwa_onboarding_done';
@@ -40,8 +25,15 @@ async function markOnboardingDone() {
 }
 
 export default function OnboardingScreen() {
+  const { t } = useTranslation(['onboarding']);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+
+  const SLIDES = [
+    { headline: t('onboarding:customer.slide1.headline'), subtext: t('onboarding:customer.slide1.subtext'), ...SLIDE_META[0] },
+    { headline: t('onboarding:customer.slide2.headline'), subtext: t('onboarding:customer.slide2.subtext'), ...SLIDE_META[1] },
+    { headline: t('onboarding:customer.slide3.headline'), subtext: t('onboarding:customer.slide3.subtext'), ...SLIDE_META[2] },
+  ];
 
   function goToSlide(index: number) {
     scrollRef.current?.scrollTo({ x: index * width, animated: true });
@@ -99,13 +91,13 @@ export default function OnboardingScreen() {
       {!isLastSlide && (
         <View style={styles.controls}>
           <Pressable onPress={handleSkip}>
-            <Text style={styles.skipText}>Skip</Text>
+            <Text style={styles.skipText}>{t('onboarding:customer.skip')}</Text>
           </Pressable>
 
           <ProgressDots count={SLIDES.length + 1} activeIndex={activeIndex} />
 
           <Pressable style={styles.nextButton} onPress={handleNext}>
-            <Text style={styles.nextText}>Next</Text>
+            <Text style={styles.nextText}>{t('onboarding:customer.next')}</Text>
           </Pressable>
         </View>
       )}

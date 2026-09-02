@@ -1,6 +1,7 @@
 import { View, useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Theme';
 import { carouselTransitionSpec, makeArcInterpolator } from '@/lib/navigation/tabTransition';
@@ -9,6 +10,7 @@ import { carouselTransitionSpec, makeArcInterpolator } from '@/lib/navigation/ta
 // shell, not a role-branched copy of the owner app's 5 tabs. Real,
 // simple, useful for what a staff member actually needs day-to-day.
 export default function StaffTabsLayout() {
+  const { t } = useTranslation(['common']);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   return (
@@ -36,7 +38,7 @@ export default function StaffTabsLayout() {
         <Tabs.Screen
           name="schedule"
           options={{
-            title: 'Schedule',
+            title: t('common:tabs.schedule'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="calendar-outline" size={size} color={color} />
             ),
@@ -45,7 +47,7 @@ export default function StaffTabsLayout() {
         <Tabs.Screen
           name="time-off"
           options={{
-            title: 'Time Off',
+            title: t('common:tabs.timeOff'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="airplane-outline" size={size} color={color} />
             ),
@@ -54,7 +56,7 @@ export default function StaffTabsLayout() {
         <Tabs.Screen
           name="earnings"
           options={{
-            title: 'Earnings',
+            title: t('common:tabs.earnings'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="cash-outline" size={size} color={color} />
             ),
@@ -63,7 +65,7 @@ export default function StaffTabsLayout() {
         <Tabs.Screen
           name="account"
           options={{
-            title: 'Account',
+            title: t('common:tabs.account'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person-outline" size={size} color={color} />
             ),

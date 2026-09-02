@@ -8,6 +8,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { rescheduleBooking } from '@/lib/api/bookingActions';
+import { Trans, useTranslation } from 'react-i18next';
+import { formatMonthYear, formatWeekdayMonthDay, formatTimeShort, formatWeekdayShort } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -29,11 +31,16 @@ interface TimeSlot {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
+// 2023-01-01 was a real Sunday -- stable reference date so Intl can produce a
+// locale-correct weekday name for a given Sun-first day-of-week index. The
+// calendar grid itself (which day-of-week a date falls on) is untouched.
+const REFERENCE_SUNDAY = new Date(2023, 0, 1);
+function weekdayShortForIndex(index: number): string {
+  const d = new Date(REFERENCE_SUNDAY);
+  d.setDate(REFERENCE_SUNDAY.getDate() + index);
+  return formatWeekdayShort(d);
+}
+const DAY_HEADER_LABELS = [0, 1, 2, 3, 4, 5, 6].map(weekdayShortForIndex);
 
 function toLocalDateStr(date: Date): string {
   // YYYY-MM-DD in local time
@@ -44,12 +51,7 @@ function toLocalDateStr(date: Date): string {
 }
 
 function formatSlotTime(isoStr: string): string {
-  const d = new Date(isoStr);
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${m} ${ampm}`;
+  return formatTimeShort(new Date(isoStr));
 }
 
 function getDaysInMonth(year: number, month: number): number {
@@ -62,6 +64,7 @@ function getFirstDayOfMonth(year: number, month: number): number {
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function DateTimeScreen() {
+  const { t } = useTranslation(['booking', 'errors', 'common']);
   const {
     salonId, salonSlug, salonName, requireOnlinePayment,
     serviceIds, serviceNames, totalCents, totalMins,
@@ -140,7 +143,7 @@ export default function DateTimeScreen() {
       const json = await res.json();
       const available = (json.slots as TimeSlot[]).filter((s) => s.available);
       setSlots(available);
-      if (available.length === 0) setSlotsError('No available slots for this date.');
+      if (available.length === 0) setSlotsError(t('booking:datetimeScreen.noAvailableSlots'));
 
       // Rebook-nudge deep link only -- auto-select the slot matching the
       // suggested time, if it's still actually open. Just a head start;
@@ -153,7 +156,7 @@ export default function DateTimeScreen() {
         }
       }
     } catch (e: any) {
-      setSlotsError('Could not load availability. Please try another date.');
+      setSlotsError(t('booking:datetimeScreen.loadSlotsError'));
     } finally {
       setLoadingSlots(false);
     }
@@ -178,12 +181,12 @@ export default function DateTimeScreen() {
       setRescheduling(false);
       if (!result.ok) {
         notificationError();
-        Alert.alert('Could not reschedule', result.error || 'Something went wrong. Please try again.');
+        Alert.alert(t('booking:datetimeScreen.couldNotRescheduleTitle'), result.error || t('errors:generic'));
         return;
       }
       notificationSuccess();
-      Alert.alert('Rescheduled!', 'Your appointment has been moved to the new time.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/my-booking') },
+      Alert.alert(t('booking:datetimeScreen.rescheduledTitle'), t('booking:datetimeScreen.rescheduledMessage'), [
+        { text: t('common:ok'), onPress: () => router.replace('/(tabs)/my-booking') },
       ]);
       return;
     }
@@ -239,7 +242,7 @@ export default function DateTimeScreen() {
           <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{isRescheduling ? 'Reschedule' : 'Date & Time'}</Text>
+          <Text style={styles.headerTitle}>{isRescheduling ? t('booking:datetimeScreen.titleReschedule') : t('booking:datetimeScreen.titleDateTime')}</Text>
           {salonName ? <Text style={styles.headerSub} numberOfLines={1}>{salonName}</Text> : null}
         </View>
         <View style={styles.backBtn} />
@@ -255,7 +258,7 @@ export default function DateTimeScreen() {
             <Pressable onPress={prevMonth} style={styles.calNavBtn}>
               <Ionicons name="chevron-back" size={20} color="#F4D77A" />
             </Pressable>
-            <Text style={styles.calMonth}>{MONTHS[viewMonth]} {viewYear}</Text>
+            <Text style={styles.calMonth}>{formatMonthYear(viewYear, viewMonth)}</Text>
             <Pressable onPress={nextMonth} style={styles.calNavBtn}>
               <Ionicons name="chevron-forward" size={20} color="#F4D77A" />
             </Pressable>
@@ -263,8 +266,8 @@ export default function DateTimeScreen() {
 
           {/* Day labels */}
           <View style={styles.calDayLabels}>
-            {DAYS.map((d) => (
-              <Text key={d} style={styles.calDayLabel}>{d}</Text>
+            {DAY_HEADER_LABELS.map((d, i) => (
+              <Text key={i} style={styles.calDayLabel}>{d}</Text>
             ))}
           </View>
 
@@ -316,7 +319,7 @@ export default function DateTimeScreen() {
         {selectedDate && (
           <View style={styles.slotsSection}>
             <Text style={styles.slotsTitle}>
-              Available Times — {DAYS[selectedDate.getDay()]}, {MONTHS[selectedDate.getMonth()].slice(0, 3)} {selectedDate.getDate()}
+              {t('booking:datetimeScreen.availableTimesFor', { date: formatWeekdayMonthDay(selectedDate) })}
             </Text>
 
             {loadingSlots ? (
@@ -358,7 +361,12 @@ export default function DateTimeScreen() {
           <View style={styles.holdBanner}>
             <Ionicons name="time-outline" size={16} color="#F4D77A" />
             <Text style={styles.holdText}>
-              Slot held for <Text style={styles.holdTimer}>{holdDisplay}</Text> — complete your booking soon
+              <Trans
+                ns="booking"
+                i18nKey="datetimeScreen.holdText"
+                values={{ timer: holdDisplay }}
+                components={{ bold: <Text style={styles.holdTimer} /> }}
+              />
             </Text>
           </View>
         )}
@@ -371,7 +379,7 @@ export default function DateTimeScreen() {
         <View style={styles.footer}>
           <View style={styles.footerInfo}>
             <Text style={styles.footerTime}>{formatSlotTime(selectedSlot.starts_at)}</Text>
-            <Text style={styles.footerStaff}>with {selectedSlot.staff_name}</Text>
+            <Text style={styles.footerStaff}>{t('booking:datetimeScreen.with', { name: selectedSlot.staff_name })}</Text>
           </View>
           <Pressable style={styles.continueBtn} onPress={handleContinue} disabled={rescheduling}>
             {rescheduling ? (
@@ -379,7 +387,7 @@ export default function DateTimeScreen() {
             ) : (
               <>
                 <Text style={styles.continueBtnText}>
-                  {isRescheduling ? 'Confirm Reschedule' : 'Review Booking'}
+                  {isRescheduling ? t('booking:datetimeScreen.confirmReschedule') : t('booking:datetimeScreen.reviewBooking')}
                 </Text>
                 <Ionicons name="chevron-forward" size={18} color="#09000F" />
               </>

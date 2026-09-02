@@ -4,6 +4,7 @@ import Animated, {
   FadeIn, FadeOut, LinearTransition, useSharedValue, useAnimatedStyle, withTiming,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 import { SanaaFaqItem } from '@/lib/sanaa/discoveryContent';
 
@@ -18,6 +19,7 @@ interface SanaaFaqAccordionProps {
 // (LinearTransition animates the surrounding layout as this item grows/
 // shrinks, rather than the legacy LayoutAnimation API).
 export function SanaaFaqAccordion({ item, onExpand }: SanaaFaqAccordionProps) {
+  const { t } = useTranslation(['sanaa']);
   const [open, setOpen] = useState(false);
   const rotation = useSharedValue(0);
 
@@ -43,7 +45,7 @@ export function SanaaFaqAccordion({ item, onExpand }: SanaaFaqAccordionProps) {
       <Pressable style={styles.header} onPress={toggle} accessibilityRole="button" accessibilityState={{ expanded: open }}>
         <Text style={styles.question}>{item.question}</Text>
         {item.status === 'pending' && (
-          <View style={styles.pendingTag}><Text style={styles.pendingTagText}>DEV — PENDING</Text></View>
+          <View style={styles.pendingTag}><Text style={styles.pendingTagText}>{t('sanaa:faqAccordion.devPending')}</Text></View>
         )}
         <Animated.View style={chevronStyle}>
           <Ionicons name="chevron-down" size={18} color="rgba(255,255,255,0.5)" />
@@ -51,7 +53,7 @@ export function SanaaFaqAccordion({ item, onExpand }: SanaaFaqAccordionProps) {
       </Pressable>
       {open && (
         <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.answerWrap}>
-          <Text style={styles.answer}>{item.answer ?? '(no answer approved yet)'}</Text>
+          <Text style={styles.answer}>{item.answer ?? t('sanaa:faqAccordion.noAnswerYet')}</Text>
         </Animated.View>
       )}
     </Animated.View>

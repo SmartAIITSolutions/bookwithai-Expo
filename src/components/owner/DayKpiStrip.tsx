@@ -4,10 +4,10 @@ import Svg, { Circle } from 'react-native-svg';
 import { DayKpis } from '@/lib/calendar/dayKpis';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { useTranslation } from 'react-i18next';
+import { formatCentsUSDWhole } from '@/lib/i18n/format';
 
-function formatMoney(cents: number): string {
-  return `$${Math.round(cents / 100)}`;
-}
+const formatMoney = formatCentsUSDWhole;
 
 function UtilizationRing({ percent }: { percent: number }) {
   const size = 22, stroke = 3, r = (size - stroke) / 2, c = 2 * Math.PI * r;
@@ -28,8 +28,8 @@ function KpiCard({ value, label, icon }: { value: string; label: string; icon: R
   return (
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.value} numberOfLines={1}>{value}</Text>
-        <Text style={styles.label} numberOfLines={1}>{label}</Text>
+        <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{value}</Text>
+        <Text style={styles.label} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{label}</Text>
       </View>
       {icon}
     </View>
@@ -40,22 +40,23 @@ function KpiCard({ value, label, icon }: { value: string; label: string; icon: R
 // computeDayKpis() from bookings + business hours already loaded for this
 // screen; nothing here is a placeholder outside the sample fixture.
 export function DayKpiStrip({ kpis }: { kpis: DayKpis }) {
+  const { t } = useTranslation(['calendar']);
   return (
     <View style={styles.row}>
       <KpiCard
-        value={String(kpis.appointments)} label="Appointments"
+        value={String(kpis.appointments)} label={t('calendar:kpiStrip.appointments')}
         icon={<Ionicons name="calendar" size={18} color={P.secondaryPurple} />}
       />
       <KpiCard
-        value={formatMoney(kpis.bookedCents)} label="Booked"
+        value={formatMoney(kpis.bookedCents)} label={t('calendar:kpiStrip.booked')}
         icon={<View style={[styles.dollarCircle]}><Text style={styles.dollarText}>$</Text></View>}
       />
       <KpiCard
-        value={String(kpis.openGaps)} label="Open Gaps"
+        value={String(kpis.openGaps)} label={t('calendar:kpiStrip.openGaps')}
         icon={<Ionicons name="sparkles" size={17} color={P.accentGold} />}
       />
       <KpiCard
-        value={`${kpis.utilizationPercent}%`} label="Utilization"
+        value={`${kpis.utilizationPercent}%`} label={t('calendar:kpiStrip.utilization')}
         icon={<UtilizationRing percent={kpis.utilizationPercent} />}
       />
     </View>

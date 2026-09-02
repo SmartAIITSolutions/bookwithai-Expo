@@ -11,11 +11,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { hasPin } from '@/lib/auth/pin';
 
 export default function BiometricsScreen() {
+  const { t } = useTranslation(['auth', 'common']);
   const { signOut, role } = useAuth();
   const [biometricType, setBiometricType] = useState<'fingerprint' | 'face' | 'none'>('none');
   const [pinAvailable, setPinAvailable] = useState(false);
@@ -61,9 +63,9 @@ export default function BiometricsScreen() {
   async function handleAuthenticate() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage:  'Unlock Book With AI',
-        fallbackLabel:  'Use password instead',
-        cancelLabel:    'Cancel',
+        promptMessage:  t('auth:biometrics.unlockPrompt'),
+        fallbackLabel:  t('auth:biometrics.fallbackLabel'),
+        cancelLabel:    t('common:cancel'),
         disableDeviceFallback: false,
       });
 
@@ -77,12 +79,12 @@ export default function BiometricsScreen() {
 
   async function handleSignOut() {
     Alert.alert(
-      'Sign out?',
-      'You\'ll need to sign in again.',
+      t('auth:biometrics.signOutConfirmTitle'),
+      t('auth:biometrics.signOutConfirmMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:cancel'), style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: t('auth:biometrics.signOut'),
           style: 'destructive',
           onPress: async () => {
             await signOut();
@@ -94,38 +96,38 @@ export default function BiometricsScreen() {
   }
 
   const icon = biometricType === 'face' ? 'scan-outline' : 'finger-print-outline';
-  const label = biometricType === 'face' ? 'Face ID' : 'Fingerprint';
+  const label = biometricType === 'face' ? t('auth:biometrics.faceId') : t('auth:biometrics.fingerprint');
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
 
-        <Text style={styles.appName}>Book With AI</Text>
-        <Text style={styles.subtitle}>Unlock to continue</Text>
+        <Text style={styles.appName}>{t('auth:biometrics.appName')}</Text>
+        <Text style={styles.subtitle}>{t('auth:biometrics.subtitle')}</Text>
 
         <Pressable
           style={({ pressed }) => [styles.biometricBtn, pressed && { opacity: 0.8 }]}
           onPress={handleAuthenticate}>
           <Ionicons name={icon} size={48} color={Colors.primary} />
-          <Text style={styles.biometricLabel}>Use {label}</Text>
+          <Text style={styles.biometricLabel}>{t('auth:biometrics.useLabel', { type: label })}</Text>
         </Pressable>
 
         {pinAvailable && (
           <Pressable
             style={({ pressed }) => [styles.passwordBtn, pressed && { opacity: 0.85 }]}
             onPress={() => router.replace('/auth/pin-entry')}>
-            <Text style={styles.passwordBtnText}>Use PIN Instead</Text>
+            <Text style={styles.passwordBtnText}>{t('auth:biometrics.usePinInstead')}</Text>
           </Pressable>
         )}
 
         <Pressable
           style={({ pressed }) => [styles.passwordBtn, pressed && { opacity: 0.85 }]}
           onPress={() => router.push('/auth/sign-in')}>
-          <Text style={styles.passwordBtnText}>Use Password Instead</Text>
+          <Text style={styles.passwordBtnText}>{t('auth:biometrics.usePasswordInstead')}</Text>
         </Pressable>
 
         <Pressable style={styles.signOutBtn} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>{t('auth:biometrics.signOut')}</Text>
         </Pressable>
 
       </View>

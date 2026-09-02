@@ -1,0 +1,38 @@
+{
+  "privacy": {
+    "title": "Política de Privacidad"
+  },
+  "terms": {
+    "title": "Términos de Servicio"
+  },
+  "support": {
+    "title": "Soporte"
+  },
+  "webScreen": {
+    "opening": "Abriendo {{title}}...",
+    "notOpenedHint": "Si la página no se abrió, toca abajo.",
+    "open": "Abrir {{title}}",
+    "tryAgain": "Reintentar"
+  },
+  "deleteAccount": {
+    "headerTitle": "Eliminar Mi Cuenta",
+    "headerBackTitle": "Cuenta",
+    "whatGetsDeleted": "Qué se elimina",
+    "whatGetsDeletedBody": "Tu inicio de sesión, nombre, correo, número de teléfono y detalles de perfil guardados se eliminan permanentemente de Book With AI.",
+    "whatDoesNotDelete": "Qué NO se elimina",
+    "whatDoesNotDeleteBody": "Tu salón — su personal, servicios, citas e historial de clientes — no se elimina cuando eliminas tu inicio de sesión. Esos datos permanecen intactos para fines de contabilidad, impuestos y prevención de fraude, pero una vez que tu inicio de sesión desaparece, ni tú ni nadie más podrá iniciar sesión para administrarlo. Si quieres transferir tu salón a alguien más, o cerrarlo correctamente primero, contacta a soporte antes de eliminar tu cuenta.",
+    "whatSalonsKeep": "Qué conservan los salones, y por qué",
+    "whatSalonsKeepBody": "Los salones con los que has reservado pueden estar legalmente obligados a conservar registros básicos de transacciones (como historial de citas y pagos) para fines de contabilidad, impuestos y prevención de fraude. Esto lo conserva el salón de forma independiente a tu cuenta de Book With AI y no es accesible para ti ni para nosotros una vez que tu cuenta sea eliminada.",
+    "confirmDeletion": "Confirmar eliminación",
+    "confirmDeletionBody": "Escribe DELETE abajo para confirmar. Esta acción es permanente y no se puede deshacer.",
+    "typeDeleteToConfirm": "Escribe DELETE para confirmar",
+    "deleteMyAccount": "Eliminar Mi Cuenta",
+    "deleteOwnerTitle": "¿Eliminar tu cuenta de propietario?",
+    "deleteOwnerMessage": "Esto elimina permanentemente tu inicio de sesión. El personal, servicios, citas e historial de clientes de tu salón NO se eliminan, pero perderás todo acceso para administrarlos. Esto no se puede deshacer.",
+    "deleteCustomerTitle": "¿Eliminar tu cuenta?",
+    "deleteCustomerMessage": "Esto elimina permanentemente tu cuenta e información personal. Esto no se puede deshacer.",
+    "cancel": "Cancelar",
+    "deleteAccountButton": "Eliminar Cuenta",
+    "couldNotDeleteTitle": "No se pudo eliminar la cuenta"
+  }
+}

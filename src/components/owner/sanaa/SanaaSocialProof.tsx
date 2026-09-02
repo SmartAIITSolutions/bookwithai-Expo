@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing } from '@/constants/Theme';
 import { SANAA_TESTIMONIALS } from '@/lib/sanaa/discoveryContent';
 
@@ -17,11 +18,12 @@ function CardOverlay() {
 // SANAA_TESTIMONIALS is empty until real proof exists; this section renders
 // nothing at all in that case, rather than a fake/sample placeholder.
 export function SanaaSocialProof() {
+  const { t } = useTranslation(['sanaa']);
   if (SANAA_TESTIMONIALS.length === 0) return null;
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>What Salons Are Saying</Text>
+      <Text style={styles.sectionTitle}>{t('sanaa:socialProof.sectionTitle')}</Text>
       {SANAA_TESTIMONIALS.map((t) => (
         <BlurView key={t.attribution} intensity={90} tint="dark" style={styles.card}>
           <CardOverlay />

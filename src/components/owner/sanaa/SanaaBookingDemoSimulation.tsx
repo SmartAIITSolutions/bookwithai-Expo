@@ -2,28 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { SanaaDemoOutcome } from './SanaaDemoOutcome';
 import { trackSanaaEvent } from '@/lib/analytics/sanaaEvents';
 
 type ScriptLine = { speaker: 'customer' | 'sanaa'; text: string } | { speaker: 'system'; text: string };
 
-// Purely local, scripted fixture -- no network call, no production data,
-// never presented as a live AI interaction (SANAA-P2-SPEC correction #5).
-// This is the one complete, reviewable demo; the other 5 scenarios stay
-// honestly "unavailable" until real recordings exist (see SanaaDemoPlayer).
-const SCRIPT: ScriptLine[] = [
-  { speaker: 'customer', text: 'Hi, do you have anything open this week for a haircut?' },
-  { speaker: 'system', text: 'Checking availability…' },
-  { speaker: 'sanaa', text: "I have Tuesday at 2:30 PM open with Jordan — would that work?" },
-  { speaker: 'customer', text: 'That works!' },
-  { speaker: 'sanaa', text: "Great, you're all set for Tuesday at 2:30 PM." },
-];
-
 const STEP_DELAY_MS = 1100;
 const OUTCOME_DELAY_MS = 1400;
 
 export function SanaaBookingDemoSimulation() {
+  const { t } = useTranslation(['sanaa']);
+  // Purely local, scripted fixture -- no network call, no production data,
+  // never presented as a live AI interaction (SANAA-P2-SPEC correction #5).
+  // This is the one complete, reviewable demo; the other 5 scenarios stay
+  // honestly "unavailable" until real recordings exist (see SanaaDemoPlayer).
+  const SCRIPT: ScriptLine[] = [
+    { speaker: 'customer', text: t('sanaa:bookingDemo.script1') },
+    { speaker: 'system', text: t('sanaa:bookingDemo.script2') },
+    { speaker: 'sanaa', text: t('sanaa:bookingDemo.script3') },
+    { speaker: 'customer', text: t('sanaa:bookingDemo.script4') },
+    { speaker: 'sanaa', text: t('sanaa:bookingDemo.script5') },
+  ];
   const [visibleCount, setVisibleCount] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [showOutcome, setShowOutcome] = useState(false);
@@ -40,8 +41,8 @@ export function SanaaBookingDemoSimulation() {
     trackSanaaEvent('demo_started', { scenario: 'booking' });
 
     SCRIPT.forEach((_, i) => {
-      const t = setTimeout(() => setVisibleCount(i + 1), STEP_DELAY_MS * (i + 1));
-      timers.current.push(t);
+      const timer = setTimeout(() => setVisibleCount(i + 1), STEP_DELAY_MS * (i + 1));
+      timers.current.push(timer);
     });
     const outcomeTimer = setTimeout(() => {
       setShowOutcome(true);
@@ -55,13 +56,13 @@ export function SanaaBookingDemoSimulation() {
     <View style={styles.container}>
       <View style={styles.simTag}>
         <Ionicons name="play-circle" size={12} color="#FFC857" />
-        <Text style={styles.simTagText}>SIMULATED DEMO</Text>
+        <Text style={styles.simTagText}>{t('sanaa:bookingDemo.simulatedDemo')}</Text>
       </View>
 
       {visibleCount === 0 && !showOutcome ? (
         <Pressable style={styles.playButton} onPress={play}>
           <Ionicons name="play" size={18} color="#09000F" />
-          <Text style={styles.playButtonText}>Play Demo</Text>
+          <Text style={styles.playButtonText}>{t('sanaa:bookingDemo.playDemo')}</Text>
         </Pressable>
       ) : (
         <View style={styles.transcript}>
@@ -71,12 +72,12 @@ export function SanaaBookingDemoSimulation() {
         </View>
       )}
 
-      {showOutcome && <SanaaDemoOutcome time="Tuesday · 2:30 PM" service="Haircut" />}
+      {showOutcome && <SanaaDemoOutcome time={t('sanaa:bookingDemo.demoTime')} service={t('sanaa:bookingDemo.demoService')} />}
 
       {!playing && (visibleCount > 0 || showOutcome) && (
         <Pressable style={styles.replayButton} onPress={play}>
           <Ionicons name="refresh" size={14} color="rgba(255,255,255,0.6)" />
-          <Text style={styles.replayButtonText}>Watch again</Text>
+          <Text style={styles.replayButtonText}>{t('sanaa:bookingDemo.watchAgain')}</Text>
         </Pressable>
       )}
     </View>

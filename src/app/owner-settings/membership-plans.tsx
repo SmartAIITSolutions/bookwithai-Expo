@@ -5,12 +5,15 @@ import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { listMembershipPlans, createMembershipPlan, updateMembershipPlan, MembershipPlan, BillingMode, BillingInterval } from '@/lib/api/ownerMemberships';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
+import { formatCentsUSD } from '@/lib/i18n/format';
 
 export default function MembershipPlansScreen() {
+  const { t } = useTranslation(['owner']);
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [adding, setAdding] = useState(false);
@@ -33,7 +36,7 @@ export default function MembershipPlansScreen() {
   async function handleAdd() {
     const priceNum = parseFloat(price);
     if (!name.trim() || !priceNum || priceNum <= 0) {
-      Alert.alert('Missing info', 'Name and price are required.');
+      Alert.alert(t('owner:membershipPlansScreen.missingInfoTitle'), t('owner:membershipPlansScreen.missingInfoMessage'));
       return;
     }
     setSaving(true);
@@ -50,40 +53,40 @@ export default function MembershipPlansScreen() {
       setName(''); setPrice(''); setDiscountPct(''); setIncludedVisits(''); setAdding(false);
       load();
     } else {
-      Alert.alert('Could not create plan', result.error);
+      Alert.alert(t('owner:membershipPlansScreen.couldNotCreateTitle'), result.error);
     }
   }
 
   async function handleArchive(id: string) {
     const result = await updateMembershipPlan(id, { active: false });
     if (result.ok) setPlans(p => p.filter(x => x.id !== id));
-    else Alert.alert('Could not remove', result.error);
+    else Alert.alert(t('owner:membershipPlansScreen.couldNotRemoveTitle'), result.error);
   }
 
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Membership Plans', headerBackTitle: 'More' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:membershipPlansScreen.headerTitle'), headerBackTitle: t('owner:membershipPlansScreen.headerBackTitle') }} />
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color={Colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {plans.length === 0 && !adding && (
-            <Text style={styles.emptyHint}>No membership plans yet.</Text>
+            <Text style={styles.emptyHint}>{t('owner:membershipPlansScreen.emptyHint')}</Text>
           )}
           {plans.map(p => (
             <View key={p.id} style={styles.card}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.planName}>{p.name}</Text>
                 <Text style={styles.planMeta}>
-                  ${(p.price_cents / 100).toFixed(2)}/{p.billing_interval === 'monthly' ? 'mo' : 'yr'}
-                  {' · '}{p.billing_mode === 'stripe_subscription' ? 'Auto-billed' : 'Manual renewal'}
+                  {formatCentsUSD(p.price_cents)}{p.billing_interval === 'monthly' ? t('owner:membershipPlansScreen.perMonth') : t('owner:membershipPlansScreen.perYear')}
+                  {' · '}{p.billing_mode === 'stripe_subscription' ? t('owner:membershipPlansScreen.autoBilled') : t('owner:membershipPlansScreen.manualRenewal')}
                 </Text>
                 {(p.discount_pct || p.included_visits_per_cycle) && (
                   <Text style={styles.planBenefits}>
-                    {p.discount_pct ? `${p.discount_pct}% off services` : ''}
+                    {p.discount_pct ? t('owner:membershipPlansScreen.discountOffServices', { pct: p.discount_pct }) : ''}
                     {p.discount_pct && p.included_visits_per_cycle ? ' · ' : ''}
-                    {p.included_visits_per_cycle ? `${p.included_visits_per_cycle} visits/cycle` : ''}
+                    {p.included_visits_per_cycle ? t('owner:membershipPlansScreen.visitsPerCycle', { count: p.included_visits_per_cycle }) : ''}
                   </Text>
                 )}
               </View>
@@ -95,42 +98,42 @@ export default function MembershipPlansScreen() {
 
           {adding ? (
             <View style={styles.addCard}>
-              <TextInput style={styles.input} placeholder="Plan name" placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
-              <TextInput style={styles.input} placeholder="Price ($)" placeholderTextColor={Colors.textDisabled} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:membershipPlansScreen.namePlaceholder')} placeholderTextColor={Colors.textDisabled} value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder={t('owner:membershipPlansScreen.pricePlaceholder')} placeholderTextColor={Colors.textDisabled} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
 
-              <Text style={styles.fieldLabel}>Billing interval</Text>
+              <Text style={styles.fieldLabel}>{t('owner:membershipPlansScreen.billingInterval')}</Text>
               <View style={styles.chipRow}>
                 {(['monthly', 'yearly'] as BillingInterval[]).map(i => (
                   <TouchableOpacity key={i} style={[styles.chip, interval === i && styles.chipActive]} onPress={() => setInterval_(i)}>
-                    <Text style={[styles.chipText, interval === i && styles.chipTextActive]}>{i === 'monthly' ? 'Monthly' : 'Yearly'}</Text>
+                    <Text style={[styles.chipText, interval === i && styles.chipTextActive]}>{i === 'monthly' ? t('owner:membershipPlansScreen.monthly') : t('owner:membershipPlansScreen.yearly')}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <Text style={styles.fieldLabel}>Billing mode</Text>
+              <Text style={styles.fieldLabel}>{t('owner:membershipPlansScreen.billingMode')}</Text>
               <View style={styles.chipRow}>
                 <TouchableOpacity style={[styles.chip, billingMode === 'manual' && styles.chipActive]} onPress={() => setBillingMode('manual')}>
-                  <Text style={[styles.chipText, billingMode === 'manual' && styles.chipTextActive]}>Manual renewal</Text>
+                  <Text style={[styles.chipText, billingMode === 'manual' && styles.chipTextActive]}>{t('owner:membershipPlansScreen.manualRenewalOption')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.chip, billingMode === 'stripe_subscription' && styles.chipActive]} onPress={() => setBillingMode('stripe_subscription')}>
-                  <Text style={[styles.chipText, billingMode === 'stripe_subscription' && styles.chipTextActive]}>Auto-billed (Stripe)</Text>
+                  <Text style={[styles.chipText, billingMode === 'stripe_subscription' && styles.chipTextActive]}>{t('owner:membershipPlansScreen.autoBilledStripe')}</Text>
                 </TouchableOpacity>
               </View>
 
-              <TextInput style={styles.input} placeholder="Discount on services (%, optional)" placeholderTextColor={Colors.textDisabled} value={discountPct} onChangeText={setDiscountPct} keyboardType="decimal-pad" />
-              <TextInput style={styles.input} placeholder="Included visits per cycle (optional)" placeholderTextColor={Colors.textDisabled} value={includedVisits} onChangeText={setIncludedVisits} keyboardType="number-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:membershipPlansScreen.discountPlaceholder')} placeholderTextColor={Colors.textDisabled} value={discountPct} onChangeText={setDiscountPct} keyboardType="decimal-pad" />
+              <TextInput style={styles.input} placeholder={t('owner:membershipPlansScreen.includedVisitsPlaceholder')} placeholderTextColor={Colors.textDisabled} value={includedVisits} onChangeText={setIncludedVisits} keyboardType="number-pad" />
 
               <View style={styles.inlineFormActions}>
-                <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setAdding(false)}><Text style={styles.cancelText}>{t('owner:membershipPlansScreen.cancel')}</Text></TouchableOpacity>
                 <TouchableOpacity onPress={handleAdd} disabled={saving}>
-                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>Save</Text>}
+                  {saving ? <BreathingHeart size={18} color={Colors.primary} /> : <Text style={styles.addRowText}>{t('owner:membershipPlansScreen.save')}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setAdding(true)}>
               <Ionicons name="add" size={18} color={Colors.primary} />
-              <Text style={styles.addRowText}>Add membership plan</Text>
+              <Text style={styles.addRowText}>{t('owner:membershipPlansScreen.addMembershipPlan')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>

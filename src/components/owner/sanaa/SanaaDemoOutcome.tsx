@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 interface SanaaDemoOutcomeProps {
@@ -13,17 +14,18 @@ interface SanaaDemoOutcomeProps {
 // sliver. No production calendar/booking data is read or written here --
 // props are fixture values passed in by whichever demo just finished.
 export function SanaaDemoOutcome({ time, service }: SanaaDemoOutcomeProps) {
+  const { t } = useTranslation(['sanaa']);
   return (
     <Animated.View entering={FadeIn.duration(300)} style={styles.container}>
       <View style={styles.checkCircle}>
         <Ionicons name="checkmark" size={22} color="#09000F" />
       </View>
-      <Text style={styles.title}>Appointment Booked</Text>
+      <Text style={styles.title}>{t('sanaa:demoScenarios.bookingOutcome')}</Text>
       <Text style={styles.detail}>{time} · {service}</Text>
       <Text style={styles.sub}>SANAA</Text>
 
       <View style={styles.calendarSliver}>
-        <Text style={styles.calendarLabel}>Book With AI — Demo Calendar</Text>
+        <Text style={styles.calendarLabel}>{t('sanaa:demoOutcome.demoCalendarLabel')}</Text>
         <View style={styles.calendarRow}>
           <View style={styles.calendarDot} />
           <Text style={styles.calendarRowText}>{time} · {service}</Text>

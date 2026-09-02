@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 const { width } = Dimensions.get('window');
@@ -13,6 +14,7 @@ interface QRScannerProps {
 }
 
 export function QRScanner({ onClose }: QRScannerProps) {
+  const { t } = useTranslation(['common']);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const debounceRef = useRef(false);
@@ -54,21 +56,21 @@ export function QRScanner({ onClose }: QRScannerProps) {
       <View style={styles.container}>
         <View style={styles.permissionBox}>
           <Ionicons name="camera-outline" size={48} color={Colors.primary} />
-          <Text style={styles.permTitle}>Camera Access Needed</Text>
+          <Text style={styles.permTitle}>{t('common:qrScanner.cameraAccessNeeded')}</Text>
           <Text style={styles.permSub}>
-            To scan a salon QR code, Book With AI needs access to your camera.
+            {t('common:qrScanner.cameraAccessBody')}
           </Text>
           {permission.canAskAgain ? (
             <Pressable style={styles.permBtn} onPress={requestPermission}>
-              <Text style={styles.permBtnText}>Allow Camera</Text>
+              <Text style={styles.permBtnText}>{t('common:qrScanner.allowCamera')}</Text>
             </Pressable>
           ) : (
             <Text style={styles.permDenied}>
-              Camera access was denied. Go to Settings → Book With AI → Camera to enable it.
+              {t('common:qrScanner.cameraAccessDenied')}
             </Text>
           )}
           <Pressable onPress={onClose} style={styles.cancelLink}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.cancelText}>{t('common:qrScanner.cancel')}</Text>
           </Pressable>
         </View>
       </View>
@@ -105,7 +107,7 @@ export function QRScanner({ onClose }: QRScannerProps) {
           <View style={styles.overlaySide} />
         </View>
         <View style={styles.overlayBottom}>
-          <Text style={styles.hint}>Point at a salon's Book With AI QR code</Text>
+          <Text style={styles.hint}>{t('common:qrScanner.hint')}</Text>
           <Pressable style={styles.closeBtn} onPress={onClose}>
             <Ionicons name="close" size={24} color={Colors.white} />
           </Pressable>

@@ -12,6 +12,9 @@ import { getAddOnSuggestion, AddOnSuggestion } from '@/lib/api/ownerServices';
 import { bookingStatusColor, nextAction, CheckinFlowMode } from '@/lib/calendar/bookingStatus';
 import { isSampleBooking } from '@/lib/calendar/sampleDayFixture';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { Trans, useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
+import { formatTimeShort, formatWeekdayMonthDay, formatCentsUSDWhole } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 interface AppointmentSheetProps {
@@ -29,8 +32,8 @@ interface AppointmentSheetProps {
 function elapsedLabel(startedAt: string, durationMinutes: number): string {
   const elapsedMin = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000));
   const finish = new Date(new Date(startedAt).getTime() + durationMinutes * 60000);
-  const finishLabel = finish.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  return `Elapsed ${elapsedMin} min · Est. finish ${finishLabel}`;
+  const finishLabel = formatTimeShort(finish);
+  return i18n.t('owner:appointmentSheet.elapsed', { minutes: elapsedMin, time: finishLabel });
 }
 
 function CardOverlay() {
@@ -47,6 +50,7 @@ function CardOverlay() {
 // owner was, no navigation. Rises to ~85% via snapPoints.
 export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetProps>(
   function AppointmentSheet({ booking, onChanged, onReadyForCheckout, flowMode = 'full', onOpenDetail }, ref) {
+    const { t } = useTranslation(['owner', 'common']);
     const [working, setWorking] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
@@ -88,7 +92,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     // "Booking not found" is a misleading error, not a real one.
     function blockIfSample(): boolean {
       if (!booking || !isSampleBooking(booking.id)) return false;
-      Alert.alert('Sample Data', 'This is a demo appointment for visual review only. Status actions here aren’t saved.');
+      Alert.alert(t('owner:appointmentSheet.sampleDataTitle'), t('owner:appointmentSheet.sampleDataMessage'));
       return true;
     }
 
@@ -99,7 +103,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       const result = await fn(booking.id);
       setWorking(false);
       if (result.ok) onChanged();
-      else Alert.alert('Could not update', result.error);
+      else Alert.alert(t('owner:appointmentSheet.couldNotUpdateTitle'), result.error);
     }
 
     async function handleCompleteAndCharge() {
@@ -109,20 +113,20 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       const result = await completeAndReadyForCheckout(booking.id);
       setWorking(false);
       if (result.ok) { onChanged(); onReadyForCheckout(); }
-      else Alert.alert('Could not update', result.error);
+      else Alert.alert(t('owner:appointmentSheet.couldNotUpdateTitle'), result.error);
     }
 
     function handleActionPress() {
       if (!action) return;
-      if (action.label === 'CHECK IN') runAction(checkIn);
-      else if (action.label === 'START SERVICE') runAction(startService);
-      else if (action.label === 'MARK SERVICE COMPLETE') runAction(completeService);
-      else if (action.label === 'COMPLETE & CHARGE') handleCompleteAndCharge();
-      else if (action.label === 'READY FOR CHECKOUT') {
+      if (action.key === 'check_in') runAction(checkIn);
+      else if (action.key === 'start_service') runAction(startService);
+      else if (action.key === 'mark_complete') runAction(completeService);
+      else if (action.key === 'complete_and_charge') handleCompleteAndCharge();
+      else if (action.key === 'ready_for_checkout') {
         if (blockIfSample()) return;
         onReadyForCheckout();
       }
-      else if (action.label === 'BOOK NEXT APPOINTMENT') {
+      else if (action.key === 'book_next_appointment') {
         if (booking?.customer_id) router.push(`/customer/${booking.customer_id}` as never);
       }
     }
@@ -152,19 +156,19 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       const result = await duplicateBooking(booking.id, nextWeekStart.toISOString(), nextWeekEnd.toISOString(), overrideConflict);
       setWorking(false);
       if (result.ok) {
-        Alert.alert('Duplicated', `New appointment created for ${nextWeekStart.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}, same time.`);
+        Alert.alert(t('owner:appointmentSheet.duplicatedTitle'), t('owner:appointmentSheet.duplicatedMessage', { date: formatWeekdayMonthDay(nextWeekStart) }));
         onChanged();
       } else if (result.code === 'CONFLICT' && !overrideConflict) {
         Alert.alert(
-          'Time slot is taken',
-          `${booking.staff?.name ?? 'That staff member'} already has an appointment then, next week. Double-book anyway?`,
+          t('owner:appointmentSheet.timeSlotTakenTitle'),
+          t('owner:appointmentSheet.timeSlotTakenMessage', { staffName: booking.staff?.name ?? t('owner:appointmentSheet.thatStaffMember') }),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Double-Book', style: 'destructive', onPress: () => handleDuplicate(true) },
+            { text: t('common:cancel'), style: 'cancel' },
+            { text: t('owner:appointmentSheet.doubleBook'), style: 'destructive', onPress: () => handleDuplicate(true) },
           ],
         );
       } else {
-        Alert.alert('Could not duplicate', result.error);
+        Alert.alert(t('owner:appointmentSheet.couldNotDuplicateTitle'), result.error);
       }
     }
 
@@ -176,7 +180,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
       const result = await setBookingLocked(booking.id, !booking.locked);
       setWorking(false);
       if (result.ok) onChanged();
-      else Alert.alert('Could not update', result.error);
+      else Alert.alert(t('owner:appointmentSheet.couldNotUpdateTitle'), result.error);
     }
 
     const showElapsed = booking.service_started_at && !booking.service_completed_at;
@@ -219,29 +223,29 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
               <CardOverlay />
               <TouchableOpacity style={styles.menuItem} onPress={() => handleDuplicate()}>
                 <Ionicons name="copy-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.menuText}>Duplicate (same time next week)</Text>
+                <Text style={styles.menuText}>{t('owner:appointmentSheet.duplicateMenuItem')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.menuItem, styles.menuItemBorder]} onPress={handleToggleLock}>
                 <Ionicons name={booking.locked ? 'lock-open-outline' : 'lock-closed-outline'} size={16} color="#FFFFFF" />
-                <Text style={styles.menuText}>{booking.locked ? 'Unlock' : 'Lock'} appointment</Text>
+                <Text style={styles.menuText}>{booking.locked ? t('owner:appointmentSheet.unlockAppointment') : t('owner:appointmentSheet.lockAppointment')}</Text>
               </TouchableOpacity>
               {booking.status !== 'cancelled' && booking.status !== 'no_show' && booking.status !== 'completed' && (
                 <TouchableOpacity style={[styles.menuItem, styles.menuItemBorder]} onPress={handleNoShow}>
                   <Ionicons name="alert-circle-outline" size={16} color="#F09595" />
-                  <Text style={[styles.menuText, { color: '#F09595' }]}>Mark No-Show</Text>
+                  <Text style={[styles.menuText, { color: '#F09595' }]}>{t('owner:appointmentSheet.markNoShow')}</Text>
                 </TouchableOpacity>
               )}
               {(booking.status === 'cancelled' || booking.status === 'no_show') && (
                 <TouchableOpacity style={[styles.menuItem, styles.menuItemBorder]} onPress={handleRestore}>
                   <Ionicons name="refresh-outline" size={16} color="#4ADE80" />
-                  <Text style={[styles.menuText, { color: '#4ADE80' }]}>Restore appointment</Text>
+                  <Text style={[styles.menuText, { color: '#4ADE80' }]}>{t('owner:appointmentSheet.restoreAppointment')}</Text>
                 </TouchableOpacity>
               )}
             </BlurView>
           )}
 
           <Text style={styles.meta}>
-            {new Date(booking.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            {formatTimeShort(new Date(booking.starts_at))}
             {'  ·  '}{serviceDisplayName(booking)}
             {booking.staff?.name ? `  ·  ${booking.staff.name}` : ''}
           </Text>
@@ -253,20 +257,20 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
           {booking.source === 'voice_ai' && (
             <View style={styles.sanaaBadge}>
               <SanaaMark variant="bookingAttribution" />
-              <Text style={styles.sanaaBadgeText}>Booked by SANAA</Text>
+              <Text style={styles.sanaaBadgeText}>{t('owner:appointmentSheet.bookedBySanaa')}</Text>
             </View>
           )}
 
           {booking.source === 'rebook_nudge' && (
             <View style={styles.rebookNudgeBadge}>
-              <Text style={styles.rebookNudgeBadgeText}>We brought them back</Text>
+              <Text style={styles.rebookNudgeBadgeText}>{t('owner:appointmentSheet.rebookNudgeBadge')}</Text>
             </View>
           )}
 
           {booking.internal_notes ? (
             <BlurView intensity={90} tint="dark" style={styles.notesCard}>
               <CardOverlay />
-              <Text style={styles.notesLabel}>Salon Notes</Text>
+              <Text style={styles.notesLabel}>{t('owner:appointmentSheet.salonNotes')}</Text>
               <Text style={styles.notesBody}>{booking.internal_notes}</Text>
             </BlurView>
           ) : null}
@@ -274,7 +278,12 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
           {addOn && (
             <View style={styles.addOnCard}>
               <Text style={styles.addOnText}>
-                {addOn.confidence_pct}% of customers also get <Text style={styles.addOnBold}>{addOn.name}</Text> — ${(addOn.price_cents / 100).toFixed(0)}, +{addOn.duration_minutes} min
+                <Trans
+                  ns="owner"
+                  i18nKey="appointmentSheet.addOnSuggestion"
+                  values={{ pct: addOn.confidence_pct, name: addOn.name, price: formatCentsUSDWhole(addOn.price_cents), minutes: addOn.duration_minutes }}
+                  components={{ bold: <Text style={styles.addOnBold} /> }}
+                />
               </Text>
             </View>
           )}
@@ -295,25 +304,25 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
           {booking.status !== 'cancelled' && booking.status !== 'no_show' && (
             <TouchableOpacity onPress={handleCancel} style={styles.cancelRow}>
               <Ionicons name="close-circle-outline" size={16} color="#F09595" />
-              <Text style={styles.cancelText}>Cancel appointment</Text>
+              <Text style={styles.cancelText}>{t('owner:appointmentSheet.cancelAppointment')}</Text>
             </TouchableOpacity>
           )}
         </BottomSheetView>
         <ConfirmModal
           visible={confirmCancel}
-          title="Cancel this appointment?"
-          message="This appointment will be removed from your calendar and the client schedule."
-          cancelLabel="Keep it"
-          confirmLabel="Cancel appointment"
+          title={t('owner:appointmentSheet.cancelConfirmTitle')}
+          message={t('owner:appointmentSheet.cancelConfirmMessage')}
+          cancelLabel={t('owner:appointmentSheet.keepIt')}
+          confirmLabel={t('owner:appointmentSheet.cancelAppointment')}
           destructive
           onCancel={() => setConfirmCancel(false)}
           onConfirm={() => { setConfirmCancel(false); runAction(cancelBooking); }}
         />
         <ConfirmModal
           visible={confirmNoShow}
-          title="Mark as no-show?"
-          cancelLabel="Cancel"
-          confirmLabel="Mark No-Show"
+          title={t('owner:appointmentSheet.noShowConfirmTitle')}
+          cancelLabel={t('common:cancel')}
+          confirmLabel={t('owner:appointmentSheet.markNoShow')}
           destructive
           onCancel={() => setConfirmNoShow(false)}
           onConfirm={() => { setConfirmNoShow(false); runAction((id) => markNoShow(id)); }}

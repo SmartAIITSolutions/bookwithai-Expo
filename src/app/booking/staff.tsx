@@ -11,6 +11,7 @@ import { saveCustomerPreferences } from '@/lib/api/customer';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { ErrorState } from '@/components/ErrorState';
+import { useTranslation } from 'react-i18next';
 
 function CardOverlay() {
   return (
@@ -40,6 +41,7 @@ export default function StaffScreen() {
       rebookSource?: string;
     }>();
 
+  const { t } = useTranslation(['booking']);
   const { user } = useAuth();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selected, setSelected] = useState<StaffMember | null>(null);
@@ -96,7 +98,7 @@ export default function StaffScreen() {
         totalCents,
         totalMins,
         staffId: anyAvailable ? '' : (selected?.id ?? ''),
-        staffName: anyAvailable ? 'Any Available' : (selected?.name ?? ''),
+        staffName: anyAvailable ? t('booking:staffScreen.anyAvailable') : (selected?.name ?? ''),
         ...(prefillStartsAt ? { prefillStartsAt } : {}),
         ...(rebookSource ? { rebookSource } : {}),
       },
@@ -116,7 +118,7 @@ export default function StaffScreen() {
           <Ionicons name="chevron-back" size={24} color="#F4D77A" />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Choose Professional</Text>
+          <Text style={styles.headerTitle}>{t('booking:staffScreen.title')}</Text>
           {salonName ? (
             <Text style={styles.headerSub} numberOfLines={1}>{salonName}</Text>
           ) : null}
@@ -129,7 +131,7 @@ export default function StaffScreen() {
           <BreathingHeart size={40} color="#F4D77A" />
         </View>
       ) : loadError ? (
-        <ErrorState message="Unable to load staff. Please check your connection and try again." onRetry={load} />
+        <ErrorState message={t('booking:staffScreen.loadErrorMessage')} onRetry={load} />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -150,9 +152,9 @@ export default function StaffScreen() {
             </View>
             <View style={styles.cardInfo}>
               <Text style={[styles.staffName, anyAvailable && styles.staffNameSelected]}>
-                Any Available Professional
+                {t('booking:staffScreen.anyAvailableProfessional')}
               </Text>
-              <Text style={styles.staffRole}>We'll match you with the best available</Text>
+              <Text style={styles.staffRole}>{t('booking:staffScreen.anyAvailableDesc')}</Text>
             </View>
             <View style={[styles.radio, anyAvailable && styles.radioSelected]}>
               {anyAvailable && <View style={styles.radioDot} />}
@@ -160,7 +162,7 @@ export default function StaffScreen() {
           </Pressable>
 
           {staff.length > 0 && (
-            <Text style={styles.orLabel}>— or choose someone specific —</Text>
+            <Text style={styles.orLabel}>{t('booking:staffScreen.orChooseSomeoneSpecific')}</Text>
           )}
 
           {staff.map((member) => {
@@ -207,7 +209,7 @@ export default function StaffScreen() {
       {canContinue && (
         <View style={styles.footer}>
           <Pressable style={styles.continueBtn} onPress={handleContinue}>
-            <Text style={styles.continueBtnText}>Select Date & Time</Text>
+            <Text style={styles.continueBtnText}>{t('booking:staffScreen.continueButton')}</Text>
             <Ionicons name="chevron-forward" size={18} color="#09000F" />
           </Pressable>
         </View>

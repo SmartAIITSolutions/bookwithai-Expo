@@ -1,6 +1,13 @@
 // Structured local content for SANAA Discovery Home (P2). Deliberately plain
 // data, not a CMS -- SANAA-P2-SPEC §41. Keep new copy here, not scattered
 // across component files, so it's easy to review/edit without touching JSX.
+//
+// L6 migration: every export became a get*() function reading through the
+// standalone i18n instance (same pattern as appointmentVisual.ts's
+// paymentLabel()) instead of a plain constant, so the copy re-renders in
+// the active app language. Callers must call the function, not import a
+// frozen array.
+import i18n from '@/lib/i18n';
 
 export type SanaaDemoScenarioId =
   | 'booking' | 'reschedule' | 'cancel' | 'question' | 'transfer' | 'after_hours';
@@ -18,45 +25,48 @@ export interface SanaaDemoScenario {
   outcomeLabel?: string;
 }
 
-export const SANAA_DEMO_SCENARIOS: SanaaDemoScenario[] = [
-  {
-    id: 'booking',
-    title: 'Book an Appointment',
-    description: 'A customer calls asking to get in this week.',
-    kind: 'simulation',
-    outcomeLabel: 'Appointment Booked',
-  },
-  {
-    id: 'reschedule',
-    title: 'Reschedule',
-    description: 'A customer needs to move their existing appointment.',
-    kind: 'media',
-  },
-  {
-    id: 'cancel',
-    title: 'Cancel',
-    description: 'A customer can no longer make it in.',
-    kind: 'media',
-  },
-  {
-    id: 'question',
-    title: 'Customer Question',
-    description: 'A customer asks about services, pricing, or hours.',
-    kind: 'media',
-  },
-  {
-    id: 'transfer',
-    title: 'Human Transfer',
-    description: 'SANAA hands the call to a real person when needed.',
-    kind: 'media',
-  },
-  {
-    id: 'after_hours',
-    title: 'After Hours',
-    description: 'A customer calls after the salon has closed for the day.',
-    kind: 'media',
-  },
-];
+export function getSanaaDemoScenarios(): SanaaDemoScenario[] {
+  const t = i18n.t;
+  return [
+    {
+      id: 'booking',
+      title: t('sanaa:demoScenarios.bookingTitle'),
+      description: t('sanaa:demoScenarios.bookingDescription'),
+      kind: 'simulation',
+      outcomeLabel: t('sanaa:demoScenarios.bookingOutcome'),
+    },
+    {
+      id: 'reschedule',
+      title: t('sanaa:demoScenarios.rescheduleTitle'),
+      description: t('sanaa:demoScenarios.rescheduleDescription'),
+      kind: 'media',
+    },
+    {
+      id: 'cancel',
+      title: t('sanaa:demoScenarios.cancelTitle'),
+      description: t('sanaa:demoScenarios.cancelDescription'),
+      kind: 'media',
+    },
+    {
+      id: 'question',
+      title: t('sanaa:demoScenarios.questionTitle'),
+      description: t('sanaa:demoScenarios.questionDescription'),
+      kind: 'media',
+    },
+    {
+      id: 'transfer',
+      title: t('sanaa:demoScenarios.transferTitle'),
+      description: t('sanaa:demoScenarios.transferDescription'),
+      kind: 'media',
+    },
+    {
+      id: 'after_hours',
+      title: t('sanaa:demoScenarios.afterHoursTitle'),
+      description: t('sanaa:demoScenarios.afterHoursDescription'),
+      kind: 'media',
+    },
+  ];
+}
 
 export interface SanaaCapability {
   icon: string; // Ionicons glyph name, kept as string to avoid importing Ionicons types here
@@ -65,14 +75,17 @@ export interface SanaaCapability {
 
 // Exactly the 6 categories locked in SANAA-P2-SPEC §17 -- do not expand into
 // a feature inventory; detailed subclaims are P3's decision.
-export const SANAA_CAPABILITIES: SanaaCapability[] = [
-  { icon: 'call-outline', label: 'Answers calls' },
-  { icon: 'calendar-outline', label: 'Books appointments' },
-  { icon: 'swap-horizontal-outline', label: 'Reschedules & cancels' },
-  { icon: 'help-circle-outline', label: 'Answers customer questions' },
-  { icon: 'person-outline', label: 'Transfers when needed' },
-  { icon: 'moon-outline', label: 'Works after hours' },
-];
+export function getSanaaCapabilities(): SanaaCapability[] {
+  const t = i18n.t;
+  return [
+    { icon: 'call-outline', label: t('sanaa:capabilities.answersCalls') },
+    { icon: 'calendar-outline', label: t('sanaa:capabilities.booksAppointments') },
+    { icon: 'swap-horizontal-outline', label: t('sanaa:capabilities.reschedulesCancels') },
+    { icon: 'help-circle-outline', label: t('sanaa:capabilities.answersQuestions') },
+    { icon: 'person-outline', label: t('sanaa:capabilities.transfersWhenNeeded') },
+    { icon: 'moon-outline', label: t('sanaa:capabilities.worksAfterHours') },
+  ];
+}
 
 export interface SanaaHowItWorksStep {
   step: number;
@@ -81,12 +94,15 @@ export interface SanaaHowItWorksStep {
 
 // SANAA-P2-SPEC §20 -- call mechanics only, zero technical/architecture
 // terms anywhere in this copy (§21 is a hard rule).
-export const SANAA_HOW_IT_WORKS_STEPS: SanaaHowItWorksStep[] = [
-  { step: 1, label: 'Your customer calls' },
-  { step: 2, label: 'SANAA answers' },
-  { step: 3, label: 'SANAA uses your configured Book With AI business information' },
-  { step: 4, label: 'SANAA takes approved actions and updates Book With AI' },
-];
+export function getSanaaHowItWorksSteps(): SanaaHowItWorksStep[] {
+  const t = i18n.t;
+  return [
+    { step: 1, label: t('sanaa:howItWorks.step1') },
+    { step: 2, label: t('sanaa:howItWorks.step2') },
+    { step: 3, label: t('sanaa:howItWorks.step3') },
+    { step: 4, label: t('sanaa:howItWorks.step4') },
+  ];
+}
 
 export interface SanaaComparisonRow {
   dimension: string;
@@ -97,12 +113,15 @@ export interface SanaaComparisonRow {
 // Qualitative only -- no dollar figures (none are verified/approved). This
 // entire section stays __DEV__-only regardless of SANAA_DISCOVERY_LIVE; see
 // SANAA_COMPARISON_APPROVED below.
-export const SANAA_COMPARISON_ROWS: SanaaComparisonRow[] = [
-  { dimension: 'Availability', human: 'Limited to working hours', sanaa: 'Configurable, including after hours' },
-  { dimension: 'Missed calls', human: 'Possible during busy moments', sanaa: 'Designed to always pick up' },
-  { dimension: 'Coverage', human: 'One call at a time', sanaa: 'Handles calls without pulling you off a client' },
-  { dimension: 'Consistency', human: 'Varies by mood, training, day', sanaa: 'Follows your configured rules every time' },
-];
+export function getSanaaComparisonRows(): SanaaComparisonRow[] {
+  const t = i18n.t;
+  return [
+    { dimension: t('sanaa:comparison.availabilityDimension'), human: t('sanaa:comparison.availabilityHuman'), sanaa: t('sanaa:comparison.availabilitySanaa') },
+    { dimension: t('sanaa:comparison.missedCallsDimension'), human: t('sanaa:comparison.missedCallsHuman'), sanaa: t('sanaa:comparison.missedCallsSanaa') },
+    { dimension: t('sanaa:comparison.coverageDimension'), human: t('sanaa:comparison.coverageHuman'), sanaa: t('sanaa:comparison.coverageSanaa') },
+    { dimension: t('sanaa:comparison.consistencyDimension'), human: t('sanaa:comparison.consistencyHuman'), sanaa: t('sanaa:comparison.consistencySanaa') },
+  ];
+}
 
 // Comparison claims (even qualitative ones like "always picks up") need
 // their own explicit approval separate from the rest of Discovery, since
@@ -139,62 +158,65 @@ export interface SanaaFaqGroup {
 // a P3/P4 business rule. Everything touching a not-yet-locked decision is
 // 'pending': hidden in production, shown with a dev-only marker so it's
 // never mistaken for approved copy.
-export const SANAA_FAQ_GROUPS: SanaaFaqGroup[] = [
-  {
-    title: 'Getting Started',
-    items: [
-      { status: 'approved', question: 'What is SANAA?', answer: 'SANAA is your AI receptionist inside Book With AI -- she answers your salon’s calls so you never have to leave a client to pick up the phone.' },
-      { status: 'approved', question: 'What can SANAA do?', answer: 'She answers calls, books, reschedules and cancels appointments, answers common questions, transfers to a real person when needed, and can work after hours.' },
-      { status: 'approved', question: 'Is SANAA a real person?', answer: 'No -- SANAA is an AI receptionist. She never pretends to be a human employee.' },
-      { status: 'pending', question: 'How difficult is setup?' },
-      { status: 'approved', question: 'Can Book With AI set SANAA up for me?', answer: 'Yes -- alongside self setup, a concierge option exists for salons who’d rather have it done for them. Details on that option are coming soon.' },
-    ],
-  },
-  {
-    title: 'Calls & Phone',
-    items: [
-      { status: 'pending', question: 'What happens to my current salon number?' },
-      { status: 'pending', question: 'Do I need another number?' },
-      { status: 'approved', question: 'Can SANAA transfer calls to me?', answer: 'Yes -- SANAA can hand a call to a real person when needed.' },
-      { status: 'approved', question: 'Can I pause SANAA?', answer: 'Yes -- you can pause SANAA at any time from her Operations screen.' },
-      { status: 'approved', question: 'Does SANAA answer after hours?', answer: 'Yes -- after-hours coverage is one of her core capabilities.' },
-    ],
-  },
-  {
-    title: 'Appointments',
-    items: [
-      { status: 'approved', question: 'Can SANAA book appointments?', answer: 'Yes -- booking is her hero capability.' },
-      { status: 'approved', question: 'Can SANAA reschedule appointments?', answer: 'Yes.' },
-      { status: 'approved', question: 'Can SANAA cancel appointments?', answer: 'Yes.' },
-      { status: 'approved', question: 'How does SANAA know my availability?', answer: 'She reads your salon’s real schedule in Book With AI.' },
-    ],
-  },
-  {
-    title: 'SANAA & Customers',
-    items: [
-      { status: 'approved', question: 'Will customers know SANAA is AI?', answer: 'Yes -- SANAA never intentionally impersonates a human employee.' },
-      { status: 'pending', question: 'What happens if SANAA doesn’t know an answer?' },
-      { status: 'pending', question: 'Can I control what SANAA says?' },
-      { status: 'pending', question: 'What languages does SANAA support?' },
-    ],
-  },
-  {
-    title: 'Plans & Billing',
-    items: [
-      { status: 'pending', question: 'How does SANAA pricing work?' },
-      { status: 'pending', question: 'Is there an activation fee?' },
-      { status: 'pending', question: 'Can I change plans?' },
-      { status: 'pending', question: 'Can I cancel?' },
-      { status: 'pending', question: 'What happens if my payment fails?' },
-    ],
-  },
-  {
-    title: 'Privacy & Control',
-    items: [
-      { status: 'pending', question: 'What information can SANAA access?' },
-      { status: 'approved', question: 'Can I review SANAA’s activity?', answer: 'Yes -- every call is visible in her Calls & Activity screen.' },
-      { status: 'pending', question: 'How is customer information handled?' },
-      { status: 'approved', question: 'Can I turn SANAA off?', answer: 'Yes, any time -- pausing SANAA stops her from answering calls immediately.' },
-    ],
-  },
-];
+export function getSanaaFaqGroups(): SanaaFaqGroup[] {
+  const t = i18n.t;
+  return [
+    {
+      title: t('sanaa:faq.gettingStartedTitle'),
+      items: [
+        { status: 'approved', question: t('sanaa:faq.whatIsSanaaQ'), answer: t('sanaa:faq.whatIsSanaaA') },
+        { status: 'approved', question: t('sanaa:faq.whatCanSanaaDoQ'), answer: t('sanaa:faq.whatCanSanaaDoA') },
+        { status: 'approved', question: t('sanaa:faq.isSanaaRealPersonQ'), answer: t('sanaa:faq.isSanaaRealPersonA') },
+        { status: 'pending', question: t('sanaa:faq.howDifficultSetupQ') },
+        { status: 'approved', question: t('sanaa:faq.canBookWithAiSetUpQ'), answer: t('sanaa:faq.canBookWithAiSetUpA') },
+      ],
+    },
+    {
+      title: t('sanaa:faq.callsPhoneTitle'),
+      items: [
+        { status: 'pending', question: t('sanaa:faq.currentNumberQ') },
+        { status: 'pending', question: t('sanaa:faq.needAnotherNumberQ') },
+        { status: 'approved', question: t('sanaa:faq.transferCallsQ'), answer: t('sanaa:faq.transferCallsA') },
+        { status: 'approved', question: t('sanaa:faq.canPauseQ'), answer: t('sanaa:faq.canPauseA') },
+        { status: 'approved', question: t('sanaa:faq.afterHoursQ'), answer: t('sanaa:faq.afterHoursA') },
+      ],
+    },
+    {
+      title: t('sanaa:faq.appointmentsTitle'),
+      items: [
+        { status: 'approved', question: t('sanaa:faq.bookAppointmentsQ'), answer: t('sanaa:faq.bookAppointmentsA') },
+        { status: 'approved', question: t('sanaa:faq.rescheduleAppointmentsQ'), answer: t('sanaa:faq.yesA') },
+        { status: 'approved', question: t('sanaa:faq.cancelAppointmentsQ'), answer: t('sanaa:faq.yesA') },
+        { status: 'approved', question: t('sanaa:faq.knowAvailabilityQ'), answer: t('sanaa:faq.knowAvailabilityA') },
+      ],
+    },
+    {
+      title: t('sanaa:faq.customersTitle'),
+      items: [
+        { status: 'approved', question: t('sanaa:faq.knowIsAiQ'), answer: t('sanaa:faq.knowIsAiA') },
+        { status: 'pending', question: t('sanaa:faq.dontKnowAnswerQ') },
+        { status: 'pending', question: t('sanaa:faq.controlWhatSaysQ') },
+        { status: 'pending', question: t('sanaa:faq.languagesSupportQ') },
+      ],
+    },
+    {
+      title: t('sanaa:faq.plansBillingTitle'),
+      items: [
+        { status: 'pending', question: t('sanaa:faq.pricingWorkQ') },
+        { status: 'pending', question: t('sanaa:faq.activationFeeQ') },
+        { status: 'pending', question: t('sanaa:faq.changePlansQ') },
+        { status: 'pending', question: t('sanaa:faq.canCancelQ') },
+        { status: 'pending', question: t('sanaa:faq.paymentFailsQ') },
+      ],
+    },
+    {
+      title: t('sanaa:faq.privacyTitle'),
+      items: [
+        { status: 'pending', question: t('sanaa:faq.infoAccessQ') },
+        { status: 'approved', question: t('sanaa:faq.reviewActivityQ'), answer: t('sanaa:faq.reviewActivityA') },
+        { status: 'pending', question: t('sanaa:faq.customerInfoHandledQ') },
+        { status: 'approved', question: t('sanaa:faq.turnOffQ'), answer: t('sanaa:faq.turnOffA') },
+      ],
+    },
+  ];
+}

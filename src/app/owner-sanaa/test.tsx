@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
@@ -25,20 +26,6 @@ function CardOverlay() {
   );
 }
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#0B0712' },
-  headerTintColor: '#F4D77A',
-  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-  title: 'Test SANAA',
-  headerBackTitle: 'SANAA',
-};
-
-const CHECKLIST = [
-  'Ask about the business — hours, services, or location',
-  'Try an appointment conversation — book, reschedule, or cancel',
-  'Ask to speak to a human — confirm the transfer works',
-];
-
 function formatPhoneDisplay(number: string): string {
   const digits = number.replace(/\D/g, '');
   const local = digits.length === 11 ? digits.slice(1) : digits;
@@ -52,6 +39,19 @@ function formatPhoneDisplay(number: string): string {
 // "Start Test Call" alone, or "Yes — Continue" alone, can never complete
 // Test on their own -- see /api/owner/sanaa/test/confirm.
 export default function SanaaTestScreen() {
+  const { t } = useTranslation(['sanaa']);
+  const HEADER_OPTIONS = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: t('sanaa:testScreen.headerTitle'),
+    headerBackTitle: t('sanaa:testScreen.headerBackTitle'),
+  };
+  const CHECKLIST = [
+    t('sanaa:testScreen.checklist1'),
+    t('sanaa:testScreen.checklist2'),
+    t('sanaa:testScreen.checklist3'),
+  ];
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [state, setState] = useState<SanaaTestState>('not_started');
@@ -102,7 +102,7 @@ export default function SanaaTestScreen() {
     const result = await startSanaaTest();
     setStarting(false);
     if (!result.ok) {
-      Alert.alert('Could not start test', result.error);
+      Alert.alert(t('sanaa:testScreen.couldNotStartTestTitle'), result.error);
       return;
     }
     setState('test_started');
@@ -112,7 +112,7 @@ export default function SanaaTestScreen() {
     const dialUrl = `tel:${result.data.telnyx_number}`;
     const canOpen = await Linking.canOpenURL(dialUrl);
     if (!canOpen) {
-      Alert.alert('Could not open dialer', `Call ${formatPhoneDisplay(result.data.telnyx_number)} manually to test SANAA.`);
+      Alert.alert(t('sanaa:testScreen.couldNotOpenDialerTitle'), t('sanaa:testScreen.couldNotOpenDialerMessage', { number: formatPhoneDisplay(result.data.telnyx_number) }));
       return;
     }
     Linking.openURL(dialUrl);
@@ -130,7 +130,7 @@ export default function SanaaTestScreen() {
     const result = await confirmSanaaTest();
     setConfirming(false);
     if (!result.ok) {
-      Alert.alert('Not confirmed yet', result.error);
+      Alert.alert(t('sanaa:testScreen.notConfirmedYetTitle'), result.error);
       await refreshStatus();
       return;
     }
@@ -169,51 +169,51 @@ export default function SanaaTestScreen() {
           <View style={styles.section}>
             <View style={styles.hero}>
               <Ionicons name="checkmark-circle" size={48} color="#4ADE80" />
-              <Text style={styles.heroTitle}>✓ Test Complete</Text>
-              <Text style={styles.heroBody}>SANAA is ready for your customers.</Text>
+              <Text style={styles.heroTitle}>{t('sanaa:testScreen.testCompleteTitle')}</Text>
+              <Text style={styles.heroBody}>{t('sanaa:testScreen.readyForCustomers')}</Text>
               <Text style={styles.heroBody}>
-                Your test call was successful. SANAA is live and ready to answer your customers.
+                {t('sanaa:testScreen.testSuccessfulBody')}
               </Text>
             </View>
             <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/(owner)/sanaa' as never)}>
-              <Text style={styles.primaryButtonText}>Go to SANAA</Text>
+              <Text style={styles.primaryButtonText}>{t('sanaa:testScreen.goToSanaa')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
             <View style={styles.hero}>
-              <Text style={styles.heroTitle}>Test Your SANAA</Text>
+              <Text style={styles.heroTitle}>{t('sanaa:testScreen.testYourSanaa')}</Text>
               <Text style={styles.heroBody}>
-                She's connected. Now let's make sure she's ready for your customers.
+                {t('sanaa:testScreen.connectedIntroBody')}
               </Text>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Your SANAA Number</Text>
+              <Text style={styles.sectionTitle}>{t('sanaa:testScreen.yourSanaaNumber')}</Text>
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
                 <View style={styles.statusRow}>
                   <Ionicons name="call-outline" size={20} color="#F4D77A" />
                   <Text style={styles.numberText}>
-                    {telnyxNumber ? formatPhoneDisplay(telnyxNumber) : 'Not available'}
+                    {telnyxNumber ? formatPhoneDisplay(telnyxNumber) : t('sanaa:testScreen.notAvailable')}
                   </Text>
                 </View>
               </BlurView>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>While You're On The Call</Text>
+              <Text style={styles.sectionTitle}>{t('sanaa:testScreen.whileOnCall')}</Text>
               <BlurView intensity={90} tint="dark" style={styles.card}>
                 <CardOverlay />
                 {CHECKLIST.map((item, i) => (
-                  <View key={item} style={[styles.checklistRow, i > 0 && styles.rowBorder]}>
+                  <View key={i} style={[styles.checklistRow, i > 0 && styles.rowBorder]}>
                     <Ionicons name="ellipse-outline" size={14} color="#F4D77A" />
                     <Text style={styles.checklistText}>{item}</Text>
                   </View>
                 ))}
               </BlurView>
               <Text style={styles.hint}>
-                This is a real test call — SANAA will answer like she would for any customer, but nothing here counts as a real booking unless you make one.
+                {t('sanaa:testScreen.testCallHint')}
               </Text>
             </View>
 
@@ -223,7 +223,7 @@ export default function SanaaTestScreen() {
                 onPress={handleStartTest}
                 disabled={starting}
               >
-                <Text style={styles.primaryButtonText}>{starting ? 'Starting…' : 'Start Test Call'}</Text>
+                <Text style={styles.primaryButtonText}>{starting ? t('sanaa:testScreen.starting') : t('sanaa:testScreen.startTestCall')}</Text>
               </TouchableOpacity>
             )}
 
@@ -234,13 +234,13 @@ export default function SanaaTestScreen() {
                   onPress={handleCheckStatus}
                   disabled={checking}
                 >
-                  <Text style={styles.primaryButtonText}>{checking ? 'Checking…' : 'Check Call Status'}</Text>
+                  <Text style={styles.primaryButtonText}>{checking ? t('sanaa:testScreen.checking') : t('sanaa:testScreen.checkCallStatus')}</Text>
                 </TouchableOpacity>
                 <Text style={styles.hint}>
-                  We haven't confirmed a completed SANAA call yet. Finish the call, then check again.
+                  {t('sanaa:testScreen.notConfirmedHint')}
                 </Text>
                 <TouchableOpacity style={styles.secondaryButton} onPress={handleStartTest} disabled={starting}>
-                  <Text style={styles.secondaryButtonText}>Call SANAA Again</Text>
+                  <Text style={styles.secondaryButtonText}>{t('sanaa:testScreen.callSanaaAgain')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -249,21 +249,21 @@ export default function SanaaTestScreen() {
               <View style={styles.section}>
                 <View style={styles.verifiedRow}>
                   <Ionicons name="checkmark-circle" size={20} color="#4ADE80" />
-                  <Text style={styles.verifiedText}>SANAA answered ✓</Text>
+                  <Text style={styles.verifiedText}>{t('sanaa:testScreen.sanaaAnswered')}</Text>
                 </View>
                 {call?.duration_seconds != null && (
-                  <Text style={styles.hint}>Call lasted {Math.round(call.duration_seconds / 60) || 1} min.</Text>
+                  <Text style={styles.hint}>{t('sanaa:testScreen.callLasted', { minutes: Math.round(call.duration_seconds / 60) || 1 })}</Text>
                 )}
-                <Text style={styles.confirmPrompt}>Did SANAA sound and behave correctly?</Text>
+                <Text style={styles.confirmPrompt}>{t('sanaa:testScreen.confirmPrompt')}</Text>
                 <TouchableOpacity
                   style={[styles.primaryButton, confirming && styles.buttonDisabled]}
                   onPress={handleConfirm}
                   disabled={confirming}
                 >
-                  <Text style={styles.primaryButtonText}>{confirming ? 'Confirming…' : 'Yes — Continue'}</Text>
+                  <Text style={styles.primaryButtonText}>{confirming ? t('sanaa:testScreen.confirming') : t('sanaa:testScreen.yesContinue')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.secondaryButton} onPress={handleTestAgain} disabled={starting}>
-                  <Text style={styles.secondaryButtonText}>Test Again</Text>
+                  <Text style={styles.secondaryButtonText}>{t('sanaa:testScreen.testAgain')}</Text>
                 </TouchableOpacity>
               </View>
             )}

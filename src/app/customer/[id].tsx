@@ -32,18 +32,22 @@ import {
 } from '@/lib/api/ownerPackages';
 import { supabase } from '@/lib/supabase';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
+import { formatCentsUSD, formatWeekdayMonthDay, formatMonthDay, formatMonthDayYear } from '@/lib/i18n/format';
 
-function money(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
+const money = formatCentsUSD;
 function timeAgo(iso: string | null) {
   if (!iso) return '—';
   const days = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days <= 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 30) return `${days} days ago`;
-  return `${Math.round(days / 30)} months ago`;
+  if (days <= 0) return i18n.t('owner:customerDetail.today');
+  if (days === 1) return i18n.t('owner:customerDetail.yesterday');
+  if (days < 30) return i18n.t('owner:customerDetail.daysAgo', { count: days });
+  return i18n.t('owner:customerDetail.monthsAgo', { count: Math.round(days / 30) });
 }
 
 export default function CustomerDetailScreen() {
+  const { t } = useTranslation(['owner', 'common']);
   const { width, height } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<CustomerDetailResponse | null>(null);
@@ -101,7 +105,7 @@ export default function CustomerDetailScreen() {
     const next = Array.from(new Set([...(data.customer.tags ?? []), tag.trim()]));
     const result = await updateCustomer(id, { tags: next });
     if (result.ok) { setNewTagText(''); setAddingTag(false); load(); }
-    else Alert.alert('Could not add tag', result.error);
+    else Alert.alert(t('owner:customerDetail.couldNotAddTagTitle'), result.error);
   }
 
   async function handleRemoveTag(tag: string) {
@@ -109,7 +113,7 @@ export default function CustomerDetailScreen() {
     const next = (data.customer.tags ?? []).filter(t => t !== tag);
     const result = await updateCustomer(id, { tags: next });
     if (result.ok) load();
-    else Alert.alert('Could not remove tag', result.error);
+    else Alert.alert(t('owner:customerDetail.couldNotRemoveTagTitle'), result.error);
   }
 
   async function handleSearchReferrer(q: string) {
@@ -123,18 +127,18 @@ export default function CustomerDetailScreen() {
     if (!id) return;
     const result = await setReferredBy(id, referrerCustomerId);
     if (result.ok) { setPickingReferrer(false); setReferrerQuery(''); setReferrerResults([]); load(); }
-    else Alert.alert('Could not save', result.error);
+    else Alert.alert(t('owner:customerDetail.couldNotSaveTitle'), result.error);
   }
 
   async function handleGrantReward(referralId: string) {
-    Alert.alert('Grant referral reward', 'Give the referrer 15% off their next visit?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('owner:customerDetail.grantReferralRewardTitle'), t('owner:customerDetail.grantReferralRewardMessage'), [
+      { text: t('common:cancel'), style: 'cancel' },
       {
-        text: 'Grant 15% off',
+        text: t('owner:customerDetail.grant15Off'),
         onPress: async () => {
           const result = await grantReferralReward(id!, referralId, 'percent', 15);
           if (result.ok) load();
-          else Alert.alert('Could not grant reward', result.error);
+          else Alert.alert(t('owner:customerDetail.couldNotGrantRewardTitle'), result.error);
         },
       },
     ]);
@@ -143,17 +147,17 @@ export default function CustomerDetailScreen() {
   async function handlePurchaseMembership(planId: string) {
     if (!id) return;
     const result = await purchaseMembership(id, planId);
-    if (!result.ok) { Alert.alert('Could not purchase', result.error); return; }
+    if (!result.ok) { Alert.alert(t('owner:customerDetail.couldNotPurchaseTitle'), result.error); return; }
     if (result.data.activated) {
-      Alert.alert('Membership activated');
+      Alert.alert(t('owner:customerDetail.membershipActivatedTitle'));
       load();
     } else if (result.data.checkout_url) {
       Alert.alert(
-        'Send checkout link',
-        'The customer completes payment on their own device. Open the link now to share it?',
+        t('owner:customerDetail.sendCheckoutLinkTitle'),
+        t('owner:customerDetail.sendCheckoutLinkMessage'),
         [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open', onPress: () => Linking.openURL(result.data.checkout_url!) },
+          { text: t('owner:customerDetail.notNow'), style: 'cancel' },
+          { text: t('owner:customerDetail.open'), onPress: () => Linking.openURL(result.data.checkout_url!) },
         ]
       );
     }
@@ -163,19 +167,19 @@ export default function CustomerDetailScreen() {
     if (!id) return;
     const result = await renewMembership(id, membershipId);
     if (result.ok) load();
-    else Alert.alert('Could not renew', result.error);
+    else Alert.alert(t('owner:customerDetail.couldNotRenewTitle'), result.error);
   }
 
   async function handleCancelMembership(membershipId: string) {
     if (!id) return;
-    Alert.alert('Cancel membership?', 'This cannot be undone.', [
-      { text: 'Keep it', style: 'cancel' },
+    Alert.alert(t('owner:customerDetail.cancelMembershipTitle'), t('owner:customerDetail.cannotBeUndone'), [
+      { text: t('owner:customerDetail.keepIt'), style: 'cancel' },
       {
-        text: 'Cancel Membership', style: 'destructive',
+        text: t('owner:customerDetail.cancelMembershipButton'), style: 'destructive',
         onPress: async () => {
           const result = await cancelMembership(id, membershipId);
           if (result.ok) load();
-          else Alert.alert('Could not cancel', result.error);
+          else Alert.alert(t('owner:customerDetail.couldNotCancelTitle'), result.error);
         },
       },
     ]);
@@ -184,15 +188,15 @@ export default function CustomerDetailScreen() {
   async function handlePurchasePackage(packageId: string) {
     if (!id) return;
     const result = await purchaseServicePackage(id, packageId);
-    if (result.ok) { Alert.alert('Package granted'); load(); }
-    else Alert.alert('Could not grant package', result.error);
+    if (result.ok) { Alert.alert(t('owner:customerDetail.packageGrantedTitle')); load(); }
+    else Alert.alert(t('owner:customerDetail.couldNotGrantPackageTitle'), result.error);
   }
 
   async function handleRedeemVisit(purchaseId: string) {
     if (!id) return;
     const result = await redeemPackageVisit(id, purchaseId);
     if (result.ok) load();
-    else Alert.alert('Could not redeem', result.error);
+    else Alert.alert(t('owner:customerDetail.couldNotRedeemTitle'), result.error);
   }
 
   async function handleSetPreferredStaff(staffId: string | null) {
@@ -200,14 +204,14 @@ export default function CustomerDetailScreen() {
     setPickingStaff(false);
     const result = await updateCustomer(id, { preferred_staff_id: staffId });
     if (result.ok) load();
-    else Alert.alert('Could not update', result.error);
+    else Alert.alert(t('owner:customerDetail.couldNotUpdateTitle'), result.error);
   }
 
   async function handleAddNote() {
     if (!id || !newNote.trim()) return;
     const result = await addNote(id, newNote.trim());
     if (result.ok) { setNewNote(''); load(); }
-    else Alert.alert('Could not add note', result.error);
+    else Alert.alert(t('owner:customerDetail.couldNotAddNoteTitle'), result.error);
   }
 
   async function handlePin(noteId: string, pinned: boolean) {
@@ -230,12 +234,12 @@ export default function CustomerDetailScreen() {
 
   async function handleDelete() {
     if (!id) return;
-    Alert.alert('Delete customer?', 'Bookings stay on record but unlinked. This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+    Alert.alert(t('owner:customerDetail.deleteCustomerTitle'), t('owner:customerDetail.deleteCustomerMessage'), [
+      { text: t('common:cancel'), style: 'cancel' },
+      { text: t('owner:customerDetail.delete'), style: 'destructive', onPress: async () => {
         const result = await deleteCustomer(id);
         if (result.ok) router.back();
-        else Alert.alert('Could not delete', result.error);
+        else Alert.alert(t('owner:customerDetail.couldNotDeleteTitle'), result.error);
       }},
     ]);
   }
@@ -246,7 +250,7 @@ export default function CustomerDetailScreen() {
 
     if (kind === 'photo') {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { Alert.alert('Permission needed', 'Photo library access is required.'); return; }
+      if (!perm.granted) { Alert.alert(t('owner:customerDetail.permissionNeededTitle'), t('owner:customerDetail.photoPermissionMessage')); return; }
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
       if (result.canceled || !result.assets[0]) return;
       uri = result.assets[0].uri;
@@ -259,7 +263,7 @@ export default function CustomerDetailScreen() {
     }
 
     const req = await requestMediaUpload(id, kind, fileName);
-    if (!req.ok) { Alert.alert('Could not start upload', req.error); return; }
+    if (!req.ok) { Alert.alert(t('owner:customerDetail.couldNotStartUploadTitle'), req.error); return; }
 
     try {
       const blob = await (await fetch(uri)).blob();
@@ -268,7 +272,7 @@ export default function CustomerDetailScreen() {
       load();
     } catch (e) {
       await deleteMedia(id, req.data.data.id);
-      Alert.alert('Upload failed', 'Please try again.');
+      Alert.alert(t('owner:customerDetail.uploadFailedTitle'), t('owner:customerDetail.uploadFailedMessage'));
     }
   }
 
@@ -295,7 +299,7 @@ export default function CustomerDetailScreen() {
   if (loading || !data) {
     return (
       <View style={styles.centered}>
-        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Customer' }} />
+        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:customerDetail.headerTitleFallback') }} />
         <BreathingHeart size={40} color={'#F4D77A'} />
       </View>
     );
@@ -311,7 +315,7 @@ export default function CustomerDetailScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: customer.name, headerBackTitle: 'Customers' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: customer.name, headerBackTitle: t('owner:customerDetail.headerBackTitle') }} />
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
 
         {/* Header */}
@@ -319,10 +323,10 @@ export default function CustomerDetailScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{customer.name}</Text>
             <View style={styles.badgeRow}>
-              {(customer.total_bookings ?? 0) >= 5 && <Badge label="VIP" color={'#F4D77A'} />}
-              {customer.blocked && <Badge label="Blocked" color={'#F09595'} />}
+              {(customer.total_bookings ?? 0) >= 5 && <Badge label={t('owner:customerDetail.vip')} color={'#F4D77A'} />}
+              {customer.blocked && <Badge label={t('owner:customerDetail.blocked')} color={'#F09595'} />}
               <TouchableOpacity onPress={handleTogglePriority}>
-                <Badge label={customer.priority ? '★ Priority' : '+ Priority'} color={customer.priority ? '#F4D77A' : 'rgba(255,255,255,0.35)'} />
+                <Badge label={customer.priority ? t('owner:customerDetail.priority') : t('owner:customerDetail.addPriority')} color={customer.priority ? '#F4D77A' : 'rgba(255,255,255,0.35)'} />
               </TouchableOpacity>
             </View>
             <View style={styles.tagRow}>
@@ -335,7 +339,7 @@ export default function CustomerDetailScreen() {
               {addingTag ? (
                 <TextInput
                   style={styles.tagInput}
-                  placeholder="New tag"
+                  placeholder={t('owner:customerDetail.newTagPlaceholder')}
                   placeholderTextColor={'rgba(255,255,255,0.35)'}
                   value={newTagText}
                   onChangeText={setNewTagText}
@@ -373,7 +377,7 @@ export default function CustomerDetailScreen() {
         <View style={styles.quickActions}>
           <QuickAction
             icon="calendar-outline"
-            label="Book"
+            label={t('owner:customerDetail.book')}
             onPress={() => router.push({
               pathname: '/(owner)/calendar',
               params: {
@@ -384,10 +388,10 @@ export default function CustomerDetailScreen() {
               },
             } as never)}
           />
-          <QuickAction icon="call-outline" label="Call" onPress={() => customer.phone && Linking.openURL(`tel:${customer.phone}`)} disabled={!customer.phone} />
-          <QuickAction icon="chatbubble-outline" label="Message" onPress={() => customer.phone && Linking.openURL(`sms:${customer.phone}`)} disabled={!customer.phone} />
-          <QuickAction icon="create-outline" label="Notes" onPress={focusNotes} />
-          <QuickAction icon="ellipsis-horizontal" label="More" onPress={handleDelete} />
+          <QuickAction icon="call-outline" label={t('owner:customerDetail.call')} onPress={() => customer.phone && Linking.openURL(`tel:${customer.phone}`)} disabled={!customer.phone} />
+          <QuickAction icon="chatbubble-outline" label={t('owner:customerDetail.message')} onPress={() => customer.phone && Linking.openURL(`sms:${customer.phone}`)} disabled={!customer.phone} />
+          <QuickAction icon="create-outline" label={t('owner:customerDetail.notes')} onPress={focusNotes} />
+          <QuickAction icon="ellipsis-horizontal" label={t('owner:customerDetail.more')} onPress={handleDelete} />
         </View>
 
         {/* AI Insights */}
@@ -398,28 +402,28 @@ export default function CustomerDetailScreen() {
         )}
 
         {/* Snapshot */}
-        <Section title="Snapshot">
+        <Section title={t('owner:customerDetail.snapshot')}>
           <View style={styles.snapshotGrid}>
-            <SnapshotStat label="Lifetime Spend" value={money(snapshot.lifetime_spend_cents)} />
-            <SnapshotStat label="Visits" value={String(snapshot.visits)} />
-            <SnapshotStat label="Avg Ticket" value={money(snapshot.average_ticket_cents)} />
-            <SnapshotStat label="Avg Tip" value={money(snapshot.average_tip_cents)} />
-            <SnapshotStat label="Last Visit" value={timeAgo(snapshot.last_visit)} />
-            <SnapshotStat label="Years as Customer" value={`${snapshot.years_as_customer}`} />
-            <SnapshotStat label="Cancellation %" value={`${Math.round(snapshot.cancellation_rate * 100)}%`} />
-            <SnapshotStat label="No-Show %" value={`${Math.round(snapshot.no_show_rate * 100)}%`} />
+            <SnapshotStat label={t('owner:customerDetail.lifetimeSpend')} value={money(snapshot.lifetime_spend_cents)} />
+            <SnapshotStat label={t('owner:customerDetail.visits')} value={String(snapshot.visits)} />
+            <SnapshotStat label={t('owner:customerDetail.avgTicket')} value={money(snapshot.average_ticket_cents)} />
+            <SnapshotStat label={t('owner:customerDetail.avgTip')} value={money(snapshot.average_tip_cents)} />
+            <SnapshotStat label={t('owner:customerDetail.lastVisit')} value={timeAgo(snapshot.last_visit)} />
+            <SnapshotStat label={t('owner:customerDetail.yearsAsCustomer')} value={`${snapshot.years_as_customer}`} />
+            <SnapshotStat label={t('owner:customerDetail.cancellationRate')} value={`${Math.round(snapshot.cancellation_rate * 100)}%`} />
+            <SnapshotStat label={t('owner:customerDetail.noShowRate')} value={`${Math.round(snapshot.no_show_rate * 100)}%`} />
           </View>
           <TouchableOpacity style={styles.preferredStaffRow} onPress={() => setPickingStaff(true)}>
-            <Text style={styles.preferredStaffLabel}>Preferred Staff</Text>
+            <Text style={styles.preferredStaffLabel}>{t('owner:customerDetail.preferredStaff')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={styles.preferredStaffValue}>{customer.preferred_staff?.name ?? 'Not set'}</Text>
+              <Text style={styles.preferredStaffValue}>{customer.preferred_staff?.name ?? t('owner:customerDetail.notSet')}</Text>
               <Ionicons name="chevron-forward" size={14} color={'rgba(255,255,255,0.35)'} />
             </View>
           </TouchableOpacity>
           {pickingStaff && (
             <View style={styles.staffPicker}>
               <TouchableOpacity style={styles.staffPickerRow} onPress={() => handleSetPreferredStaff(null)}>
-                <Text style={styles.staffPickerText}>No preference</Text>
+                <Text style={styles.staffPickerText}>{t('owner:customerDetail.noPreference')}</Text>
               </TouchableOpacity>
               {staff.map(s => (
                 <TouchableOpacity key={s.id} style={styles.staffPickerRow} onPress={() => handleSetPreferredStaff(s.id)}>
@@ -432,26 +436,26 @@ export default function CustomerDetailScreen() {
 
         {/* Upcoming */}
         {upcoming.length > 0 && (
-          <Section title="Upcoming Appointment">
+          <Section title={t('owner:customerDetail.upcomingAppointment')}>
             {upcoming.slice(0, 1).map(b => (
               <TouchableOpacity key={b.id} style={styles.card} onPress={() => openAppointment(b)}>
-                <Text style={styles.cardTitle}>{new Date(b.starts_at).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
-                <Text style={styles.cardMeta}>{b.service?.name ?? 'Service'}{b.staff?.name ? ` · ${b.staff.name}` : ''}</Text>
+                <Text style={styles.cardTitle}>{formatWeekdayMonthDay(new Date(b.starts_at))}</Text>
+                <Text style={styles.cardMeta}>{b.service?.name ?? t('common:serviceFallback')}{b.staff?.name ? ` · ${b.staff.name}` : ''}</Text>
               </TouchableOpacity>
             ))}
           </Section>
         )}
 
         {/* Service Timeline */}
-        <Section title="Service Timeline">
-          {past.length === 0 ? <Text style={styles.emptyHint}>No past visits yet.</Text> : (
+        <Section title={t('owner:customerDetail.serviceTimeline')}>
+          {past.length === 0 ? <Text style={styles.emptyHint}>{t('owner:customerDetail.noPastVisits')}</Text> : (
             <View style={styles.timeline}>
               {past.slice(0, 10).map(b => (
                 <View key={b.id} style={styles.timelineRow}>
                   <View style={styles.timelineDot} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.timelineService}>{b.service?.name ?? 'Service'}</Text>
-                    <Text style={styles.timelineDate}>{new Date(b.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                    <Text style={styles.timelineService}>{b.service?.name ?? t('common:serviceFallback')}</Text>
+                    <Text style={styles.timelineDate}>{formatMonthDayYear(new Date(b.starts_at))}</Text>
                   </View>
                 </View>
               ))}
@@ -460,30 +464,30 @@ export default function CustomerDetailScreen() {
         </Section>
 
         {/* Spending Timeline */}
-        <Section title="Spending Timeline">
+        <Section title={t('owner:customerDetail.spendingTimeline')}>
           <View style={styles.chartCard}>
             <SpendingSparkline points={spendingPoints} width={300} height={70} />
           </View>
         </Section>
 
         {/* Membership */}
-        <Section title="Membership">
+        <Section title={t('owner:customerDetail.membership')}>
           {memberships.filter(m => m.status !== 'cancelled' && m.status !== 'expired').length === 0 ? (
-            <Text style={styles.emptyHint}>No active membership.</Text>
+            <Text style={styles.emptyHint}>{t('owner:customerDetail.noActiveMembership')}</Text>
           ) : memberships.filter(m => m.status !== 'cancelled' && m.status !== 'expired').map(m => (
             <View key={m.id} style={styles.membershipCard}>
-              <Text style={styles.membershipName}>{m.membership_plans?.name ?? 'Membership'}</Text>
+              <Text style={styles.membershipName}>{m.membership_plans?.name ?? t('owner:customerDetail.membershipFallback')}</Text>
               <Text style={styles.membershipMeta}>
-                {m.status === 'active' ? 'Active' : 'Past due'} · renews {new Date(m.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {m.status === 'active' ? t('owner:customerDetail.active') : t('owner:customerDetail.pastDue')} · {t('owner:customerDetail.renewsOn', { date: formatMonthDay(new Date(m.current_period_end)) })}
               </Text>
               <View style={styles.membershipActions}>
                 {m.membership_plans?.billing_mode === 'manual' && (
                   <TouchableOpacity style={styles.smallActionBtn} onPress={() => handleRenewMembership(m.id)}>
-                    <Text style={styles.smallActionBtnText}>Renew</Text>
+                    <Text style={styles.smallActionBtnText}>{t('owner:customerDetail.renew')}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.smallActionBtnDanger} onPress={() => handleCancelMembership(m.id)}>
-                  <Text style={styles.smallActionBtnDangerText}>Cancel</Text>
+                  <Text style={styles.smallActionBtnDangerText}>{t('common:cancel')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -501,16 +505,16 @@ export default function CustomerDetailScreen() {
         </Section>
 
         {/* Packages */}
-        <Section title="Packages">
+        <Section title={t('owner:customerDetail.packages')}>
           {customerPackages.filter(p => p.visits_remaining > 0).length === 0 ? (
-            <Text style={styles.emptyHint}>No active packages.</Text>
+            <Text style={styles.emptyHint}>{t('owner:customerDetail.noActivePackages')}</Text>
           ) : customerPackages.filter(p => p.visits_remaining > 0).map(p => (
             <View key={p.id} style={styles.membershipCard}>
-              <Text style={styles.membershipName}>{p.service_packages?.name ?? 'Package'}</Text>
-              <Text style={styles.membershipMeta}>{p.visits_remaining} visit{p.visits_remaining === 1 ? '' : 's'} remaining</Text>
+              <Text style={styles.membershipName}>{p.service_packages?.name ?? t('owner:customerDetail.packageFallback')}</Text>
+              <Text style={styles.membershipMeta}>{t('owner:customerDetail.visitsRemaining', { count: p.visits_remaining })}</Text>
               <View style={styles.membershipActions}>
                 <TouchableOpacity style={styles.smallActionBtn} onPress={() => handleRedeemVisit(p.id)}>
-                  <Text style={styles.smallActionBtnText}>Redeem a visit</Text>
+                  <Text style={styles.smallActionBtnText}>{t('owner:customerDetail.redeemVisit')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -528,22 +532,22 @@ export default function CustomerDetailScreen() {
         </Section>
 
         {/* Rewards */}
-        <Section title="Rewards">
-          {rewards.length === 0 ? <Text style={styles.emptyHint}>No active rewards.</Text> : rewards.map(r => (
+        <Section title={t('owner:customerDetail.rewards')}>
+          {rewards.length === 0 ? <Text style={styles.emptyHint}>{t('owner:customerDetail.noActiveRewards')}</Text> : rewards.map(r => (
             <View key={r.id} style={styles.rewardRow}>
               <Text style={styles.rewardCode}>{r.code}</Text>
-              <Text style={styles.rewardMeta}>{r.type === 'percent' ? `${r.value}% off` : money(r.value * 100)}{r.active ? '' : ' · used'}</Text>
+              <Text style={styles.rewardMeta}>{r.type === 'percent' ? t('owner:customerDetail.percentOff', { value: r.value }) : money(r.value * 100)}{r.active ? '' : t('owner:customerDetail.usedSuffix')}</Text>
             </View>
           ))}
         </Section>
 
         {/* Notes */}
         <View onLayout={(e) => setNotesSectionY(e.nativeEvent.layout.y)}>
-        <Section title="Notes">
+        <Section title={t('owner:customerDetail.notes')}>
           {notes.map(n => (
             <View key={n.id} style={styles.noteCard}>
               <View style={styles.noteHeader}>
-                <Text style={styles.noteDate}>{new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                <Text style={styles.noteDate}>{formatMonthDay(new Date(n.created_at))}</Text>
                 <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                   <TouchableOpacity onPress={() => handlePin(n.id, n.pinned)}>
                     <Ionicons name={n.pinned ? 'pin' : 'pin-outline'} size={15} color={n.pinned ? '#F4D77A' : 'rgba(255,255,255,0.6)'} />
@@ -560,19 +564,19 @@ export default function CustomerDetailScreen() {
             <TextInput
               ref={noteInputRef}
               style={styles.noteInput}
-              placeholder="Add a note..."
+              placeholder={t('owner:customerDetail.addNotePlaceholder')}
               placeholderTextColor={'rgba(255,255,255,0.35)'}
               value={newNote}
               onChangeText={setNewNote}
               multiline
             />
-            <TouchableOpacity onPress={handleAddNote}><Text style={styles.addRowText}>Save</Text></TouchableOpacity>
+            <TouchableOpacity onPress={handleAddNote}><Text style={styles.addRowText}>{t('owner:customerDetail.save')}</Text></TouchableOpacity>
           </View>
         </Section>
         </View>
 
         {/* Photos */}
-        <Section title="Photos">
+        <Section title={t('owner:customerDetail.photos')}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.sm }}>
             {media.filter(m => m.kind === 'photo').map(m => (
               <TouchableOpacity key={m.id} onLongPress={() => handleRemoveMedia(m.id)} style={styles.photoThumb}>
@@ -586,7 +590,7 @@ export default function CustomerDetailScreen() {
         </Section>
 
         {/* Documents */}
-        <Section title="Documents">
+        <Section title={t('owner:customerDetail.documents')}>
           {media.filter(m => m.kind === 'document').map(m => (
             <View key={m.id} style={styles.docRow}>
               <Text style={styles.docName}>{m.label ?? m.storage_path.split('/').pop()}</Text>
@@ -597,13 +601,13 @@ export default function CustomerDetailScreen() {
           ))}
           <TouchableOpacity style={styles.addRow} onPress={() => pickAndUpload('document')}>
             <Ionicons name="add" size={18} color={'#F4D77A'} />
-            <Text style={styles.addRowText}>Add document</Text>
+            <Text style={styles.addRowText}>{t('owner:customerDetail.addDocument')}</Text>
           </TouchableOpacity>
         </Section>
 
         {/* Communication timeline */}
-        <Section title="Communication">
-          {comms.length === 0 ? <Text style={styles.emptyHint}>Nothing logged yet.</Text> : comms.slice(0, 20).map(c => (
+        <Section title={t('owner:customerDetail.communication')}>
+          {comms.length === 0 ? <Text style={styles.emptyHint}>{t('owner:customerDetail.nothingLoggedYet')}</Text> : comms.slice(0, 20).map(c => (
             <View key={c.id} style={styles.commRow}>
               <Ionicons
                 name={c.channel === 'call' ? 'call-outline' : c.channel === 'push' ? 'notifications-outline' : c.channel === 'sms' ? 'chatbubble-outline' : 'mail-outline'}
@@ -618,15 +622,15 @@ export default function CustomerDetailScreen() {
         </Section>
 
         {/* Referrals */}
-        <Section title="Referrals">
-          <Text style={styles.fieldLabel}>Referred by</Text>
+        <Section title={t('owner:customerDetail.referrals')}>
+          <Text style={styles.fieldLabel}>{t('owner:customerDetail.referredBy')}</Text>
           {referredBy ? (
-            <Text style={styles.timelineService}>{referredBy.referrer?.name ?? 'Unknown'}</Text>
+            <Text style={styles.timelineService}>{referredBy.referrer?.name ?? t('owner:customerDetail.unknown')}</Text>
           ) : pickingReferrer ? (
             <View>
               <TextInput
                 style={styles.tagInput}
-                placeholder="Search customers..."
+                placeholder={t('owner:customerDetail.searchCustomersPlaceholder')}
                 placeholderTextColor={'rgba(255,255,255,0.35)'}
                 value={referrerQuery}
                 onChangeText={handleSearchReferrer}
@@ -641,22 +645,22 @@ export default function CustomerDetailScreen() {
           ) : (
             <TouchableOpacity style={styles.addRow} onPress={() => setPickingReferrer(true)}>
               <Ionicons name="add" size={16} color={'#F4D77A'} />
-              <Text style={styles.addRowText}>Set referrer</Text>
+              <Text style={styles.addRowText}>{t('owner:customerDetail.setReferrer')}</Text>
             </TouchableOpacity>
           )}
 
           {referred.length > 0 && (
             <>
-              <Text style={[styles.fieldLabel, { marginTop: Spacing.sm }]}>Referred by this customer</Text>
+              <Text style={[styles.fieldLabel, { marginTop: Spacing.sm }]}>{t('owner:customerDetail.referredByThisCustomer')}</Text>
               {referred.map(r => (
                 <View key={r.id} style={styles.membershipCard}>
-                  <Text style={styles.membershipName}>{r.referred?.name ?? 'Customer'}</Text>
+                  <Text style={styles.membershipName}>{r.referred?.name ?? t('owner:customerDetail.customerFallback')}</Text>
                   <Text style={styles.membershipMeta}>
-                    {r.reward_status === 'granted' ? 'Reward granted' : r.reward_status === 'pending' ? 'Reward pending' : 'No reward yet'}
+                    {r.reward_status === 'granted' ? t('owner:customerDetail.rewardGranted') : r.reward_status === 'pending' ? t('owner:customerDetail.rewardPending') : t('owner:customerDetail.noRewardYet')}
                   </Text>
                   {r.reward_status !== 'granted' && (
                     <TouchableOpacity style={styles.smallActionBtn} onPress={() => handleGrantReward(r.id)}>
-                      <Text style={styles.smallActionBtnText}>Grant reward</Text>
+                      <Text style={styles.smallActionBtnText}>{t('owner:customerDetail.grantReward')}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -666,15 +670,15 @@ export default function CustomerDetailScreen() {
         </Section>
 
         {/* Relationship Timeline */}
-        <Section title="Relationship Timeline">
-          {timeline.length === 0 ? <Text style={styles.emptyHint}>No history yet.</Text> : (
+        <Section title={t('owner:customerDetail.relationshipTimeline')}>
+          {timeline.length === 0 ? <Text style={styles.emptyHint}>{t('owner:customerDetail.noHistoryYet')}</Text> : (
             <View style={styles.timeline}>
               {timeline.map((e, i) => (
                 <View key={i} style={styles.timelineRow}>
                   <View style={styles.timelineDot} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.timelineService}>{e.label}</Text>
-                    <Text style={styles.timelineDate}>{new Date(e.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                    <Text style={styles.timelineDate}>{formatMonthDayYear(new Date(e.at))}</Text>
                   </View>
                 </View>
               ))}

@@ -15,10 +15,13 @@ import {
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { fetchMembershipStatus } from '@/lib/api/customer';
 import { BlurMask, Canvas, Circle, RadialGradient, vec } from '@shopify/react-native-skia';
+import { useTranslation } from 'react-i18next';
+import { LanguagePickerRow } from '@/components/LanguagePickerRow';
 
 const BIOMETRICS_KEY = 'bwa_biometrics_enabled';
 
 export default function AccountScreen() {
+  const { t } = useTranslation(['booking', 'common']);
   const { user, signOut } = useAuth();
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [notifsEnabled, setNotifsEnabled] = useState(false);
@@ -50,21 +53,21 @@ export default function AccountScreen() {
       } else {
         // Already denied once — OS won't show the dialog again, send them to Settings.
         Alert.alert(
-          'Enable in Settings',
-          'Notifications are turned off for Book With AI. Open Settings to turn them on.',
+          t('booking:accountScreen.enableInSettingsTitle'),
+          t('booking:accountScreen.enableInSettingsMessage'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => RNLinking.openSettings() },
+            { text: t('common:cancel'), style: 'cancel' },
+            { text: t('booking:accountScreen.openSettings'), onPress: () => RNLinking.openSettings() },
           ]
         );
       }
     } else {
       Alert.alert(
-        'Turn off in Settings',
-        'To stop notifications, turn them off for Book With AI in your device Settings.',
+        t('booking:accountScreen.turnOffInSettingsTitle'),
+        t('booking:accountScreen.turnOffInSettingsMessage'),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => RNLinking.openSettings() },
+          { text: t('common:cancel'), style: 'cancel' },
+          { text: t('booking:accountScreen.openSettings'), onPress: () => RNLinking.openSettings() },
         ]
       );
     }
@@ -76,18 +79,18 @@ export default function AccountScreen() {
       const isEnrolled  = await LocalAuthentication.isEnrolledAsync();
       if (!hasHardware || !isEnrolled) {
         Alert.alert(
-          'Not available',
-          'Biometric authentication is not set up on this device. Please enable it in your device settings first.'
+          t('booking:accountScreen.notAvailableTitle'),
+          t('booking:accountScreen.notAvailableMessage')
         );
         return;
       }
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Verify to enable biometric login',
+        promptMessage: t('booking:accountScreen.verifyToEnablePrompt'),
       });
       if (result.success) {
         await SecureStore.setItemAsync(BIOMETRICS_KEY, 'true');
         setBiometricsEnabled(true);
-        Alert.alert('Enabled', 'Biometric login is now active.');
+        Alert.alert(t('booking:accountScreen.enabledTitle'), t('booking:accountScreen.enabledMessage'));
       }
     } else {
       await SecureStore.deleteItemAsync(BIOMETRICS_KEY);
@@ -97,12 +100,12 @@ export default function AccountScreen() {
 
   async function handleSignOut() {
     Alert.alert(
-      'Sign out?',
-      "You'll need to sign in again to see your bookings.",
+      t('booking:accountScreen.signOutConfirmTitle'),
+      t('booking:accountScreen.signOutConfirmMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:cancel'), style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: t('booking:accountScreen.signOut'),
           style: 'destructive',
           onPress: async () => {
             // P12.8 — push-token cleanup now happens inside signOut() itself.
@@ -122,19 +125,19 @@ export default function AccountScreen() {
         <SafeAreaView style={styles.container}>
           <View style={styles.guestContent}>
             <Ionicons name="person-circle-outline" size={64} color='rgba(255,255,255,0.4)' />
-            <Text style={styles.guestTitle}>Not signed in</Text>
+            <Text style={styles.guestTitle}>{t('booking:accountScreen.notSignedInTitle')}</Text>
             <Text style={styles.guestSubtitle}>
-              Sign in to manage your account and see your booking history.
+              {t('booking:accountScreen.notSignedInSubtitle')}
             </Text>
             <Pressable
               style={({ pressed }) => [styles.signInBtn, pressed && { opacity: 0.85 }]}
               onPress={() => router.push('/auth')}>
-              <Text style={styles.signInBtnText}>Sign In</Text>
+              <Text style={styles.signInBtnText}>{t('booking:accountScreen.signIn')}</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.createBtn, pressed && { opacity: 0.85 }]}
               onPress={() => router.push('/auth/account-type')}>
-              <Text style={styles.createBtnText}>Create Account</Text>
+              <Text style={styles.createBtnText}>{t('booking:accountScreen.createAccount')}</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -148,7 +151,7 @@ export default function AccountScreen() {
 
       <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Account</Text>
+        <Text style={styles.headerTitle}>{t('booking:accountScreen.title')}</Text>
         <View style={[styles.sparkle, { top: 2, left: 92, width: 3, height: 3 }]} />
         <View style={[styles.sparkle, { top: 18, left: 112, width: 2, height: 2 }]} />
         <View style={[styles.sparkle, { top: 30, left: 74, width: 2, height: 2 }]} />
@@ -180,12 +183,12 @@ export default function AccountScreen() {
 
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
-              {user.user_metadata?.full_name || 'My Account'}
+              {user.user_metadata?.full_name || t('booking:accountScreen.myAccountFallback')}
             </Text>
             {hasMembership && (
               <View style={styles.premiumBadge}>
                 <Ionicons name="star" size={12} color="#F4D77A" />
-                <Text style={styles.premiumBadgeText}>Premium Member</Text>
+                <Text style={styles.premiumBadgeText}>{t('booking:accountScreen.premiumMember')}</Text>
               </View>
             )}
             <Text style={styles.profileEmail}>{user.email}</Text>
@@ -194,19 +197,19 @@ export default function AccountScreen() {
           <Pressable
             style={({ pressed }) => [styles.viewProfileLink, pressed && { opacity: 0.7 }]}
             onPress={() => router.push('/profile')}>
-            <Text style={styles.viewProfileLinkText}>View Profile</Text>
+            <Text style={styles.viewProfileLinkText}>{t('booking:accountScreen.viewProfile')}</Text>
             <Ionicons name="chevron-forward" size={14} color='rgba(255,255,255,0.4)' />
           </Pressable>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Security</Text>
+          <Text style={styles.sectionTitle}>{t('booking:accountScreen.securitySection')}</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <Ionicons name="finger-print-outline" size={20} color="#F4D77A" />
               <View>
-                <Text style={styles.settingLabel}>Biometric Login</Text>
-                <Text style={styles.settingDesc}>Use fingerprint or Face ID to unlock</Text>
+                <Text style={styles.settingLabel}>{t('booking:accountScreen.biometricLogin')}</Text>
+                <Text style={styles.settingDesc}>{t('booking:accountScreen.biometricLoginDesc')}</Text>
               </View>
             </View>
             <Switch
@@ -219,19 +222,19 @@ export default function AccountScreen() {
           <Pressable
             style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
             onPress={() => router.push('/account-security')}>
-            <Text style={styles.linkLabel}>Password, Email & PIN</Text>
+            <Text style={styles.linkLabel}>{t('booking:accountScreen.passwordEmailPin')}</Text>
             <Ionicons name="chevron-forward" size={16} color='rgba(255,255,255,0.4)' />
           </Pressable>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
+          <Text style={styles.sectionTitle}>{t('booking:accountScreen.notificationsSection')}</Text>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <Ionicons name="notifications-outline" size={20} color="#F4D77A" />
               <View>
-                <Text style={styles.settingLabel}>Push Notifications</Text>
-                <Text style={styles.settingDesc}>Booking confirmations and reminders</Text>
+                <Text style={styles.settingLabel}>{t('booking:accountScreen.pushNotifications')}</Text>
+                <Text style={styles.settingDesc}>{t('booking:accountScreen.pushNotificationsDesc')}</Text>
               </View>
             </View>
             <Switch
@@ -244,12 +247,17 @@ export default function AccountScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Legal</Text>
+          <Text style={styles.sectionTitle}>{t('booking:accountScreen.languageSection')}</Text>
+          <LanguagePickerRow variant="dark" />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('booking:accountScreen.legalSection')}</Text>
           {[
-            { label: 'Privacy Policy',   route: '/legal/privacy' },
-            { label: 'Terms of Service', route: '/legal/terms' },
-            { label: 'Support',          route: '/legal/support' },
-            { label: 'Delete My Account', route: '/legal/delete-account' },
+            { label: t('booking:accountScreen.privacyPolicy'),   route: '/legal/privacy' },
+            { label: t('booking:accountScreen.termsOfService'), route: '/legal/terms' },
+            { label: t('booking:accountScreen.support'),          route: '/legal/support' },
+            { label: t('booking:accountScreen.deleteMyAccount'), route: '/legal/delete-account' },
           ].map(({ label, route }) => (
             <Pressable
               key={route}
@@ -265,7 +273,7 @@ export default function AccountScreen() {
           style={({ pressed }) => [styles.signOutBtn, pressed && { opacity: 0.85 }]}
           onPress={handleSignOut}>
           <Ionicons name="log-out-outline" size={20} color="#F09595" />
-          <Text style={styles.signOutBtnText}>Sign Out</Text>
+          <Text style={styles.signOutBtnText}>{t('booking:accountScreen.signOut')}</Text>
         </Pressable>
 
       </ScrollView>

@@ -19,6 +19,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { supabase } from '@/lib/supabase';
 import { isValidEmail } from '@/lib/validation';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -31,6 +32,7 @@ function CardOverlay() {
 }
 
 export default function SignInScreen() {
+  const { t } = useTranslation(['auth', 'errors']);
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -50,15 +52,15 @@ export default function SignInScreen() {
 
   async function handleSignIn() {
     if (!email.trim() && !password.trim()) {
-      Alert.alert('Missing info', 'Please enter your email and password.');
+      Alert.alert(t('errors:auth.missingInfoTitle'), t('errors:auth.enterEmailAndPassword'));
       return;
     }
     if (!email.trim()) {
-      Alert.alert('Missing info', 'Please enter your email.');
+      Alert.alert(t('errors:auth.missingInfoTitle'), t('errors:auth.enterEmail'));
       return;
     }
     if (!password.trim()) {
-      Alert.alert('Missing info', 'Please enter your password.');
+      Alert.alert(t('errors:auth.missingInfoTitle'), t('errors:auth.enterPassword'));
       return;
     }
     if (!isValidEmail(email)) {
@@ -73,7 +75,7 @@ export default function SignInScreen() {
       if (error) throw error;
       // Auth state change will trigger redirect in _layout.tsx
     } catch (e: any) {
-      Alert.alert('Sign in failed', e.message || 'Incorrect email or password.');
+      Alert.alert(t('errors:auth.signInFailedTitle'), e.message || t('errors:auth.incorrectCredentials'));
     } finally {
       setLoading(false);
     }
@@ -91,41 +93,41 @@ export default function SignInScreen() {
               <Pressable onPress={() => router.back()} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={24} color="#F4D77A" />
               </Pressable>
-              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.title}>{t('auth:signIn.welcomeBack')}</Text>
               <View style={styles.backBtn} />
             </View>
 
-            <Text style={styles.subtitle}>Sign in to your Book With AI account.</Text>
+            <Text style={styles.subtitle}>{t('auth:signIn.subtitle')}</Text>
 
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{t('auth:signIn.emailLabel')}</Text>
                 <TextInput
                   testID="sign-in-email"
                   style={styles.input}
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="jane@example.com"
+                  placeholder={t('auth:signIn.emailPlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
                 {email.length > 0 && !isValidEmail(email) && (
-                  <Text style={styles.errorText}>Please enter a valid email address.</Text>
+                  <Text style={styles.errorText}>{t('errors:auth.invalidEmail')}</Text>
                 )}
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>{t('auth:signIn.passwordLabel')}</Text>
                 <View style={styles.passwordWrap}>
                   <TextInput
                     testID="sign-in-password"
                     style={[styles.input, styles.passwordInput]}
                     value={password}
                     onChangeText={setPassword}
-                    placeholder="Your password"
+                    placeholder={t('auth:signIn.passwordFieldPlaceholder')}
                     placeholderTextColor="rgba(255,255,255,0.4)"
                     secureTextEntry={!showPass}
                     autoCapitalize="none"
@@ -142,7 +144,7 @@ export default function SignInScreen() {
               </View>
 
               <Pressable onPress={() => router.push('/auth/forgot-password')}>
-                <Text style={styles.forgotText}>Forgot password?</Text>
+                <Text style={styles.forgotText}>{t('auth:signIn.forgotPassword')}</Text>
               </Pressable>
             </BlurView>
 
@@ -154,17 +156,17 @@ export default function SignInScreen() {
                 disabled={loading}>
                 {loading
                   ? <BreathingHeart size={18} color="#09000F" />
-                  : <Text style={styles.submitBtnText}>Sign In</Text>
+                  : <Text style={styles.submitBtnText}>{t('auth:signIn.title')}</Text>
                 }
               </Pressable>
             </Reanimated.View>
 
             <Pressable style={styles.switchBtn} onPress={() => router.replace('/auth/account-type')}>
-              <Text style={styles.switchText}>No account yet? <Text style={styles.switchLink}>Create one</Text></Text>
+              <Text style={styles.switchText}>{t('auth:signIn.noAccountYet')} <Text style={styles.switchLink}>{t('auth:signIn.createOne')}</Text></Text>
             </Pressable>
 
             <Pressable style={styles.magicBtn} onPress={() => router.push('/auth/magic-link')}>
-              <Text style={styles.magicText}>Use a magic link instead</Text>
+              <Text style={styles.magicText}>{t('auth:signIn.useMagicLink')}</Text>
             </Pressable>
 
           </ScrollView>

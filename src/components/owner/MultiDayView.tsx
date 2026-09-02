@@ -11,6 +11,7 @@ import { WeekSchedule, dayScheduleFor, gridBoundsMinutes, minutesSinceMidnight, 
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { formatWeekdayShort, formatTimeShort } from '@/lib/i18n/format';
 
 const PULL_THRESHOLD = 60;
 const PULL_MAX = 90;
@@ -198,7 +199,7 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
           <View key={key} style={[styles.column, { width: columnWidth }]}>
             <Pressable style={styles.columnHeader} onPress={() => handleHeaderPress(d)}>
               <Text style={[styles.columnHeaderDow, isToday && styles.columnHeaderTextToday]}>
-                {d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
+                {formatWeekdayShort(d).toUpperCase()}
               </Text>
               <View style={[styles.dateBadge, isToday && styles.dateBadgeToday]}>
                 <Text style={[styles.columnHeaderDate, isToday && styles.columnHeaderTextToday]}>{d.getDate()}</Text>
@@ -293,7 +294,7 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
 
                 return (
                   <Pressable key={b.id} style={[styles.block, { top, height, borderLeftColor: color }]} onPress={() => onOpen(b)}>
-                    <Text style={styles.time}>{new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
+                    <Text style={styles.time}>{formatTimeShort(new Date(b.starts_at))}</Text>
                     <Text style={styles.customer} numberOfLines={1}>{customerDisplayName(b)}</Text>
                     {height > 44 && <Text style={styles.service} numberOfLines={1}>{serviceDisplayName(b)}</Text>}
                   </Pressable>

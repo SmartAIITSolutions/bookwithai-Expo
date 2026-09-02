@@ -8,6 +8,8 @@ import { isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/booking
 import { InvisibleRefreshControl, RefreshHeartOverlay } from '@/components/PullToRefreshHeart';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
+import { useTranslation } from 'react-i18next';
+import { formatTimeShort } from '@/lib/i18n/format';
 
 interface QueueFlowViewProps {
   bookings: OwnerBooking[];
@@ -36,6 +38,7 @@ function waitMinutes(since: string): number {
 // Modeled directly on WaitingQueue.tsx's filter/sort/30s-tick pattern,
 // generalized into three buckets instead of one.
 export function QueueFlowView({ bookings, onOpen, onReadyForCheckout, onChanged, onAddWalkIn }: QueueFlowViewProps) {
+  const { t } = useTranslation(['calendar']);
   const [, forceTick] = useState(0);
   const [working, setWorking] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,45 +103,45 @@ export function QueueFlowView({ bookings, onOpen, onReadyForCheckout, onChanged,
     >
       <TouchableOpacity style={styles.addWalkInButton} onPress={onAddWalkIn}>
         <Ionicons name="add" size={16} color="#09000F" />
-        <Text style={styles.addWalkInText}>Add Walk-in</Text>
+        <Text style={styles.addWalkInText}>{t('calendar:queue.addWalkIn')}</Text>
       </TouchableOpacity>
 
-      <Bucket title="Waiting" color="#FBBF24" empty="Nobody waiting right now.">
+      <Bucket title={t('calendar:queue.waitingTitle')} color="#FBBF24" empty={t('calendar:queue.nobodyWaiting')}>
         {waiting.map(b => (
           <Row
             key={b.id}
             booking={b}
             onPress={() => onOpen(b)}
             working={working === b.id}
-            actionLabel={b.checked_in_at ? 'Start' : 'Check In'}
+            actionLabel={b.checked_in_at ? t('calendar:queue.start') : t('calendar:queue.checkIn')}
             onAction={() => runAction(b.id, b.checked_in_at ? startService : checkIn)}
-            meta={b.checked_in_at ? `${waitMinutes(b.checked_in_at)}m waiting` : new Date(b.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            meta={b.checked_in_at ? t('calendar:queue.minutesWaiting', { count: waitMinutes(b.checked_in_at) }) : formatTimeShort(new Date(b.starts_at))}
           />
         ))}
       </Bucket>
 
-      <Bucket title="In Service" color="#B794F6" empty="Nobody in a chair right now.">
+      <Bucket title={t('calendar:queue.inServiceTitle')} color="#B794F6" empty={t('calendar:queue.nobodyInService')}>
         {inService.map(b => (
           <Row
             key={b.id}
             booking={b}
             onPress={() => onOpen(b)}
             working={working === b.id}
-            actionLabel="Done"
+            actionLabel={t('calendar:queue.done')}
             onAction={() => runAction(b.id, completeService)}
-            meta={`${waitMinutes(b.service_started_at!)}m elapsed`}
+            meta={t('calendar:queue.minutesElapsed', { count: waitMinutes(b.service_started_at!) })}
           />
         ))}
       </Bucket>
 
-      <Bucket title="Ready to Pay" color="#4ADE80" empty="Nothing waiting on payment.">
+      <Bucket title={t('calendar:queue.readyToPayTitle')} color="#4ADE80" empty={t('calendar:queue.nothingReadyToPay')}>
         {readyToPay.map(b => (
           <Row
             key={b.id}
             booking={b}
             onPress={() => onOpen(b)}
             working={false}
-            actionLabel="Charge"
+            actionLabel={t('calendar:queue.charge')}
             onAction={() => onReadyForCheckout(b)}
             meta={serviceDisplayName(b)}
           />

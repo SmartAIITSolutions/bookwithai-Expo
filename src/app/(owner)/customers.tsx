@@ -9,9 +9,11 @@ import { OwnerScreenHeader } from '@/components/owner/OwnerScreenHeader';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { listCustomers, getMergeCandidates, CustomerLite } from '@/lib/api/ownerCustomers';
 import { ErrorState } from '@/components/ErrorState';
+import { useTranslation } from 'react-i18next';
+import { formatCentsUSD } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
-function money(cents: number | null | undefined) { return `$${((cents ?? 0) / 100).toFixed(2)}`; }
+function money(cents: number | null | undefined) { return formatCentsUSD(cents ?? 0); }
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -29,6 +31,7 @@ function CardOverlay() {
 const PAGE_SIZE = 50;
 
 export default function OwnerCustomersScreen() {
+  const { t } = useTranslation(['owner']);
   const [query, setQuery] = useState('');
   const [customers, setCustomers] = useState<CustomerLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,14 +91,14 @@ export default function OwnerCustomersScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <OwnerScreenHeader title="Customers" onNotificationsPress={() => router.push('/owner-notifications' as never)} />
+      <OwnerScreenHeader title={t('owner:customersScreen.title')} onNotificationsPress={() => router.push('/owner-notifications' as never)} />
 
       <BlurView intensity={90} tint="dark" style={styles.searchRow}>
         <CardOverlay />
         <Ionicons name="search" size={16} color="rgba(255,255,255,0.5)" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search name, phone, or email"
+          placeholder={t('owner:customersScreen.searchPlaceholder')}
           placeholderTextColor="rgba(255,255,255,0.4)"
           value={query}
           onChangeText={setQuery}
@@ -107,7 +110,7 @@ export default function OwnerCustomersScreen() {
           <BlurView intensity={90} tint="dark" style={styles.duplicateBanner}>
             <CardOverlay />
             <Ionicons name="git-merge-outline" size={16} color="#F4D77A" />
-            <Text style={styles.duplicateText}>{duplicateGroups} possible duplicate {duplicateGroups === 1 ? 'group' : 'groups'} — review</Text>
+            <Text style={styles.duplicateText}>{t('owner:customersScreen.duplicateGroups', { count: duplicateGroups })}</Text>
           </BlurView>
         </Pressable>
       )}
@@ -124,7 +127,7 @@ export default function OwnerCustomersScreen() {
           contentContainerStyle={styles.list}
           onEndReached={loadMore}
           onEndReachedThreshold={0.4}
-          ListEmptyComponent={<Text style={styles.emptyHint}>Your customer list starts here.</Text>}
+          ListEmptyComponent={<Text style={styles.emptyHint}>{t('owner:customersScreen.emptyHint')}</Text>}
           ListFooterComponent={
             loadingMore ? (
               <View style={styles.footerLoading}><BreathingHeart size={22} color="#F4D77A" /></View>
@@ -139,7 +142,7 @@ export default function OwnerCustomersScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.rowMeta} numberOfLines={1}>{item.phone ?? item.email ?? 'No contact info'}</Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>{item.phone ?? item.email ?? t('owner:customersScreen.noContactInfo')}</Text>
                 </View>
                 <Text style={styles.rowSpend}>{money(item.total_spent_cents)}</Text>
                 <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />

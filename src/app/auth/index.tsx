@@ -27,6 +27,7 @@ import Reanimated, {
   withTiming,
 } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
+import { Trans, useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 const BUTTON_COUNT = 5;
@@ -44,6 +45,7 @@ function useBreatheStyle(cycle: SharedValue<number>, index: number) {
 WebBrowser.maybeCompleteAuthSession();
 
 function OrDivider() {
+  const { t } = useTranslation(['auth']);
   return (
     <View style={styles.divider}>
       <LinearGradient
@@ -52,7 +54,7 @@ function OrDivider() {
         end={{ x: 1, y: 0 }}
         style={styles.dividerLine}
       />
-      <Text style={styles.dividerText}>or</Text>
+      <Text style={styles.dividerText}>{t('auth:welcome.or')}</Text>
       <LinearGradient
         colors={['rgba(212,175,55,0.5)', 'transparent']}
         start={{ x: 0, y: 0 }}
@@ -87,6 +89,7 @@ function GoogleGIcon({ size = 20 }: { size?: number }) {
 }
 
 export default function AuthWelcomeScreen() {
+  const { t } = useTranslation(['auth', 'errors']);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
@@ -124,7 +127,7 @@ export default function AuthWelcomeScreen() {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-      if (!credential.identityToken) throw new Error('No identity token returned from Apple.');
+      if (!credential.identityToken) throw new Error(t('errors:auth.appleNoToken'));
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken,
@@ -132,7 +135,7 @@ export default function AuthWelcomeScreen() {
       if (error) throw error;
     } catch (e: any) {
       if (e.code === 'ERR_REQUEST_CANCELED') return; // user dismissed the Apple sheet, not an error
-      Alert.alert('Sign in failed', e.message || 'Could not sign in with Apple.');
+      Alert.alert(t('errors:auth.signInFailedTitle'), e.message || t('errors:auth.appleSignInFailed'));
     } finally {
       setAppleLoading(false);
     }
@@ -147,7 +150,7 @@ export default function AuthWelcomeScreen() {
         options: { redirectTo, skipBrowserRedirect: true },
       });
       if (error) throw error;
-      if (!data.url) throw new Error('No OAuth URL returned');
+      if (!data.url) throw new Error(t('errors:auth.googleNoUrl'));
 
       // Opens the browser for sign-in. Deliberately not relying on this
       // promise's resolved result for the actual code exchange -- on
@@ -157,7 +160,7 @@ export default function AuthWelcomeScreen() {
       // reliably, the same way staff invites and password resets work.
       await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     } catch (e: any) {
-      Alert.alert('Sign in failed', e.message || 'Could not sign in with Google.');
+      Alert.alert(t('errors:auth.signInFailedTitle'), e.message || t('errors:auth.googleSignInFailed'));
     } finally {
       setGoogleLoading(false);
     }
@@ -188,8 +191,8 @@ export default function AuthWelcomeScreen() {
               resizeMode="contain"
             />
           </View>
-          <Text style={styles.appName}>Book With AI</Text>
-          <Text style={styles.tagline}>Your bookings, beautifully simple.</Text>
+          <Text style={styles.appName}>{t('auth:welcome.appName')}</Text>
+          <Text style={styles.tagline}>{t('auth:welcome.tagline')}</Text>
         </View>
 
         {/* Auth options */}
@@ -227,7 +230,7 @@ export default function AuthWelcomeScreen() {
                 ? <BreathingHeart size={18} color="#F4D77A" />
                 : <>
                     <GoogleGIcon size={20} />
-                    <Text style={styles.googleBtnText}>Continue with Google</Text>
+                    <Text style={styles.googleBtnText}>{t('auth:welcome.continueWithGoogle')}</Text>
                   </>
               }
             </Pressable>
@@ -240,7 +243,7 @@ export default function AuthWelcomeScreen() {
             <Pressable
               style={({ pressed }) => [styles.emailBtn, pressed && styles.btnPressed]}
               onPress={() => router.push('/auth/account-type')}>
-              <Text style={styles.emailBtnText}>Create an Account</Text>
+              <Text style={styles.emailBtnText}>{t('auth:welcome.createAccount')}</Text>
             </Pressable>
           </Reanimated.View>
 
@@ -251,7 +254,7 @@ export default function AuthWelcomeScreen() {
               testID="welcome-sign-in-with-email"
               style={({ pressed }) => [styles.signInBtn, pressed && styles.btnPressed]}
               onPress={() => router.push('/auth/sign-in')}>
-              <Text style={styles.signInBtnText}>Sign In with Email</Text>
+              <Text style={styles.signInBtnText}>{t('auth:welcome.signInWithEmail')}</Text>
             </Pressable>
           </Reanimated.View>
 
@@ -263,17 +266,21 @@ export default function AuthWelcomeScreen() {
               style={({ pressed }) => [styles.magicLinkBtn, pressed && styles.btnPressed]}
               onPress={() => router.push('/auth/magic-link')}>
               <Ionicons name="mail-outline" size={16} color="#09000F" />
-              <Text style={styles.magicLinkText}>Send me a magic link instead</Text>
+              <Text style={styles.magicLinkText}>{t('auth:welcome.sendMagicLink')}</Text>
             </Pressable>
           </Reanimated.View>
 
         </View>
 
         <Text style={styles.legalNote}>
-          By continuing you agree to our{' '}
-          <Text style={styles.legalLink} onPress={() => router.push('/legal/terms')}>Terms</Text>
-          {' '}and{' '}
-          <Text style={styles.legalLink} onPress={() => router.push('/legal/privacy')}>Privacy Policy</Text>.
+          <Trans
+            ns="auth"
+            i18nKey="welcome.legalPrefix"
+            components={{
+              terms: <Text style={styles.legalLink} onPress={() => router.push('/legal/terms')} />,
+              privacy: <Text style={styles.legalLink} onPress={() => router.push('/legal/privacy')} />,
+            }}
+          />
         </Text>
 
       </View>

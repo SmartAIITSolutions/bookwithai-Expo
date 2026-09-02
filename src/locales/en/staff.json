@@ -1,0 +1,46 @@
+{
+  "schedule": {
+    "title": "My Schedule",
+    "clockIn": "Clock In",
+    "clockOut": "Clock Out",
+    "couldNotClockTitle": "Could not clock in/out",
+    "nothingOnBooks": "Nothing on the books",
+    "noAppointmentsSalon": "No upcoming appointments for the salon.",
+    "noAppointmentsOwn": "You don't have any upcoming appointments."
+  },
+  "earnings": {
+    "title": "Earnings",
+    "totalCommissionEarned": "Total commission earned",
+    "noCommissionYet": "No commission earned yet.",
+    "ratePct": "{{pct}}% rate"
+  },
+  "timeOff": {
+    "title": "Time Off",
+    "startDatePlaceholder": "Start date (YYYY-MM-DD)",
+    "endDatePlaceholder": "End date (YYYY-MM-DD)",
+    "reasonPlaceholder": "Reason (optional)",
+    "cancel": "Cancel",
+    "submitRequest": "Submit request",
+    "requestTimeOff": "Request time off",
+    "noTimeOffYet": "No time off requested yet.",
+    "missingDatesTitle": "Missing dates",
+    "missingDatesMessage": "Enter a start and end date.",
+    "couldNotSubmitTitle": "Could not submit request",
+    "statusApproved": "Approved",
+    "statusDenied": "Denied",
+    "statusPending": "Pending"
+  },
+  "account": {
+    "title": "Account",
+    "legal": "Legal",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "support": "Support",
+    "deleteMyAccount": "Delete My Account",
+    "language": "Language",
+    "signOutTitle": "Sign out?",
+    "signOutMessage": "You'll need to sign in again.",
+    "cancel": "Cancel",
+    "signOut": "Sign Out"
+  }
+}

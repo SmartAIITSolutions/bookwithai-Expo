@@ -8,11 +8,13 @@ import { getMergeCandidates, mergeCustomers, CustomerLite } from '@/lib/api/owne
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
+import { useTranslation } from 'react-i18next';
 
 // The audit found merge logic that only ever fired silently during public
 // booking (phone/email match) — no owner-facing "detect & merge" action
 // existed anywhere. This is that action.
 export default function MergeDuplicatesScreen() {
+  const { t } = useTranslation(['owner', 'common']);
   const [groups, setGroups] = useState<CustomerLite[][]>([]);
   const [loading, setLoading] = useState(true);
   const [merging, setMerging] = useState<string | null>(null);
@@ -28,16 +30,16 @@ export default function MergeDuplicatesScreen() {
   async function handleMerge(group: CustomerLite[]) {
     const key = group.map(c => c.id).join(',');
     Alert.alert(
-      'Merge these customers?',
-      `${group.map(c => c.name).join(', ')} will become one customer record. Their booking history, spend, and loyalty combine — this cannot be undone.`,
+      t('owner:mergeDuplicatesScreen.mergeConfirmTitle'),
+      t('owner:mergeDuplicatesScreen.mergeConfirmMessage', { names: group.map(c => c.name).join(', ') }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Merge', onPress: async () => {
+        { text: t('common:cancel'), style: 'cancel' },
+        { text: t('owner:mergeDuplicatesScreen.merge'), onPress: async () => {
           setMerging(key);
           const result = await mergeCustomers(group.map(c => c.id));
           setMerging(null);
           if (result.ok) load();
-          else Alert.alert('Could not merge', result.error);
+          else Alert.alert(t('owner:mergeDuplicatesScreen.couldNotMergeTitle'), result.error);
         }},
       ]
     );
@@ -46,7 +48,7 @@ export default function MergeDuplicatesScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Merge Duplicates' }} />
+        <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:mergeDuplicatesScreen.title') }} />
         <BreathingHeart size={40} color={Colors.primary} />
       </View>
     );
@@ -55,10 +57,10 @@ export default function MergeDuplicatesScreen() {
   return (
     <View style={styles.container}>
       <DualBreathingBackground />
-      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: 'Merge Duplicates', headerBackTitle: 'Customers' }} />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: '#0B0712' }, headerTintColor: '#F4D77A', headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' }, title: t('owner:mergeDuplicatesScreen.title'), headerBackTitle: t('owner:mergeDuplicatesScreen.headerBackTitle') }} />
       <ScrollView contentContainerStyle={styles.content}>
         {groups.length === 0 && (
-          <Text style={styles.emptyHint}>No duplicate customers found — nothing to review.</Text>
+          <Text style={styles.emptyHint}>{t('owner:mergeDuplicatesScreen.emptyHint')}</Text>
         )}
         {groups.map(group => {
           const key = group.map(c => c.id).join(',');
@@ -67,11 +69,11 @@ export default function MergeDuplicatesScreen() {
               {group.map(c => (
                 <View key={c.id} style={styles.customerRow}>
                   <Text style={styles.customerName}>{c.name}</Text>
-                  <Text style={styles.customerMeta}>{c.phone ?? c.email ?? '—'} · {c.total_bookings ?? 0} visits</Text>
+                  <Text style={styles.customerMeta}>{c.phone ?? c.email ?? '—'} · {t('owner:mergeDuplicatesScreen.visits', { count: c.total_bookings ?? 0 })}</Text>
                 </View>
               ))}
               <TouchableOpacity style={styles.mergeButton} onPress={() => handleMerge(group)} disabled={merging === key}>
-                {merging === key ? <BreathingHeart size={18} color={Colors.textOnPrimary} /> : <Text style={styles.mergeButtonText}>Merge into one</Text>}
+                {merging === key ? <BreathingHeart size={18} color={Colors.textOnPrimary} /> : <Text style={styles.mergeButtonText}>{t('owner:mergeDuplicatesScreen.mergeIntoOne')}</Text>}
               </TouchableOpacity>
             </View>
           );

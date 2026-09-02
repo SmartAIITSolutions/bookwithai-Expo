@@ -9,6 +9,8 @@ import { listServices, Service } from '@/lib/api/ownerServices';
 import { createBooking, OwnerBooking } from '@/lib/api/ownerBookings';
 import { StaffMember } from '@/lib/api/ownerStaff';
 import { bookingStaffScopesConflictClient } from '@/lib/calendar/conflict';
+import { useTranslation } from 'react-i18next';
+import { formatTimeShort, formatCentsUSD } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 interface WalkInSheetProps {
@@ -70,6 +72,7 @@ function CardOverlay() {
 // chair → Book." Target ~15 seconds for a returning customer.
 export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
   function WalkInSheet({ staff, todaysBookings, onBooked, initialTime, initialStaffId, outsideBusinessHours, initialCustomer }, ref) {
+    const { t } = useTranslation(['calendar', 'errors']);
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<CustomerLite[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
@@ -144,13 +147,13 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
 
     async function handleAddCustomer() {
       if (!newName.trim() || !newPhone.trim() || !newEmail.trim()) {
-        Alert.alert('All fields required', 'Name, phone, and email are all needed to add a new customer.');
+        Alert.alert(t('calendar:walkIn.allFieldsRequiredTitle'), t('calendar:walkIn.allFieldsRequiredMessage'));
         return;
       }
       setCreatingCustomer(true);
       const created = await quickCreateCustomer(newName.trim(), newPhone.trim(), newEmail.trim());
       setCreatingCustomer(false);
-      if (!created.ok) { Alert.alert('Could not add customer', created.error); return; }
+      if (!created.ok) { Alert.alert(t('calendar:walkIn.couldNotAddCustomerTitle'), created.error); return; }
       setSelectedCustomer(created.data.data);
       setQuery(created.data.data.name);
       setResults([]);
@@ -211,21 +214,21 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
     }
 
     function confirmDoubleBook(startsAt: Date, staffId: string | null) {
-      const staffLabel = staffId ? (staff.find(s => s.id === staffId)?.name ?? 'That staff member') : 'Someone';
-      const timeLabel = startsAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const staffLabel = staffId ? (staff.find(s => s.id === staffId)?.name ?? t('calendar:walkIn.thatStaffMember')) : t('calendar:walkIn.someone');
+      const timeLabel = formatTimeShort(startsAt);
       Alert.alert(
-        'Time slot is taken',
-        `${staffLabel} already has an appointment at ${timeLabel}. Double-book anyway?`,
+        t('calendar:walkIn.timeSlotTakenTitle'),
+        t('calendar:walkIn.timeSlotTakenMessage', { staffLabel, time: timeLabel }),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Double-Book', style: 'destructive', onPress: () => handleBook(true) },
+          { text: t('calendar:walkIn.cancel'), style: 'cancel' },
+          { text: t('calendar:walkIn.doubleBook'), style: 'destructive', onPress: () => handleBook(true) },
         ],
       );
     }
 
     async function handleBook(overrideConflict = false) {
       if (cart.length === 0) {
-        Alert.alert('Pick a service', 'Choose what the walk-in is here for.');
+        Alert.alert(t('calendar:walkIn.pickServiceTitle'), t('calendar:walkIn.pickServiceMessage'));
         return;
       }
       const customer = selectedCustomer;
@@ -235,8 +238,8 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       const label = walkInMode ? walkInLabel.trim() : '';
       if (!customer && !walkInMode) {
         Alert.alert(
-          'Pick a customer',
-          'Search for an existing customer, add a new one, or switch to "Walk-in (no info)" below.'
+          t('calendar:walkIn.pickCustomerTitle'),
+          t('calendar:walkIn.pickCustomerMessage')
         );
         return;
       }
@@ -272,7 +275,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
           startsAt = initialTime;
         } else {
           setBooking(false);
-          Alert.alert('No chair available', 'Every staff member is busy right now.');
+          Alert.alert(t('calendar:walkIn.noChairAvailableTitle'), t('calendar:walkIn.noChairAvailableMessage'));
           return;
         }
       }
@@ -291,6 +294,9 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
         // string -- otherwise it collapses to null there and looks
         // indistinguishable from "no customer, no walk-in intent at all",
         // failing the same required-field check meant to let this through.
+        // i18n foundation (L5B) -- 'Walk-in' here is a persisted DB value
+        // (bookings.walk_in_label), not display text -- deliberately left
+        // in English rather than translated, per Section L/N.
         walk_in_label: customer ? null : (label || 'Walk-in'),
         service_ids: cartServiceIds,
         staff_id: staffId,
@@ -310,9 +316,15 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       } else if (result.code === 'CONFLICT' && !overrideConflict) {
         confirmDoubleBook(startsAt, staffId);
       } else if (result.error?.toLowerCase().includes('already booked')) {
-        Alert.alert('Just got booked', 'That chair filled up — tap Book again to find the next one.');
+        Alert.alert(t('calendar:walkIn.justGotBookedTitle'), t('calendar:walkIn.justGotBookedMessage'));
       } else {
-        Alert.alert('Could not book walk-in', result.error);
+        // Defense-in-depth alongside the TimelineCalendar fix that removed
+        // the actual source of this specific error: never surface a raw
+        // Postgres/DB error string to the owner (e.g. "invalid input syntax
+        // for type uuid: ..."), for this or any future backend failure that
+        // looks technical rather than a genuine human-readable message.
+        const looksRaw = /invalid input syntax|violates .* constraint|duplicate key|relation .* does not exist|null value in column/i.test(result.error ?? '');
+        Alert.alert(t('calendar:walkIn.couldNotBookTitle'), looksRaw || !result.error ? t('errors:generic') : result.error);
       }
     }
 
@@ -328,13 +340,13 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       <BottomSheetFooter {...props} style={styles.footer}>
         {cartCount > 0 && (
           <Text style={styles.footerSummary}>
-            {cartCount} service{cartCount === 1 ? '' : 's'} · {cartDurationMin} min · ${(cartPriceCents / 100).toFixed(2)}
+            {t('calendar:walkIn.footerSummary', { count: cartCount, minutes: cartDurationMin, price: formatCentsUSD(cartPriceCents) })}
           </Text>
         )}
         <TouchableOpacity style={styles.bookButton} onPress={() => handleBook()} disabled={booking}>
           {booking
             ? <ActivityIndicator color="#09000F" />
-            : <Text style={styles.bookButtonText}>{manualMode ? 'Book This Time' : 'Find chair & Book'}</Text>}
+            : <Text style={styles.bookButtonText}>{manualMode ? t('calendar:walkIn.bookThisTime') : t('calendar:walkIn.findChairAndBook')}</Text>}
         </TouchableOpacity>
       </BottomSheetFooter>
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,42 +371,42 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
           <View style={styles.headerRow}>
             <Ionicons name="walk-outline" size={18} color="#F4D77A" />
             <View>
-              <Text style={styles.title}>Walk-In</Text>
+              <Text style={styles.title}>{t('calendar:walkIn.title')}</Text>
               <Text style={styles.subtitle}>
                 {initialTime
-                  ? `Booking for ${initialTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-                  : 'Booking for the earliest available chair'}
+                  ? t('calendar:walkIn.bookingForTime', { time: formatTimeShort(initialTime) })
+                  : t('calendar:walkIn.bookingForEarliest')}
               </Text>
             </View>
           </View>
           {outsideBusinessHours && (
             <View style={styles.warningBanner}>
               <Ionicons name="alert-circle-outline" size={16} color="#F4D77A" />
-              <Text style={styles.warningText}>This time is outside normal hours — there may be no staff scheduled.</Text>
+              <Text style={styles.warningText}>{t('calendar:walkIn.outsideHoursWarning')}</Text>
             </View>
           )}
         </View>
         <BottomSheetScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-          <Text style={styles.label}>Customer</Text>
+          <Text style={styles.label}>{t('calendar:walkIn.customerLabel')}</Text>
           <View style={styles.modeToggleRow}>
             <TouchableOpacity
               style={[styles.modeChip, !walkInMode && styles.modeChipActive]}
               onPress={() => { setWalkInMode(false); setWalkInLabel(''); }}
             >
-              <Text style={[styles.modeChipText, !walkInMode && styles.modeChipTextActive]}>Add customer</Text>
+              <Text style={[styles.modeChipText, !walkInMode && styles.modeChipTextActive]}>{t('calendar:walkIn.addCustomer')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modeChip, walkInMode && styles.modeChipActive]}
               onPress={() => { setWalkInMode(true); setSelectedCustomer(null); setQuery(''); setResults([]); setAddingNew(false); }}
             >
-              <Text style={[styles.modeChipText, walkInMode && styles.modeChipTextActive]}>Walk-in (no info)</Text>
+              <Text style={[styles.modeChipText, walkInMode && styles.modeChipTextActive]}>{t('calendar:walkIn.walkInNoInfo')}</Text>
             </TouchableOpacity>
           </View>
 
           {walkInMode ? (
             <TextInput
               style={[styles.input, { marginTop: 6 }]}
-              placeholder={"Optional label, e.g. \"Sarah's sister\""}
+              placeholder={t('calendar:walkIn.optionalLabelPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={walkInLabel}
               onChangeText={setWalkInLabel}
@@ -403,7 +415,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
           <>
           <TextInput
             style={styles.input}
-            placeholder="Search by name, phone, or email"
+            placeholder={t('calendar:walkIn.searchPlaceholder')}
             placeholderTextColor="rgba(255,255,255,0.4)"
             value={query}
             onChangeText={runSearch}
@@ -427,7 +439,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
             <TouchableOpacity style={styles.addNewRow} onPress={startAddingNew}>
               <Ionicons name="person-add-outline" size={16} color="#F4D77A" />
               <Text style={styles.newHint}>
-                No match for "{query.trim()}" — <Text style={styles.newHintLink}>add new customer</Text>
+                {t('calendar:walkIn.noMatchFor', { query: query.trim() })}<Text style={styles.newHintLink}>{t('calendar:walkIn.addNewCustomerLink')}</Text>
               </Text>
             </TouchableOpacity>
           )}
@@ -436,14 +448,14 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               <CardOverlay />
               <TextInput
                 style={styles.input}
-                placeholder="Full name"
+                placeholder={t('calendar:walkIn.fullNamePlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={newName}
                 onChangeText={setNewName}
               />
               <TextInput
                 style={[styles.input, { marginTop: Spacing.xs }]}
-                placeholder="Phone number"
+                placeholder={t('calendar:walkIn.phonePlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={newPhone}
                 onChangeText={setNewPhone}
@@ -451,7 +463,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               />
               <TextInput
                 style={[styles.input, { marginTop: Spacing.xs }]}
-                placeholder="Email address"
+                placeholder={t('calendar:walkIn.emailPlaceholder')}
                 placeholderTextColor="rgba(255,255,255,0.4)"
                 value={newEmail}
                 onChangeText={setNewEmail}
@@ -460,12 +472,12 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               />
               <View style={styles.newCustomerActions}>
                 <TouchableOpacity style={styles.newCustomerCancel} onPress={() => setAddingNew(false)}>
-                  <Text style={styles.newCustomerCancelText}>Cancel</Text>
+                  <Text style={styles.newCustomerCancelText}>{t('calendar:walkIn.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.newCustomerSave} onPress={handleAddCustomer} disabled={creatingCustomer}>
                   {creatingCustomer
                     ? <ActivityIndicator color="#09000F" />
-                    : <Text style={styles.newCustomerSaveText}>Add customer</Text>}
+                    : <Text style={styles.newCustomerSaveText}>{t('calendar:walkIn.addCustomer')}</Text>}
                 </TouchableOpacity>
               </View>
             </BlurView>
@@ -473,7 +485,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
           </>
           )}
 
-          <Text style={styles.label}>Service{cartCount > 0 ? ` (${cartCount})` : ''}</Text>
+          <Text style={styles.label}>{t('calendar:walkIn.serviceLabel')}{cartCount > 0 ? ` (${cartCount})` : ''}</Text>
           {cart.length > 0 && (
             <View style={styles.cartCard}>
               {cart.map(line => (
@@ -499,23 +511,23 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               onPress={() => addToCart(s)}
             >
               <Text style={styles.serviceName}>{s.name}</Text>
-              <Text style={styles.serviceMeta}>{s.duration_minutes} min · ${(s.price_cents / 100).toFixed(2)}</Text>
+              <Text style={styles.serviceMeta}>{t('calendar:walkIn.durationPrice', { minutes: s.duration_minutes, price: formatCentsUSD(s.price_cents) })}</Text>
             </TouchableOpacity>
           ))}
 
-          <Text style={styles.label}>Time & Staff</Text>
+          <Text style={styles.label}>{t('calendar:walkIn.timeAndStaffLabel')}</Text>
           <View style={styles.modeToggleRow}>
             <TouchableOpacity
               style={[styles.modeChip, !manualMode && styles.modeChipActive]}
               onPress={() => setManualMode(false)}
             >
-              <Text style={[styles.modeChipText, !manualMode && styles.modeChipTextActive]}>Earliest available</Text>
+              <Text style={[styles.modeChipText, !manualMode && styles.modeChipTextActive]}>{t('calendar:walkIn.earliestAvailable')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modeChip, manualMode && styles.modeChipActive]}
               onPress={() => setManualMode(true)}
             >
-              <Text style={[styles.modeChipText, manualMode && styles.modeChipTextActive]}>Pick a time</Text>
+              <Text style={[styles.modeChipText, manualMode && styles.modeChipTextActive]}>{t('calendar:walkIn.pickATime')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -523,13 +535,13 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
             <View style={styles.manualPickerCard}>
               <View style={styles.timeStepperRow}>
                 <TimeStepper
-                  label="Hour"
+                  label={t('calendar:walkIn.hour')}
                   value={manualHour12}
                   onChange={(v) => setManualHour12(((((v - 1) % 12) + 12) % 12) + 1)}
                 />
                 <Text style={styles.timeColon}>:</Text>
                 <TimeStepper
-                  label="Min"
+                  label={t('calendar:walkIn.min')}
                   value={manualMinute}
                   step={5}
                   pad
@@ -542,18 +554,18 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
                       style={[styles.ampmChip, manualAmPm === p && styles.ampmChipActive]}
                       onPress={() => setManualAmPm(p)}
                     >
-                      <Text style={[styles.ampmChipText, manualAmPm === p && styles.ampmChipTextActive]}>{p}</Text>
+                      <Text style={[styles.ampmChipText, manualAmPm === p && styles.ampmChipTextActive]}>{t(`calendar:walkIn.${p.toLowerCase()}` as 'calendar:walkIn.am' | 'calendar:walkIn.pm')}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
-              <Text style={[styles.label, { marginTop: Spacing.sm }]}>Staff</Text>
+              <Text style={[styles.label, { marginTop: Spacing.sm }]}>{t('calendar:walkIn.staffLabel')}</Text>
               <View style={styles.staffChipRow}>
                 <TouchableOpacity
                   style={[styles.staffChip, manualStaffId === null && styles.staffChipActive]}
                   onPress={() => setManualStaffId(null)}
                 >
-                  <Text style={[styles.staffChipText, manualStaffId === null && styles.staffChipTextActive]}>Unassigned</Text>
+                  <Text style={[styles.staffChipText, manualStaffId === null && styles.staffChipTextActive]}>{t('calendar:walkIn.unassigned')}</Text>
                 </TouchableOpacity>
                 {staff.map(s => (
                   <TouchableOpacity

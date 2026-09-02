@@ -1,6 +1,7 @@
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -16,6 +17,8 @@ interface ConfirmModalProps {
   visible: boolean;
   title: string;
   message?: string;
+  // Omit to use the shared, translated "Cancel" label (common:cancel) --
+  // still overridable per-caller for a feature-specific verb if ever needed.
   cancelLabel?: string;
   confirmLabel: string;
   destructive?: boolean;
@@ -30,7 +33,9 @@ interface ConfirmModalProps {
 // re-themed -- this is the dark/gold equivalent for confirmations that
 // need to visually match the rest of the app (destructive actions like
 // cancelling an appointment or marking a no-show, or plain info notices).
-export function ConfirmModal({ visible, title, message, cancelLabel = 'Cancel', confirmLabel, destructive, hideCancel, onCancel, onConfirm }: ConfirmModalProps) {
+export function ConfirmModal({ visible, title, message, cancelLabel, confirmLabel, destructive, hideCancel, onCancel, onConfirm }: ConfirmModalProps) {
+  const { t } = useTranslation(['common']);
+  const resolvedCancelLabel = cancelLabel ?? t('common:cancel');
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.root}>
@@ -42,7 +47,7 @@ export function ConfirmModal({ visible, title, message, cancelLabel = 'Cancel', 
           <View style={[styles.actions, hideCancel && styles.actionsSingle]}>
             {!hideCancel && (
               <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-                <Text style={styles.cancelText}>{cancelLabel}</Text>
+                <Text style={styles.cancelText}>{resolvedCancelLabel}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>

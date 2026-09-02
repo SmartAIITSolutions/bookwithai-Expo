@@ -11,6 +11,7 @@ import { BreathingHeart } from '@/components/BreathingHeart';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { supabase } from '@/lib/supabase';
 import { getPasswordError } from '@/lib/validation';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -26,6 +27,7 @@ function CardOverlay() {
 // handleDeepLink in _layout.tsx), which establishes a recovery session
 // before routing here.
 export default function ResetPasswordScreen() {
+  const { t } = useTranslation(['auth', 'errors', 'common']);
   const [password,        setPassword]        = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving,          setSaving]          = useState(false);
@@ -33,24 +35,24 @@ export default function ResetPasswordScreen() {
   async function handleSetPassword() {
     const pwError = getPasswordError(password);
     if (pwError) {
-      Alert.alert('Invalid password', pwError);
+      Alert.alert(t('errors:auth.invalidPasswordTitle'), pwError);
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert("Passwords don't match", 'Please re-enter to confirm.');
+      Alert.alert(t('errors:auth.passwordsDontMatchTitle'), t('errors:auth.reenterToConfirm'));
       return;
     }
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ password });
     setSaving(false);
     if (error) {
-      Alert.alert('Could not reset password', error.message);
+      Alert.alert(t('errors:auth.couldNotResetPasswordTitle'), error.message);
       return;
     }
     Alert.alert(
-      'Password updated',
-      'Your password has been reset. Please sign in with your new password.',
-      [{ text: 'OK', onPress: () => router.replace('/auth/sign-in') }]
+      t('errors:auth.passwordUpdatedTitle'),
+      t('errors:auth.passwordUpdatedMessage'),
+      [{ text: t('common:ok'), onPress: () => router.replace('/auth/sign-in') }]
     );
   }
 
@@ -60,18 +62,18 @@ export default function ResetPasswordScreen() {
       <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.content}>
-            <Text style={styles.title}>Set a New Password</Text>
-            <Text style={styles.subtitle}>Choose a new password for your account.</Text>
+            <Text style={styles.title}>{t('auth:resetPassword.title')}</Text>
+            <Text style={styles.subtitle}>{t('auth:resetPassword.subtitle')}</Text>
 
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>New password</Text>
+                <Text style={styles.label}>{t('auth:resetPassword.newPasswordLabel')}</Text>
                 <TextInput
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="At least 8 characters"
+                  placeholder={t('auth:resetPassword.newPasswordPlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   secureTextEntry
                   autoCapitalize="none"
@@ -83,18 +85,18 @@ export default function ResetPasswordScreen() {
                 )}
                 {password.length === 0 && (
                   <Text style={styles.hintText}>
-                    At least 8 characters, with an uppercase letter, a lowercase letter, and a number.
+                    {t('auth:resetPassword.passwordHint')}
                   </Text>
                 )}
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Confirm password</Text>
+                <Text style={styles.label}>{t('auth:resetPassword.confirmLabel')}</Text>
                 <TextInput
                   style={styles.input}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  placeholder="Re-enter password"
+                  placeholder={t('auth:resetPassword.confirmPlaceholder')}
                   placeholderTextColor="rgba(255,255,255,0.4)"
                   secureTextEntry
                   autoCapitalize="none"
@@ -109,7 +111,7 @@ export default function ResetPasswordScreen() {
               disabled={saving}>
               {saving
                 ? <BreathingHeart size={18} color="#09000F" />
-                : <Text style={styles.submitBtnText}>Reset Password</Text>
+                : <Text style={styles.submitBtnText}>{t('auth:resetPassword.submitButton')}</Text>
               }
             </Pressable>
           </View>

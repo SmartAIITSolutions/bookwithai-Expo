@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-09-01T00:31:52.696Z",
+  "count": 13,
+  "note": "Existing hard-coded user-facing strings as of the L1 i18n foundation. Regenerate deliberately with `node scripts/check-hardcoded-strings.js --update-baseline` only when reviewing a real change (e.g. after migrating a screen, this should shrink). Never regenerate just to silence a failing check.",
+  "violationIds": [
+    "src/app/(owner)/sanaa.tsx:54:title-attr:SANAA",
+    "src/app/(owner)/sanaa.tsx:59:jsx-text:Real",
+    "src/components/SanaaMark.tsx:53:accessibility-label:SANAA",
+    "src/components/owner/DailyOpsCard.tsx:112:jsx-text:Cancel",
+    "src/components/owner/DailyOpsCard.tsx:113:jsx-text:Confirm",
+    "src/components/owner/DailyOpsCard.tsx:128:placeholder:Post an announcement...",
+    "src/components/owner/DailyOpsCard.tsx:133:jsx-text:Post",
+    "src/components/owner/DailyOpsCard.tsx:140:jsx-text:Opening",
+    "src/components/owner/DailyOpsCard.tsx:143:jsx-text:Closing",
+    "src/components/owner/sanaa/SanaaBookingDemoSimulation.tsx:99:jsx-text:SANAA",
+    "src/components/owner/sanaa/SanaaComparisonSection.tsx:30:jsx-text:DEV PREVIEW — claims not yet approved for production",
+    "src/components/owner/sanaa/SanaaDemoOutcome.tsx:25:jsx-text:SANAA",
+    "src/components/owner/sanaa/SanaaOperationsHome.tsx:185:jsx-text:SANAA"
+  ]
+}

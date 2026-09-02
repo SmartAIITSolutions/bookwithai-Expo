@@ -3,12 +3,17 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { formatWeekdayShort, formatMonthYear } from '@/lib/i18n/format';
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
+// 2023-01-01 was a real Sunday -- stable reference date so Intl can produce a
+// locale-correct weekday name for a given Sun-first day-of-week index.
+const REFERENCE_SUNDAY = new Date(2023, 0, 1);
+function weekdayShortForIndex(index: number): string {
+  const d = new Date(REFERENCE_SUNDAY);
+  d.setDate(REFERENCE_SUNDAY.getDate() + index);
+  return formatWeekdayShort(d);
+}
+const DAYS = [0, 1, 2, 3, 4, 5, 6].map(weekdayShortForIndex);
 const CELL_SIZE = 34;
 
 function toDateStr(year: number, month: number, day: number): string {
@@ -66,14 +71,14 @@ export function CalendarDatePicker({ value, onChange, minDate }: Props) {
         <Pressable onPress={prevMonth} style={styles.navBtn}>
           <Ionicons name="chevron-back" size={18} color={Colors.textPrimary} />
         </Pressable>
-        <Text style={styles.monthLabel}>{MONTHS[viewMonth]} {viewYear}</Text>
+        <Text style={styles.monthLabel}>{formatMonthYear(viewYear, viewMonth)}</Text>
         <Pressable onPress={nextMonth} style={styles.navBtn}>
           <Ionicons name="chevron-forward" size={18} color={Colors.textPrimary} />
         </Pressable>
       </View>
 
       <View style={styles.dayLabelsRow}>
-        {DAYS.map((d) => <Text key={d} style={styles.dayLabel}>{d}</Text>)}
+        {DAYS.map((d, i) => <Text key={i} style={styles.dayLabel}>{d}</Text>)}
       </View>
 
       {weeks.map((week, weekIdx) => (

@@ -3,6 +3,8 @@ import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { unregisterPushToken } from '@/lib/push/registerForPushNotifications';
+import { reconcileServerLanguagePreference } from '@/lib/i18n/reconcile';
+import { getLanguagePreferenceSource, setLanguagePreference, setLanguagePreferenceSource } from '@/lib/i18n/storage';
 
 const ROLE_CACHE_PREFIX = 'bwa_role_cache_';
 
@@ -56,6 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // still in flight) resolving after a newer one and clobbering the correct
   // role -- only the most recently requested userId is allowed to write state.
   const latestProfileRequest = useRef<string | null>(null);
+
+  // L10 — runs the local/server language-preference reconciliation at most
+  // once per signed-in user per app session (not on every loadProfile()
+  // re-run, e.g. from refreshProfile() after a staff-invite link).
+  const languageReconciledForUserId = useRef<string | null>(null);
 
   async function loadProfile(userId: string) {
     latestProfileRequest.current = userId;
@@ -175,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await loadProfile(session.user.id);
         } else {
           latestProfileRequest.current = null;
+          languageReconciledForUserId.current = null;
           setRole(null);
           setClientId(null);
         }
@@ -187,6 +195,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // L10 — once per signed-in session, reconcile the local explicit
+  // app-language preference with the server-persisted one (see
+  // reconcile.ts for the exact precedence). Deliberately not part of
+  // initI18n()/cold start -- this only runs once auth has genuinely
+  // resolved a real user+role, and never blocks first paint or a normal
+  // language switch made before this fires.
+  useEffect(() => {
+    if (!user || !role) return;
+    if (languageReconciledForUserId.current === user.id) return;
+    languageReconciledForUserId.current = user.id;
+    reconcileServerLanguagePreference(role).catch(() => {
+      // Best-effort -- a reconciliation failure must never affect auth/
+      // routing; the local/device-resolved language stays in effect.
+    });
+  }, [user, role]);
 
   // P12.8 — centralized so every real sign-out path (owner, staff,
   // customer, global, biometric) gets push-token cleanup for free, rather
@@ -204,6 +228,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (userId) {
       await AsyncStorage.removeItem(`${ROLE_CACHE_PREFIX}${userId}`).catch(() => {});
+    }
+    // PA1 Section F fix -- if the active language was merely adopted from
+    // this account's server preference (not a real pick on this device),
+    // clear it on sign-out. Otherwise a different account signing in next
+    // on the same device would both inherit it and push it back up as if
+    // it were their own explicit choice. A genuine user pick (source
+    // 'explicit') is left untouched -- signing out never overwrites a
+    // deliberate local choice.
+    try {
+      const source = await getLanguagePreferenceSource();
+      if (source === 'server-adopted') {
+        await setLanguagePreference(null);
+        await setLanguagePreferenceSource(null);
+      }
+    } catch (err) {
+      console.error('AuthContext: language-preference cleanup failed during sign-out (continuing)', err);
     }
     await supabase.auth.signOut({ scope });
   }

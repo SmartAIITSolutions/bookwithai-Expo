@@ -30,6 +30,8 @@ import { getDaySampleMode, setDaySampleMode } from '@/lib/calendar/daySampleMode
 import { ErrorState } from '@/components/ErrorState';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
+import { Trans, useTranslation } from 'react-i18next';
+import { formatMonthYearLong, formatMonthDay, formatTimeShortInTZ, formatWeekdayMonthDayYearInTZ } from '@/lib/i18n/format';
 
 const gridIntervalKey = (businessId: string) => `calendar_grid_interval_${businessId}`;
 
@@ -53,24 +55,46 @@ function CardOverlay() {
 // dropped once the Today grid got a real live "now" line -- that covered
 // the same "where are we right now" need this mode existed for.
 type CalendarMode = '3day' | 'week' | 'month' | 'agenda' | 'queue';
-const MODES: { key: CalendarMode; label: string }[] = [
-  { key: 'agenda', label: 'Today' }, { key: 'queue', label: 'Queue' }, { key: '3day', label: '3-Day' },
-  { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' },
-];
+
+// i18n foundation (L5B) -- `key` is the stable canonical view identifier
+// used for all mode-switching logic; `label` is presentation only. Built as
+// functions (not module-level constants) so `label` can call t().
+function buildModes(t: ReturnType<typeof useTranslation<['calendar']>>['t']): { key: CalendarMode; label: string }[] {
+  return [
+    { key: 'agenda', label: t('calendar:screen.modeToday') }, { key: 'queue', label: t('calendar:screen.modeQueue') }, { key: '3day', label: t('calendar:screen.mode3Day') },
+    { key: 'week', label: t('calendar:screen.modeWeek') }, { key: 'month', label: t('calendar:screen.modeMonth') },
+  ];
+}
 
 // Calendar 2.0 Day View — Part 2's exact segmented control: Day/3-Day/Week/
 // Month only. Queue is intentionally excluded -- it's not one of the
 // reference's four segments; it's still reachable from 3-Day/Week/Month's
 // own (unchanged) mode row.
-const DAY_SEGMENT_MODES: { key: CalendarMode; label: string }[] = [
-  { key: 'agenda', label: 'Day' }, { key: '3day', label: '3-Day' },
-  { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' },
-];
+function buildDaySegmentModes(t: ReturnType<typeof useTranslation<['calendar']>>['t']): { key: CalendarMode; label: string }[] {
+  return [
+    { key: 'agenda', label: t('calendar:screen.modeDay') }, { key: '3day', label: t('calendar:screen.mode3Day') },
+    { key: 'week', label: t('calendar:screen.modeWeek') }, { key: 'month', label: t('calendar:screen.modeMonth') },
+  ];
+}
 
 // Day view (Phase 0.3 default) — full hour-grid timeline with drag-to-move,
 // pinch-to-zoom, and swipe gestures. Five more modes for viewing/navigating
 // (Sprint 6): 3-Day, Week, Month, Agenda, Timeline.
 export default function OwnerCalendarScreen() {
+  const { t } = useTranslation(['calendar']);
+  const MODES = buildModes(t);
+  const DAY_SEGMENT_MODES = buildDaySegmentModes(t);
+  // Display-only translated labels for the canonical BLOCK_REASON_PRESETS values
+  // (see NOTE at the reason pill row below).
+  const REASON_LABELS: Record<typeof BLOCK_REASON_PRESETS[number], string> = {
+    Meeting: t('calendar:screen.reasonOptions.Meeting'),
+    Lunch: t('calendar:screen.reasonOptions.Lunch'),
+    Personal: t('calendar:screen.reasonOptions.Personal'),
+    Training: t('calendar:screen.reasonOptions.Training'),
+    Cleaning: t('calendar:screen.reasonOptions.Cleaning'),
+    Break: t('calendar:screen.reasonOptions.Break'),
+    Other: t('calendar:screen.reasonOptions.Other'),
+  };
   const [date, setDate] = useState(new Date());
   const [mode, setMode] = useState<CalendarMode>('agenda');
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -129,7 +153,7 @@ export default function OwnerCalendarScreen() {
   const [blockDeleting, setBlockDeleting] = useState(false);
   const [blockDatePickerOpen, setBlockDatePickerOpen] = useState(false);
   const [blockTimeFieldOpen, setBlockTimeFieldOpen] = useState<'from' | 'to' | null>(null);
-  const BLOCK_REASON_PRESETS = ['Meeting', 'Lunch', 'Personal', 'Training', 'Cleaning', 'Break', 'Other'];
+  const BLOCK_REASON_PRESETS = ['Meeting', 'Lunch', 'Personal', 'Training', 'Cleaning', 'Break', 'Other'] as const;
 
   // Calendar 2.0 Part 1 — the salon's own timezone, not the device's.
   // Falls back to the same default the backend itself uses when a salon
@@ -256,10 +280,10 @@ export default function OwnerCalendarScreen() {
   }
 
   const navLabels =
-    mode === 'week' ? { prev: '← Last week', next: 'Next week →' } :
-    mode === '3day' ? { prev: '← Previous 3 days', next: 'Next 3 days →' } :
-    mode === 'month' ? { prev: '← Last month', next: 'Next month →' } :
-    { prev: '← Yesterday', next: 'Tomorrow →' };
+    mode === 'week' ? { prev: t('calendar:screen.navLastWeek'), next: t('calendar:screen.navNextWeek') } :
+    mode === '3day' ? { prev: t('calendar:screen.navPrevious3Days'), next: t('calendar:screen.navNext3Days') } :
+    mode === 'month' ? { prev: t('calendar:screen.navLastMonth'), next: t('calendar:screen.navNextMonth') } :
+    { prev: t('calendar:screen.navYesterday'), next: t('calendar:screen.navTomorrow') };
 
   function openBooking(b: OwnerBooking) {
     setSelectedBooking(b);
@@ -335,12 +359,12 @@ export default function OwnerCalendarScreen() {
     if (staffId !== 'any') {
       const s = staff.find(x => x.id === staffId);
       const entry = s?.availability.find(a => a.day_of_week === dateOnly.getDay() && a.is_working);
-      if (!entry) return { kind: 'staffUnavailable', staffName: s?.name ?? 'This staff member' };
+      if (!entry) return { kind: 'staffUnavailable', staffName: s?.name ?? t('calendar:screen.thisStaffMember') };
       const [sh, sm] = entry.start_time.split(':').map(Number);
       const [eh, em] = entry.end_time.split(':').map(Number);
       startMin = Math.max(startMin, sh * 60 + (sm || 0));
       endMin = Math.min(endMin, eh * 60 + (em || 0));
-      if (startMin >= endMin) return { kind: 'staffUnavailable', staffName: s?.name ?? 'This staff member' };
+      if (startMin >= endMin) return { kind: 'staffUnavailable', staffName: s?.name ?? t('calendar:screen.thisStaffMember') };
     }
     return { kind: 'open', startMin, endMin };
   }
@@ -405,7 +429,7 @@ export default function OwnerCalendarScreen() {
     setBlockTo(ends);
     setBlockStaffId(booking.staff_id ?? 'any');
     const notes = booking.internal_notes ?? '';
-    if (BLOCK_REASON_PRESETS.includes(notes)) { setBlockReason(notes); setBlockNote(''); }
+    if ((BLOCK_REASON_PRESETS as readonly string[]).includes(notes)) { setBlockReason(notes); setBlockNote(''); }
     else { setBlockReason(notes ? 'Other' : null); setBlockNote(notes); }
     setBlockSheetOpen(true);
   }
@@ -422,11 +446,11 @@ export default function OwnerCalendarScreen() {
   // -- no new conflict engine.
   async function submitBlockTime(overrideConflict = false) {
     if (blockEditingId && isSampleBooking(blockEditingId)) {
-      Alert.alert('Sample Data', 'This is a demo block for visual review only. Changes here aren’t saved.');
+      Alert.alert(t('calendar:screen.sampleDataTitle'), t('calendar:screen.sampleDataBlockMessage'));
       return;
     }
     if (blockTo.getTime() <= blockFrom.getTime()) {
-      Alert.alert('Invalid time range', 'End time must be after start time.');
+      Alert.alert(t('calendar:screen.invalidTimeRangeTitle'), t('calendar:screen.invalidTimeRangeMessage'));
       return;
     }
     const staffId = blockStaffId === 'any' ? null : blockStaffId;
@@ -465,19 +489,19 @@ export default function OwnerCalendarScreen() {
       const conflicts = (result as { conflicts?: { starts_at: string; label: string }[] }).conflicts;
       const conflictCount = (result as { conflictCount?: number }).conflictCount;
       const detail = conflicts?.length
-        ? '\n\n' + conflicts.map(c => `${new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(c.starts_at))} — ${c.label}`).join('\n')
+        ? '\n\n' + conflicts.map(c => `${formatTimeShortInTZ(new Date(c.starts_at), timeZone)} — ${c.label}`).join('\n')
         : '';
       Alert.alert(
-        conflictCount ? `${conflictCount} appointment${conflictCount === 1 ? '' : 's'} fall${conflictCount === 1 ? 's' : ''} inside this blocked period.` : 'Time slot is taken',
-        `${conflicts?.length ? 'They will stay exactly as they are.' : 'That staff member already has something booked then.'}${detail}`,
+        conflictCount ? t('calendar:screen.conflictAppointmentsFall', { count: conflictCount }) : t('calendar:screen.timeSlotIsTaken'),
+        `${conflicts?.length ? t('calendar:screen.conflictsWillStay') : t('calendar:screen.staffAlreadyBooked')}${detail}`,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Block Anyway', style: 'destructive', onPress: () => submitBlockTime(true) },
+          { text: t('calendar:screen.cancel'), style: 'cancel' },
+          { text: t('calendar:screen.blockAnyway'), style: 'destructive', onPress: () => submitBlockTime(true) },
         ],
       );
       return;
     }
-    Alert.alert(blockEditingId ? 'Could not save changes' : 'Could not block time', result.error);
+    Alert.alert(blockEditingId ? t('calendar:screen.couldNotSaveChangesTitle') : t('calendar:screen.couldNotBlockTimeTitle'), result.error);
   }
 
   // Part 6 — "Delete Block". No DELETE route exists (confirmed); the
@@ -494,7 +518,7 @@ export default function OwnerCalendarScreen() {
   async function deleteBlockTime() {
     if (!blockEditingId) return;
     if (isSampleBooking(blockEditingId)) {
-      Alert.alert('Sample Data', 'This is a demo block for visual review only. Deleting it here isn’t saved.');
+      Alert.alert(t('calendar:screen.sampleDataTitle'), t('calendar:screen.sampleDataDeleteMessage'));
       return;
     }
     setBlockDeleting(true);
@@ -506,7 +530,7 @@ export default function OwnerCalendarScreen() {
       reload();
       return;
     }
-    Alert.alert('Could not delete block', result.error);
+    Alert.alert(t('calendar:screen.couldNotDeleteBlockTitle'), result.error);
   }
 
   function openWalkInGeneric() {
@@ -605,7 +629,7 @@ export default function OwnerCalendarScreen() {
       {mode === 'agenda' && <View style={styles.rowDivider} />}
       {mode === 'agenda' && (
         <>
-          <StaffChip label="All" active={selectedStaffId === 'all'} onPress={() => setSelectedStaffId('all')} />
+          <StaffChip label={t('calendar:screen.all')} active={selectedStaffId === 'all'} onPress={() => setSelectedStaffId('all')} />
           {staff.map(s => (
             <StaffChip key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => setSelectedStaffId(s.id)} />
           ))}
@@ -621,7 +645,7 @@ export default function OwnerCalendarScreen() {
   // before), an interval picker, and a filter/legend icon. Replaces the
   // shared chipRow for Day view only; 3-Day/Week/Month/Queue keep chipRow
   // exactly as it was (out of scope for this screen).
-  const selectedStaffLabel = selectedStaffId === 'all' ? 'All Staff' : (staff.find(s => s.id === selectedStaffId)?.name ?? 'Staff');
+  const selectedStaffLabel = selectedStaffId === 'all' ? t('calendar:screen.allStaff') : (staff.find(s => s.id === selectedStaffId)?.name ?? t('calendar:screen.staffFallback'));
   const blockBounds = computeBlockBounds(blockDate, blockStaffId);
   const dayControlBar = (
     <View style={styles.dayControlRow}>
@@ -634,7 +658,7 @@ export default function OwnerCalendarScreen() {
       <View style={styles.daySegmentGroup}>
         {DAY_SEGMENT_MODES.map(m => (
           <Pressable key={m.key} style={[styles.daySegmentChip, mode === m.key && styles.daySegmentChipActive]} onPress={() => handleModePress(m.key)}>
-            <Text style={[styles.daySegmentChipText, mode === m.key && styles.daySegmentChipTextActive]} numberOfLines={1}>{m.label}</Text>
+            <Text style={[styles.daySegmentChipText, mode === m.key && styles.daySegmentChipTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{m.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -663,7 +687,7 @@ export default function OwnerCalendarScreen() {
     <View style={styles.screen}>
       <DualBreathingBackground />
       <OwnerScreenHeader
-        title="Calendar"
+        title={t('calendar:screen.title')}
         onCreatePress={mode === 'agenda' ? () => openSlotMenu(roundToNext15(new Date()), null) : openWalkInGeneric}
         onNotificationsPress={() => router.push('/owner-notifications' as never)}
       />
@@ -671,7 +695,12 @@ export default function OwnerCalendarScreen() {
       {bookingForCustomer && (
         <View style={styles.bookingForBanner}>
           <Text style={styles.bookingForText} numberOfLines={1}>
-            Booking for <Text style={styles.bookingForName}>{bookingForCustomer.name}</Text> — tap any slot
+            <Trans
+              ns="calendar"
+              i18nKey="screen.bookingForBanner"
+              values={{ name: bookingForCustomer.name }}
+              components={{ bold: <Text style={styles.bookingForName} /> }}
+            />
           </Text>
           <Pressable onPress={() => setBookingForCustomer(null)} hitSlop={8}>
             <Text style={styles.bookingForClear}>✕</Text>
@@ -683,10 +712,10 @@ export default function OwnerCalendarScreen() {
         <Pressable onPress={() => shiftView(-1)}><Text style={styles.dateNav}>{navLabels.prev}</Text></Pressable>
         <Text style={styles.dateLabel}>
           {mode === 'month'
-            ? date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+            ? formatMonthYearLong(date)
             : mode === 'week'
-            ? `Week of ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-            : isToday ? 'Today' : zonedHeaderLabels(date, timeZone).dateLabel}
+            ? t('calendar:screen.weekOf', { date: formatMonthDay(date) })
+            : isToday ? t('calendar:screen.today') : zonedHeaderLabels(date, timeZone).dateLabel}
         </Text>
         <Pressable onPress={() => shiftView(1)}><Text style={styles.dateNav}>{navLabels.next}</Text></Pressable>
       </View>
@@ -753,11 +782,11 @@ export default function OwnerCalendarScreen() {
               explicit that a decorative no-op is worse than a missing
               button. The other three are all real, already-wired actions. */}
           <View style={styles.quickActionRow}>
-            <QuickActionCard icon="add-circle-outline" label="Quick Add" sub="New appointment"
+            <QuickActionCard icon="add-circle-outline" label={t('calendar:screen.quickAdd')} sub={t('calendar:screen.quickAddSub')}
               onPress={() => openSlotMenu(roundToNext15(new Date()), null)} />
-            <QuickActionCard icon="ban-outline" label="Block Time" sub="Block unavailable time"
+            <QuickActionCard icon="ban-outline" label={t('calendar:blockTime.title')} sub={t('calendar:screen.blockTimeSub')}
               onPress={() => openBlockTimeFor(roundToNext15(new Date()), null)} />
-            <QuickActionCard icon="person-add-outline" label="Walk-in" sub="Add walk-in client"
+            <QuickActionCard icon="person-add-outline" label={t('calendar:screen.walkIn')} sub={t('calendar:screen.walkInSub')}
               onPress={openWalkInGeneric} />
           </View>
         </View>
@@ -823,16 +852,16 @@ export default function OwnerCalendarScreen() {
       <Modal visible={slotMenuOpen} transparent animationType="fade" onRequestClose={() => setSlotMenuOpen(false)}>
         <Pressable style={styles.pickerBackdrop} onPress={() => setSlotMenuOpen(false)}>
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Add</Text>
-            <PickerRow label="New Appointment" active={false} onPress={() => {
+            <Text style={styles.pickerTitle}>{t('calendar:screen.add')}</Text>
+            <PickerRow label={t('calendar:screen.newAppointment')} active={false} onPress={() => {
               setSlotMenuOpen(false);
               if (slotMenu) openWalkInFor(slotMenu.startsAt, slotMenu.staffId, slotMenu.outsideHours);
             }} />
-            <PickerRow label="Walk-In" active={false} onPress={() => {
+            <PickerRow label={t('calendar:screen.walkIn')} active={false} onPress={() => {
               setSlotMenuOpen(false);
               if (slotMenu) openWalkInFor(slotMenu.startsAt, slotMenu.staffId, slotMenu.outsideHours);
             }} />
-            <PickerRow label="Block Time" active={false} onPress={() => {
+            <PickerRow label={t('calendar:screen.blockTimeMenuItem')} active={false} onPress={() => {
               setSlotMenuOpen(false);
               if (slotMenu) openBlockTimeFor(slotMenu.startsAt, slotMenu.staffId);
             }} />
@@ -851,13 +880,13 @@ export default function OwnerCalendarScreen() {
         <Pressable style={styles.pickerBackdrop} onPress={() => setBlockSheetOpen(false)}>
           <Pressable style={styles.blockEditorCard} onPress={(e) => e.stopPropagation()}>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.pickerTitle}>Block Time</Text>
-              <Text style={styles.blockSubtext}>Customers will simply see this time as unavailable.</Text>
+              <Text style={styles.pickerTitle}>{t('calendar:blockTime.title')}</Text>
+              <Text style={styles.blockSubtext}>{t('calendar:screen.customersWillSeeUnavailable')}</Text>
 
-              <Text style={styles.legendGroupLabel}>Date</Text>
+              <Text style={styles.legendGroupLabel}>{t('calendar:screen.dateLabel')}</Text>
               <Pressable style={styles.blockFieldRow} onPress={() => setBlockDatePickerOpen(true)}>
                 <Text style={styles.blockFieldValue}>
-                  {new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(blockDate)}
+                  {formatWeekdayMonthDayYearInTZ(blockDate, timeZone)}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={P.textSecondary} />
               </Pressable>
@@ -865,38 +894,38 @@ export default function OwnerCalendarScreen() {
               {blockBounds.kind === 'closed' && (
                 <View style={styles.blockUnavailableBanner}>
                   <Ionicons name="moon-outline" size={16} color={P.textSecondary} />
-                  <Text style={styles.blockUnavailableText}>Salon is closed on this date.</Text>
+                  <Text style={styles.blockUnavailableText}>{t('calendar:screen.salonClosedOnDate')}</Text>
                 </View>
               )}
               {blockBounds.kind === 'staffUnavailable' && (
                 <View style={styles.blockUnavailableBanner}>
                   <Ionicons name="alert-circle-outline" size={16} color={P.textSecondary} />
-                  <Text style={styles.blockUnavailableText}>{blockBounds.staffName} is not scheduled on this date.</Text>
+                  <Text style={styles.blockUnavailableText}>{t('calendar:screen.staffNotScheduled', { staffName: blockBounds.staffName })}</Text>
                 </View>
               )}
               {blockBounds.kind === 'open' && (
                 <>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.legendGroupLabel}>From</Text>
+                      <Text style={styles.legendGroupLabel}>{t('calendar:screen.from')}</Text>
                       <Pressable style={styles.blockFieldRow} onPress={() => setBlockTimeFieldOpen('from')}>
                         <Text style={styles.blockFieldValue}>
-                          {new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(blockFrom)}
+                          {formatTimeShortInTZ(blockFrom, timeZone)}
                         </Text>
                       </Pressable>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.legendGroupLabel}>To</Text>
+                      <Text style={styles.legendGroupLabel}>{t('calendar:screen.to')}</Text>
                       <Pressable style={styles.blockFieldRow} onPress={() => setBlockTimeFieldOpen('to')}>
                         <Text style={styles.blockFieldValue}>
-                          {new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(blockTo)}
+                          {formatTimeShortInTZ(blockTo, timeZone)}
                         </Text>
                       </Pressable>
                     </View>
                   </View>
 
                   <Text style={styles.legendGroupLabel}>
-                    Quick Duration · {Math.max(0, Math.round((blockTo.getTime() - blockFrom.getTime()) / 60000))}m
+                    {t('calendar:screen.quickDuration', { minutes: Math.max(0, Math.round((blockTo.getTime() - blockFrom.getTime()) / 60000)) })}
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                     {([15, 30, 45, 60, 90] as const).map(mins => {
@@ -916,7 +945,7 @@ export default function OwnerCalendarScreen() {
                       const isPreset = [15, 30, 45, 60, 90].includes(Math.round((blockTo.getTime() - blockFrom.getTime()) / 60000));
                       return (
                         <Pressable style={[styles.dayControlPill, !isPreset && styles.daySegmentChipActive]} onPress={() => setBlockTimeFieldOpen('to')}>
-                          <Text style={[styles.dayControlPillText, !isPreset && styles.daySegmentChipTextActive]}>Custom</Text>
+                          <Text style={[styles.dayControlPillText, !isPreset && styles.daySegmentChipTextActive]}>{t('calendar:screen.custom')}</Text>
                         </Pressable>
                       );
                     })()}
@@ -932,14 +961,14 @@ export default function OwnerCalendarScreen() {
                   business, not "nobody." A specific staff member blocks
                   only that person. Confirmed against the block route
                   before labeling this, not assumed. */}
-              <Text style={styles.legendGroupLabel}>Staff</Text>
+              <Text style={styles.legendGroupLabel}>{t('calendar:screen.staff')}</Text>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                 <Pressable style={[styles.dayControlPill, blockStaffId === 'any' && styles.daySegmentChipActive]} onPress={() => {
                   setBlockStaffId('any');
                   const { from, to } = clampBlockTimesToBounds(blockDate, 'any', blockFrom, blockTo);
                   setBlockFrom(from); setBlockTo(to);
                 }}>
-                  <Text style={[styles.dayControlPillText, blockStaffId === 'any' && styles.daySegmentChipTextActive]}>Entire Business</Text>
+                  <Text style={[styles.dayControlPillText, blockStaffId === 'any' && styles.daySegmentChipTextActive]}>{t('calendar:screen.entireBusiness')}</Text>
                 </Pressable>
                 {staff.map(s => (
                   <Pressable key={s.id} style={[styles.dayControlPill, blockStaffId === s.id && styles.daySegmentChipActive]} onPress={() => {
@@ -952,18 +981,25 @@ export default function OwnerCalendarScreen() {
                 ))}
               </View>
 
-              <Text style={styles.legendGroupLabel}>Reason (owner-only, never shown to customers)</Text>
+              {/* NOTE (L5B Section N, revisited L10 Section U): BLOCK_REASON_PRESETS
+                  canonical values are stored directly as bookings.internal_notes and
+                  round-trip-matched via BLOCK_REASON_PRESETS.includes(notes) above --
+                  the same DB-value-as-display-label risk as the owner-signup
+                  business-type selector (L3). The stored value stays the fixed English
+                  canonical string; only the displayed pill text is translated via
+                  reasonOptions. */}
+              <Text style={styles.legendGroupLabel}>{t('calendar:screen.reasonLabel')}</Text>
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                 {BLOCK_REASON_PRESETS.map(reason => (
                   <Pressable key={reason} style={[styles.dayControlPill, blockReason === reason && styles.daySegmentChipActive]} onPress={() => setBlockReason(reason)}>
-                    <Text style={[styles.dayControlPillText, blockReason === reason && styles.daySegmentChipTextActive]}>{reason}</Text>
+                    <Text style={[styles.dayControlPillText, blockReason === reason && styles.daySegmentChipTextActive]}>{REASON_LABELS[reason]}</Text>
                   </Pressable>
                 ))}
               </View>
               {blockReason === 'Other' && (
                 <TextInput
                   style={styles.blockNoteInput}
-                  placeholder="Optional note (owner-only)"
+                  placeholder={t('calendar:screen.optionalNotePlaceholder')}
                   placeholderTextColor={P.textDisabled}
                   value={blockNote}
                   onChangeText={setBlockNote}
@@ -977,19 +1013,19 @@ export default function OwnerCalendarScreen() {
                 disabled={blockSaving || blockDeleting || blockBounds.kind !== 'open'}
               >
                 <Text style={styles.blockSubmitText}>
-                  {blockSaving ? (blockEditingId ? 'Saving…' : 'Blocking…') : blockEditingId ? 'Save Changes' : 'Block Time'}
+                  {blockSaving ? (blockEditingId ? t('calendar:screen.saving') : t('calendar:screen.blocking')) : blockEditingId ? t('calendar:screen.saveChanges') : t('calendar:blockTime.title')}
                 </Text>
               </Pressable>
               {blockEditingId && (
                 <Pressable
                   style={styles.blockDeleteBtn}
                   disabled={blockSaving || blockDeleting}
-                  onPress={() => Alert.alert('Delete this block?', 'The time becomes available again immediately.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: deleteBlockTime },
+                  onPress={() => Alert.alert(t('calendar:screen.deleteBlockConfirmTitle'), t('calendar:screen.deleteBlockConfirmMessage'), [
+                    { text: t('calendar:screen.cancel'), style: 'cancel' },
+                    { text: t('calendar:screen.delete'), style: 'destructive', onPress: deleteBlockTime },
                   ])}
                 >
-                  <Text style={styles.blockDeleteText}>{blockDeleting ? 'Deleting…' : 'Delete Block'}</Text>
+                  <Text style={styles.blockDeleteText}>{blockDeleting ? t('calendar:screen.deleting') : t('calendar:screen.deleteBlock')}</Text>
                 </Pressable>
               )}
             </ScrollView>
@@ -1003,7 +1039,7 @@ export default function OwnerCalendarScreen() {
       <Modal visible={blockDatePickerOpen} transparent animationType="fade" onRequestClose={() => setBlockDatePickerOpen(false)}>
         <Pressable style={styles.pickerBackdrop} onPress={() => setBlockDatePickerOpen(false)}>
           <Pressable style={styles.pickerCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.pickerTitle}>Block Time Date</Text>
+            <Text style={styles.pickerTitle}>{t('calendar:screen.blockTimeDateTitle')}</Text>
             <CalendarDatePicker
               value={`${blockDate.getFullYear()}-${String(blockDate.getMonth() + 1).padStart(2, '0')}-${String(blockDate.getDate()).padStart(2, '0')}`}
               onChange={(d) => {
@@ -1026,18 +1062,18 @@ export default function OwnerCalendarScreen() {
       <Modal visible={blockTimeFieldOpen !== null} transparent animationType="fade" onRequestClose={() => setBlockTimeFieldOpen(null)}>
         <Pressable style={styles.pickerBackdrop} onPress={() => setBlockTimeFieldOpen(null)}>
           <Pressable style={styles.pickerCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.pickerTitle}>{blockTimeFieldOpen === 'from' ? 'Start Time' : 'End Time'}</Text>
+            <Text style={styles.pickerTitle}>{blockTimeFieldOpen === 'from' ? t('calendar:screen.startTime') : t('calendar:screen.endTime')}</Text>
             <ScrollView style={{ maxHeight: 320 }}>
               {(blockBounds.kind === 'open' ? (
                 blockTimeFieldOpen === 'from'
                   ? timeOptionsInRange(blockDate, blockBounds.startMin, blockBounds.endMin - 15)
                   : timeOptionsInRange(blockDate, minutesOfDay(blockFrom) + 15, blockBounds.endMin)
-              ) : []).map((t) => {
-                const active = blockTimeFieldOpen === 'from' ? t.getTime() === blockFrom.getTime() : t.getTime() === blockTo.getTime();
+              ) : []).map((timeOpt) => {
+                const active = blockTimeFieldOpen === 'from' ? timeOpt.getTime() === blockFrom.getTime() : timeOpt.getTime() === blockTo.getTime();
                 return (
                   <PickerRow
-                    key={t.getTime()}
-                    label={new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(t)}
+                    key={timeOpt.getTime()}
+                    label={formatTimeShortInTZ(timeOpt, timeZone)}
                     active={active}
                     onPress={() => {
                       if (blockTimeFieldOpen === 'from') {
@@ -1045,14 +1081,14 @@ export default function OwnerCalendarScreen() {
                         // reasonable (Part 4's own wording), never less than
                         // 15 minutes.
                         const duration = Math.max(15 * 60000, blockTo.getTime() - blockFrom.getTime());
-                        setBlockFrom(t);
-                        setBlockTo(new Date(t.getTime() + duration));
+                        setBlockFrom(timeOpt);
+                        setBlockTo(new Date(timeOpt.getTime() + duration));
                       } else {
-                        if (t.getTime() <= blockFrom.getTime()) {
-                          Alert.alert('Invalid time range', 'End time must be after start time.');
+                        if (timeOpt.getTime() <= blockFrom.getTime()) {
+                          Alert.alert(t('calendar:screen.invalidTimeRangeTitle'), t('calendar:screen.invalidTimeRangeMessage'));
                           return;
                         }
-                        setBlockTo(t);
+                        setBlockTo(timeOpt);
                       }
                       setBlockTimeFieldOpen(null);
                     }}
@@ -1073,8 +1109,8 @@ export default function OwnerCalendarScreen() {
       <Modal visible={staffPickerOpen} transparent animationType="fade" onRequestClose={() => setStaffPickerOpen(false)}>
         <Pressable style={styles.pickerBackdrop} onPress={() => setStaffPickerOpen(false)}>
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Staff</Text>
-            <PickerRow label="All Staff" active={selectedStaffId === 'all'} onPress={() => { setSelectedStaffId('all'); setStaffPickerOpen(false); }} />
+            <Text style={styles.pickerTitle}>{t('calendar:screen.staffPickerTitle')}</Text>
+            <PickerRow label={t('calendar:screen.allStaff')} active={selectedStaffId === 'all'} onPress={() => { setSelectedStaffId('all'); setStaffPickerOpen(false); }} />
             {staff.map(s => (
               <PickerRow key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => { setSelectedStaffId(s.id); setStaffPickerOpen(false); }} />
             ))}
@@ -1085,10 +1121,10 @@ export default function OwnerCalendarScreen() {
       <Modal visible={intervalPickerOpen} transparent animationType="fade" onRequestClose={() => setIntervalPickerOpen(false)}>
         <Pressable style={styles.pickerBackdrop} onPress={() => setIntervalPickerOpen(false)}>
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Grid Interval</Text>
+            <Text style={styles.pickerTitle}>{t('calendar:screen.gridIntervalTitle')}</Text>
             {([15, 30, 60] as const).map(mins => (
               <PickerRow
-                key={mins} label={mins === 60 ? '1 hour' : `${mins} minutes`} active={gridInterval === mins}
+                key={mins} label={mins === 60 ? t('calendar:screen.oneHour') : t('calendar:screen.minutes', { count: mins })} active={gridInterval === mins}
                 onPress={() => { handleSetGridInterval(mins); setIntervalPickerOpen(false); }}
               />
             ))}
@@ -1102,25 +1138,25 @@ export default function OwnerCalendarScreen() {
       <Modal visible={filterSheetOpen} transparent animationType="fade" onRequestClose={() => setFilterSheetOpen(false)}>
         <Pressable style={styles.pickerBackdrop} onPress={() => setFilterSheetOpen(false)}>
           <Pressable style={styles.legendCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.pickerTitle}>Legend</Text>
+            <Text style={styles.pickerTitle}>{t('calendar:screen.legendTitle')}</Text>
 
-            <Text style={styles.legendGroupLabel}>Booking Source</Text>
-            <LegendDot color={P.sourceSanaa} label="SANAA Voice AI" />
-            <LegendDot color={P.sourceOnline} label="Online Booking" />
-            <LegendDot color={P.sourceWalkIn} label="Walk-In" />
-            <LegendDot color={P.sourceManual} label="Manual" />
-            <LegendDot color={P.sourceBlock} label="Blocked Time" />
+            <Text style={styles.legendGroupLabel}>{t('calendar:screen.bookingSourceGroup')}</Text>
+            <LegendDot color={P.sourceSanaa} label={t('calendar:screen.sanaaVoiceAi')} />
+            <LegendDot color={P.sourceOnline} label={t('calendar:screen.onlineBooking')} />
+            <LegendDot color={P.sourceWalkIn} label={t('calendar:screen.walkInLegend')} />
+            <LegendDot color={P.sourceManual} label={t('calendar:screen.manual')} />
+            <LegendDot color={P.sourceBlock} label={t('calendar:screen.blockedTime')} />
 
-            <Text style={styles.legendGroupLabel}>Payment</Text>
-            <LegendDot color={P.success} label="Paid" />
-            <LegendDot color={P.warning} label="Unpaid" />
-            <LegendDot color={P.accentGold} label="Deposit" />
+            <Text style={styles.legendGroupLabel}>{t('calendar:screen.paymentGroup')}</Text>
+            <LegendDot color={P.success} label={t('calendar:screen.paid')} />
+            <LegendDot color={P.warning} label={t('calendar:screen.unpaid')} />
+            <LegendDot color={P.accentGold} label={t('calendar:screen.deposit')} />
 
-            <Text style={styles.legendGroupLabel}>Status</Text>
-            <LegendDot color={P.error} label="Cancelled / No-Show" />
-            <LegendDot color={P.success} label="Completed" />
+            <Text style={styles.legendGroupLabel}>{t('calendar:screen.statusGroup')}</Text>
+            <LegendDot color={P.error} label={t('calendar:screen.cancelledNoShow')} />
+            <LegendDot color={P.success} label={t('calendar:screen.completed')} />
 
-            <Text style={styles.legendFooter}>🌐 All times shown in {timeZone}</Text>
+            <Text style={styles.legendFooter}>{t('calendar:screen.allTimesShownIn', { timeZone })}</Text>
           </Pressable>
         </Pressable>
       </Modal>

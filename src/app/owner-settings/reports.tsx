@@ -3,19 +3,15 @@ import { Stack } from 'expo-router';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
 import { getOwnerReport, OwnerReport, ReportRange } from '@/lib/api/ownerReports';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatCentsUSDWhole } from '@/lib/i18n/format';
 
-const RANGES: { key: ReportRange; label: string }[] = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-];
-
-function money(cents: number) { return `$${(cents / 100).toFixed(0)}`; }
+function money(cents: number) { return formatCentsUSDWhole(cents); }
 
 function CardOverlay() {
   return (
@@ -26,14 +22,6 @@ function CardOverlay() {
   );
 }
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#0B0712' },
-  headerTintColor: '#F4D77A',
-  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-  title: 'Reports',
-  headerBackTitle: 'More',
-};
-
 // v1 real-data Reports -- revenue, appointments, and staff/service
 // breakdowns computed from completed bookings already in the database.
 // Moved out of the owner tab bar into More on 2026-08-17 to free up the
@@ -41,6 +29,19 @@ const HEADER_OPTIONS = {
 // reached one tap further in, native Stack header like other More entries
 // (owner-settings/business.tsx etc.) instead of the tab-bar OwnerScreenHeader.
 export default function OwnerReportsScreen() {
+  const { t } = useTranslation(['owner']);
+  const HEADER_OPTIONS = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: t('owner:reportsScreen.headerTitle'),
+    headerBackTitle: t('owner:reportsScreen.headerBackTitle'),
+  };
+  const RANGES: { key: ReportRange; label: string }[] = [
+    { key: 'today', label: t('owner:reportsScreen.rangeToday') },
+    { key: 'week', label: t('owner:reportsScreen.rangeWeek') },
+    { key: 'month', label: t('owner:reportsScreen.rangeMonth') },
+  ];
   const [range, setRange] = useState<ReportRange>('week');
   const [report, setReport] = useState<OwnerReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,7 @@ export default function OwnerReportsScreen() {
         if (result.ok) setReport(result.data);
         else setError(result.error);
       })
-      .catch(() => setError('Unable to load reports. Please check your connection and try again.'))
+      .catch(() => setError(t('owner:reportsScreen.unableToLoad')))
       .finally(() => setLoading(false));
   }, [range]);
 
@@ -86,23 +87,23 @@ export default function OwnerReportsScreen() {
       ) : !report ? null : (
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.snapshotGrid}>
-            <SnapshotCard label="Revenue" value={money(report.revenue_cents)} />
-            <SnapshotCard label="Appointments" value={String(report.appointments)} />
-            <SnapshotCard label="Clients" value={String(report.clients)} />
+            <SnapshotCard label={t('owner:reportsScreen.revenue')} value={money(report.revenue_cents)} />
+            <SnapshotCard label={t('owner:reportsScreen.appointments')} value={String(report.appointments)} />
+            <SnapshotCard label={t('owner:reportsScreen.clients')} value={String(report.clients)} />
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Top Services</Text>
+            <Text style={styles.sectionTitle}>{t('owner:reportsScreen.topServices')}</Text>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               {report.top_services.length === 0 ? (
-                <Text style={styles.emptyRowText}>No completed appointments in this range yet.</Text>
+                <Text style={styles.emptyRowText}>{t('owner:reportsScreen.noCompletedAppointments')}</Text>
               ) : (
                 report.top_services.map((s, i) => (
                   <View key={s.name} style={[styles.row, i > 0 && styles.rowBorder]}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{s.name}</Text>
-                      <Text style={styles.rowMeta}>{s.count} appointment{s.count === 1 ? '' : 's'}</Text>
+                      <Text style={styles.rowMeta}>{t('owner:reportsScreen.appointmentCount', { count: s.count })}</Text>
                     </View>
                     <Text style={styles.rowValue}>{money(s.revenue_cents)}</Text>
                   </View>
@@ -112,17 +113,17 @@ export default function OwnerReportsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>By Staff</Text>
+            <Text style={styles.sectionTitle}>{t('owner:reportsScreen.byStaff')}</Text>
             <BlurView intensity={90} tint="dark" style={styles.card}>
               <CardOverlay />
               {report.by_staff.length === 0 ? (
-                <Text style={styles.emptyRowText}>No completed appointments in this range yet.</Text>
+                <Text style={styles.emptyRowText}>{t('owner:reportsScreen.noCompletedAppointments')}</Text>
               ) : (
                 report.by_staff.map((s, i) => (
                   <View key={s.name} style={[styles.row, i > 0 && styles.rowBorder]}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{s.name}</Text>
-                      <Text style={styles.rowMeta}>{s.count} appointment{s.count === 1 ? '' : 's'}</Text>
+                      <Text style={styles.rowMeta}>{t('owner:reportsScreen.appointmentCount', { count: s.count })}</Text>
                     </View>
                     <Text style={styles.rowValue}>{money(s.revenue_cents)}</Text>
                   </View>

@@ -1,0 +1,48 @@
+{
+  "timeAgo": {
+    "justNow": "justo ahora",
+    "minutesAgo": "hace {{count}}m",
+    "hoursAgo": "hace {{count}}h",
+    "daysAgo": "hace {{count}}d"
+  },
+  "screen": {
+    "title": "Notificaciones",
+    "noNotificationsYet": "Aún no hay notificaciones",
+    "today": "Hoy",
+    "earlier": "Anteriores"
+  },
+  "heroCards": {
+    "bookingConfirmedTitle": "¡Ya Reservaste! 🎉",
+    "bookingConfirmedSubtitle": "¡Todo listo! Tu cita está confirmada para",
+    "rescheduledTitle": "Planes Actualizados ✨",
+    "rescheduledSubtitle": "Tu cita ha sido reprogramada para",
+    "reminder2hTitle": "Tu Cita Se Acerca ✨",
+    "reminder24hTitle": "Nos Vemos Mañana 💜",
+    "receiptTitle": "Pago Completado ✅",
+    "rebookNudgeTitle": "¿Hora de Reservar de Nuevo? 💕",
+    "rebookButtonLabel": "Reservar de Nuevo",
+    "appUpdateTitle": "Actualización Disponible ✨",
+    "appUpdateButtonLabel": "Actualizar Ahora",
+    "checkinReadyTitle": "¿Ya Llegaste? 📍",
+    "reviewNudgeTitle": "¿Cómo Estuvo Tu Visita? ⭐",
+    "balanceDueTitle": "¡Casi Reservado! 🎉",
+    "balanceDueSubtitle": "Completa tu pago para confirmar tu cita el",
+    "payNowButtonLabel": "Pagar Ahora",
+    "cancelledBody": "Tu cita ha sido cancelada.",
+    "rescheduledFromTo": "Tu cita {{fromDateTime}} ha sido reprogramada para"
+  },
+  "checkin": {
+    "here": "Aquí",
+    "almost": "Casi Llego",
+    "runningLate": "Voy Tarde",
+    "cancel": "Cancelar",
+    "checkedIn": "Ya registraste tu llegada",
+    "notifiedAlmost": "Salón notificado — casi llegas",
+    "notifiedRunningLate": "Salón notificado — vas tarde",
+    "cancelTitle": "¿Cancelar esta cita?",
+    "cancelMessage": "Esto le hará saber al salón que no vas a asistir.",
+    "keepAppointment": "Mantener cita",
+    "cancelAppointment": "Cancelar cita",
+    "cancelledStatus": "Cancelada"
+  }
+}

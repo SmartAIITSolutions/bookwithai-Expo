@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 interface Props {
@@ -8,19 +9,20 @@ interface Props {
 }
 
 export function ErrorState({ message, onRetry }: Props) {
+  const { t } = useTranslation(['errors', 'common']);
   return (
     <View style={styles.container}>
       <View style={styles.iconCircle}>
         <Ionicons name="cloud-offline-outline" size={36} color={Colors.error} />
       </View>
-      <Text style={styles.title}>Something went wrong</Text>
+      <Text style={styles.title}>{t('errors:genericTitle')}</Text>
       <Text style={styles.message}>
-        {message || 'Unable to load data. Please check your connection and try again.'}
+        {message || t('errors:loadFailed')}
       </Text>
       {onRetry && (
         <Pressable style={styles.retryBtn} onPress={onRetry}>
           <Ionicons name="refresh-outline" size={16} color={Colors.white} />
-          <Text style={styles.retryText}>Try Again</Text>
+          <Text style={styles.retryText}>{t('common:retry')}</Text>
         </Pressable>
       )}
     </View>

@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Polyline, Circle, Line } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 
@@ -13,10 +14,11 @@ interface SpendingSparklineProps {
 // Phase 0.5 Spending Timeline: "a simple graph, not accounting software" —
 // deliberately just a trend line, no axes/legends/tooltips.
 export function SpendingSparkline({ points, width = 300, height = 80 }: SpendingSparklineProps) {
+  const { t } = useTranslation(['owner']);
   if (points.length < 2) {
     return (
       <View style={[styles.empty, { width, height }]}>
-        <Text style={styles.emptyText}>Not enough visits yet to show a trend</Text>
+        <Text style={styles.emptyText}>{t('owner:spendingSparkline.notEnoughData')}</Text>
       </View>
     );
   }

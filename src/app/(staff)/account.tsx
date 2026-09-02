@@ -2,17 +2,27 @@ import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { LanguagePickerRow } from '@/components/LanguagePickerRow';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 
 export default function StaffAccountScreen() {
+  const { t } = useTranslation(['staff']);
   const { user, signOut } = useAuth();
 
+  const LEGAL_LINKS = [
+    { label: t('staff:account.privacyPolicy'), route: '/legal/privacy' },
+    { label: t('staff:account.termsOfService'), route: '/legal/terms' },
+    { label: t('staff:account.support'), route: '/legal/support' },
+    { label: t('staff:account.deleteMyAccount'), route: '/legal/delete-account' },
+  ];
+
   function handleSignOut() {
-    Alert.alert('Sign out?', "You'll need to sign in again.", [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('staff:account.signOutTitle'), t('staff:account.signOutMessage'), [
+      { text: t('staff:account.cancel'), style: 'cancel' },
       {
-        text: 'Sign Out', style: 'destructive',
+        text: t('staff:account.signOut'), style: 'destructive',
         onPress: async () => { await signOut(); router.replace('/auth'); },
       },
     ]);
@@ -21,7 +31,7 @@ export default function StaffAccountScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Account</Text>
+        <Text style={styles.title}>{t('staff:account.title')}</Text>
       </View>
 
       <View style={styles.profileHeader}>
@@ -34,13 +44,13 @@ export default function StaffAccountScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Legal</Text>
-        {[
-          { label: 'Privacy Policy', route: '/legal/privacy' },
-          { label: 'Terms of Service', route: '/legal/terms' },
-          { label: 'Support', route: '/legal/support' },
-          { label: 'Delete My Account', route: '/legal/delete-account' },
-        ].map(({ label, route }) => (
+        <Text style={styles.sectionTitle}>{t('staff:account.language')}</Text>
+        <LanguagePickerRow />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('staff:account.legal')}</Text>
+        {LEGAL_LINKS.map(({ label, route }) => (
           <Pressable
             key={route}
             style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
@@ -54,7 +64,7 @@ export default function StaffAccountScreen() {
 
       <Pressable style={({ pressed }) => [styles.signOutBtn, pressed && { opacity: 0.85 }]} onPress={handleSignOut}>
         <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-        <Text style={styles.signOutBtnText}>Sign Out</Text>
+        <Text style={styles.signOutBtnText}>{t('staff:account.signOut')}</Text>
       </Pressable>
     </SafeAreaView>
   );

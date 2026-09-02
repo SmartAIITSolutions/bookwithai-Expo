@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { SanaaDemoScenario } from '@/lib/sanaa/discoveryContent';
 import { SanaaBookingDemoSimulation } from './SanaaBookingDemoSimulation';
@@ -17,6 +18,7 @@ interface SanaaDemoPlayerProps {
 // always renders the honest "unavailable" fallback for them (§36) rather
 // than a broken/dead player.
 export function SanaaDemoPlayer({ scenario }: SanaaDemoPlayerProps) {
+  const { t } = useTranslation(['sanaa']);
   const [retryCount, setRetryCount] = useState(0);
 
   if (scenario.kind === 'simulation') {
@@ -28,8 +30,8 @@ export function SanaaDemoPlayer({ scenario }: SanaaDemoPlayerProps) {
   return (
     <View style={styles.unavailable}>
       <Ionicons name="videocam-off-outline" size={26} color="rgba(255,200,87,0.6)" />
-      <Text style={styles.unavailableTitle}>Demo unavailable right now</Text>
-      <Text style={styles.unavailableBody}>This scenario's demo is coming soon.</Text>
+      <Text style={styles.unavailableTitle}>{t('sanaa:demoPlayer.unavailableTitle')}</Text>
+      <Text style={styles.unavailableBody}>{t('sanaa:demoPlayer.unavailableBody')}</Text>
       <Pressable
         style={styles.retryButton}
         onPress={() => {
@@ -38,7 +40,7 @@ export function SanaaDemoPlayer({ scenario }: SanaaDemoPlayerProps) {
         }}
       >
         <Ionicons name="refresh" size={14} color="rgba(255,255,255,0.7)" />
-        <Text style={styles.retryButtonText}>Retry</Text>
+        <Text style={styles.retryButtonText}>{t('sanaa:demoPlayer.retry')}</Text>
       </Pressable>
     </View>
   );

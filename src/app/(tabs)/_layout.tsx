@@ -3,6 +3,7 @@ import { TabIcon, TAB_ICON_COLORS } from '@/components/TabIcon';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import {
   Bookmark,
   Compass,
@@ -24,6 +25,7 @@ const COLORS = {
 };
 
 export default function TabsLayout() {
+  const { t } = useTranslation(['common']);
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -78,7 +80,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="book"
           options={{
-            title: 'Discover',
+            title: t('common:tabs.discover'),
             tabBarIcon: ({ color, size, focused }) => (
               <TabIcon
                 Icon={Compass}
@@ -93,7 +95,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="my-salons"
           options={{
-            title: 'My Salons',
+            title: t('common:tabs.mySalons'),
             tabBarIcon: ({ color, size, focused }) => (
               <TabIcon
                 Icon={Heart}
@@ -108,7 +110,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="my-booking"
           options={{
-            title: 'My Booking',
+            title: t('common:tabs.myBooking'),
             tabBarIcon: ({ color, size, focused }) => (
               <TabIcon
                 Icon={Bookmark}
@@ -123,7 +125,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="account"
           options={{
-            title: 'Account',
+            title: t('common:tabs.account'),
             tabBarIcon: ({ color, size, focused }) => (
               <TabIcon
                 Icon={UserRound}

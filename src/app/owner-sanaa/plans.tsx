@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
+import { useTranslation } from 'react-i18next';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { ErrorState } from '@/components/ErrorState';
@@ -12,6 +13,7 @@ import {
   SanaaOfferResponse, SanaaVoicePlan, SanaaFoundingOffer,
 } from '@/lib/api/ownerSanaaOffer';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { formatCentsUSD, formatCentsUSDWhole, formatMonthDayYear } from '@/lib/i18n/format';
 
 function CardOverlay() {
   return (
@@ -22,24 +24,24 @@ function CardOverlay() {
   );
 }
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#0B0712' },
-  headerTintColor: '#F4D77A',
-  headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
-  title: 'SANAA Plans',
-  headerBackTitle: 'SANAA',
-};
-
 const RETURN_URL = 'https://bookwithai.app';
 
 function formatDollars(cents: number): string {
-  return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+  return cents % 100 === 0 ? formatCentsUSDWhole(cents) : formatCentsUSD(cents);
 }
 
 // SANAA commercial-to-setup bridge — the real owner-facing Plans/Offer
 // screen. Every price, eligibility decision, and Founding term shown here
 // comes from GET /api/owner/sanaa/offer -- nothing is hardcoded client-side.
 export default function SanaaPlansScreen() {
+  const { t } = useTranslation(['sanaa']);
+  const HEADER_OPTIONS = {
+    headerStyle: { backgroundColor: '#0B0712' },
+    headerTintColor: '#F4D77A',
+    headerTitleStyle: { fontFamily: FontFamily.frauncesBold, color: '#FFFFFF' },
+    title: t('sanaa:plansScreen.headerTitle'),
+    headerBackTitle: t('sanaa:plansScreen.headerBackTitle'),
+  };
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [offer, setOffer] = useState<SanaaOfferResponse | null>(null);
@@ -74,7 +76,7 @@ export default function SanaaPlansScreen() {
     });
     setPurchasing(false);
     if (!result.ok) {
-      Alert.alert('Could not start checkout', result.error);
+      Alert.alert(t('sanaa:plansScreen.couldNotStartCheckoutTitle'), result.error);
       return;
     }
 
@@ -100,11 +102,11 @@ export default function SanaaPlansScreen() {
     await load();
 
     if (confirmed) {
-      Alert.alert('You’re in!', 'Your SANAA purchase is confirmed. Head to Setup to activate your AI receptionist.');
+      Alert.alert(t('sanaa:plansScreen.youreInTitle'), t('sanaa:plansScreen.youreInMessage'));
     } else {
       Alert.alert(
-        'Still confirming',
-        'We’re still confirming your payment with Stripe. Check back here shortly — this can take a minute.',
+        t('sanaa:plansScreen.stillConfirmingTitle'),
+        t('sanaa:plansScreen.stillConfirmingMessage'),
       );
     }
   }
@@ -138,7 +140,7 @@ export default function SanaaPlansScreen() {
               <CardOverlay />
               <View style={styles.confirmingRow}>
                 <BreathingHeart size={20} color="#F4D77A" />
-                <Text style={styles.confirmingText}>Confirming SANAA purchase…</Text>
+                <Text style={styles.confirmingText}>{t('sanaa:plansScreen.confirmingPurchase')}</Text>
               </View>
             </BlurView>
           </View>
@@ -160,7 +162,7 @@ export default function SanaaPlansScreen() {
             )}
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Standard Plans</Text>
+              <Text style={styles.sectionTitle}>{t('sanaa:plansScreen.standardPlans')}</Text>
               {offer.plans.map(plan => (
                 <PlanCard
                   key={plan.id}
@@ -178,17 +180,18 @@ export default function SanaaPlansScreen() {
 }
 
 function CurrentStateCard({ current }: { current: NonNullable<SanaaOfferResponse['current']> }) {
+  const { t } = useTranslation(['sanaa']);
   const label: Record<string, string> = {
-    experience: 'Your $5 SANAA Experience is active',
-    active: 'Your SANAA subscription is active',
-    past_due: 'Payment issue — grace period active',
-    suspended: 'SANAA is suspended — payment needed',
-    cancel_scheduled: 'Your subscription is ending at the end of this billing period',
-    cancelled: 'Your SANAA subscription has ended',
-    conversion_failed: 'Your Experience ended and payment failed — a new payment method is needed',
-    conversion_action_required: 'Payment confirmation needed to continue SANAA',
-    converting: 'Finishing up your SANAA setup…',
-    incomplete: 'Checkout not completed yet',
+    experience: t('sanaa:plansScreen.statusExperience'),
+    active: t('sanaa:plansScreen.statusActive'),
+    past_due: t('sanaa:plansScreen.statusPastDue'),
+    suspended: t('sanaa:plansScreen.statusSuspended'),
+    cancel_scheduled: t('sanaa:plansScreen.statusCancelScheduled'),
+    cancelled: t('sanaa:plansScreen.statusCancelled'),
+    conversion_failed: t('sanaa:plansScreen.statusConversionFailed'),
+    conversion_action_required: t('sanaa:plansScreen.statusConversionActionRequired'),
+    converting: t('sanaa:plansScreen.statusConverting'),
+    incomplete: t('sanaa:plansScreen.statusIncomplete'),
   };
   return (
     <View style={styles.section}>
@@ -197,7 +200,7 @@ function CurrentStateCard({ current }: { current: NonNullable<SanaaOfferResponse
         <Text style={styles.currentStatusText}>{label[current.status] ?? current.status}</Text>
         {current.experience_expires_at && current.status === 'experience' && (
           <Text style={styles.hint}>
-            Experience ends {new Date(current.experience_expires_at).toLocaleDateString()} or after 30 calling minutes, whichever comes first.
+            {t('sanaa:plansScreen.experienceEndsHint', { date: formatMonthDayYear(new Date(current.experience_expires_at)) })}
           </Text>
         )}
       </BlurView>
@@ -215,6 +218,7 @@ function FoundingSection({
   onStart: () => void;
   purchasing: boolean;
 }) {
+  const { t } = useTranslation(['sanaa']);
   const priceFor = (planId: string) => founding.plan_prices.find(p => p.voice_plan_id === planId)?.monthly_price_override_cents;
 
   return (
@@ -222,10 +226,9 @@ function FoundingSection({
       <Text style={styles.sectionTitle}>{founding.name}</Text>
       <BlurView intensity={90} tint="dark" style={styles.card}>
         <CardOverlay />
-        <Text style={styles.foundingHeadline}>Try SANAA for {formatDollars(founding.experience_price_cents)}</Text>
+        <Text style={styles.foundingHeadline}>{t('sanaa:plansScreen.tryFor', { price: formatDollars(founding.experience_price_cents) })}</Text>
         <Text style={styles.hint}>
-          {founding.experience_minutes_cap} calling minutes or {founding.experience_days_cap} days, whichever comes first.
-          Cancel anytime during your Experience — no further charge.
+          {t('sanaa:plansScreen.experienceCapsHint', { minutes: founding.experience_minutes_cap, days: founding.experience_days_cap })}
         </Text>
 
         <View style={styles.tierRow}>
@@ -241,10 +244,10 @@ function FoundingSection({
               >
                 <Text style={[styles.tierChipText, active && styles.tierChipTextActive]}>{plan.name}</Text>
                 <Text style={[styles.tierChipPrice, active && styles.tierChipTextActive]}>
-                  {formatDollars(foundingPrice)}/mo
+                  {formatDollars(foundingPrice)}{t('sanaa:plansScreen.perMonth')}
                 </Text>
                 <Text style={[styles.tierChipStandard, active && styles.tierChipTextActive]}>
-                  vs {formatDollars(plan.monthly_price_cents)} standard
+                  {t('sanaa:plansScreen.vsStandard', { price: formatDollars(plan.monthly_price_cents) })}
                 </Text>
               </TouchableOpacity>
             );
@@ -253,8 +256,11 @@ function FoundingSection({
 
         <View style={styles.activationRow}>
           <Text style={styles.hint}>
-            Activation: {formatDollars(founding.activation_fee_cents)} Founding rate (vs standard {plans[0] ? formatDollars(plans[0].activation_fee_cents) : '$99'}) —
-            waived after {founding.activation_fee_waiver_cycles} successful monthly payments.
+            {t('sanaa:plansScreen.activationLine', {
+              foundingFee: formatDollars(founding.activation_fee_cents),
+              standardFee: plans[0] ? formatDollars(plans[0].activation_fee_cents) : formatCentsUSDWhole(9900),
+              cycles: founding.activation_fee_waiver_cycles,
+            })}
           </Text>
         </View>
 
@@ -263,7 +269,7 @@ function FoundingSection({
           onPress={onStart}
           disabled={purchasing || !selectedPlanId}
         >
-          <Text style={styles.startButtonText}>{purchasing ? 'Starting…' : `Start My ${formatDollars(founding.experience_price_cents)} Experience`}</Text>
+          <Text style={styles.startButtonText}>{purchasing ? t('sanaa:plansScreen.starting') : t('sanaa:plansScreen.startMyExperience', { price: formatDollars(founding.experience_price_cents) })}</Text>
         </TouchableOpacity>
       </BlurView>
     </View>
@@ -271,16 +277,17 @@ function FoundingSection({
 }
 
 function PlanCard({ plan, onSubscribe, disabled }: { plan: SanaaVoicePlan; onSubscribe: () => void; disabled: boolean }) {
+  const { t } = useTranslation(['sanaa']);
   return (
     <BlurView intensity={90} tint="dark" style={[styles.card, styles.planCard]}>
       <CardOverlay />
       <View style={{ flex: 1 }}>
         <Text style={styles.planName}>{plan.name}</Text>
-        <Text style={styles.planDetail}>{formatDollars(plan.monthly_price_cents)}/mo — {plan.included_minutes} minutes included</Text>
-        <Text style={styles.hint}>{formatDollars(plan.overage_rate_cents_per_min)}/min overage · {formatDollars(plan.activation_fee_cents)} activation</Text>
+        <Text style={styles.planDetail}>{t('sanaa:plansScreen.planDetail', { price: formatDollars(plan.monthly_price_cents), minutes: plan.included_minutes })}</Text>
+        <Text style={styles.hint}>{t('sanaa:plansScreen.overageActivationHint', { overageRate: formatDollars(plan.overage_rate_cents_per_min), activationFee: formatDollars(plan.activation_fee_cents) })}</Text>
       </View>
       <TouchableOpacity style={styles.subscribeButton} onPress={onSubscribe} disabled={disabled}>
-        <Text style={styles.subscribeButtonText}>Subscribe</Text>
+        <Text style={styles.subscribeButtonText}>{t('sanaa:plansScreen.subscribe')}</Text>
       </TouchableOpacity>
     </BlurView>
   );
