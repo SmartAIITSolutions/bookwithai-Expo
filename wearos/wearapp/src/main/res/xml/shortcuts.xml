@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  P4 — Google Assistant App Actions capabilities for the five V1 Ask SANAA
+  commands. This is the CURRENTLY reliable, broadly-deployed, store-
+  compliant Wear OS hands-free invocation mechanism (Assistant + Built-In
+  Intents, invoked with "Hey Google, ask Book With AI ..." — the app name
+  is a hard Assistant disambiguation requirement, not a stylistic choice).
+
+  A newer platform mechanism (AppFunctions, letting Gemini call app-defined
+  functions directly) was evaluated and deliberately NOT used here: as of
+  this implementation, Android's AppFunctions-for-Gemini integration is in
+  limited private preview, and Gemini Intelligence on Wear OS (Wear OS 7)
+  is rolling out only to "select watches" — not yet available on the
+  reference devices this phase targets (Galaxy Watch, current Pixel Watch
+  models, which run Wear OS 3-6 today). App Actions is not obsolete for
+  those real, currently-shipping devices; it is the correct choice until
+  Gemini/AppFunctions reaches general availability on Wear OS. Revisit this
+  file when that changes — see the P4 report for the evidence trail.
+
+  Uses actions.intent.OPEN_APP_FEATURE (a stable, long-documented Built-In
+  Intent for "voice-invoke a specific named feature of an app") for all five
+  commands. Each fulfillment deep-links into this app's own MainActivity
+  (see the bwawear://ask/{kind} intent-filter in AndroidManifest.xml), which
+  computes and speaks/displays the answer entirely from already-synced Book
+  With AI data (or, for "next opening" only, a short on-demand round-trip to
+  the paired phone) — no Telnyx, no LLM, no paid service of any kind.
+
+  IMPORTANT: this file's exact element/attribute set should be re-verified
+  against Google's current App Actions Test Tool at the dedicated manual
+  testing phase — shortcuts.xml's schema is not something a static review
+  can fully guarantee without that tool, and this was written without
+  access to it.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <capability android:name="actions.intent.OPEN_APP_FEATURE">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="app.bookwithai.app"
+        android:targetClass="app.bookwithai.app.wear.MainActivity">
+      <parameter android:name="feature" android:key="feature.name" />
+      <url-template android:value="bwawear://ask/next" />
+    </intent>
+    <parameter-mapping
+        android:name="feature"
+        android:key="feature.name">
+      <synonym android:name="who's next" />
+      <synonym android:name="who is next" />
+      <synonym android:name="my next appointment" />
+    </parameter-mapping>
+  </capability>
+
+  <capability android:name="actions.intent.OPEN_APP_FEATURE">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="app.bookwithai.app"
+        android:targetClass="app.bookwithai.app.wear.MainActivity">
+      <parameter android:name="feature" android:key="feature.name" />
+      <url-template android:value="bwawear://ask/after-next" />
+    </intent>
+    <parameter-mapping
+        android:name="feature"
+        android:key="feature.name">
+      <synonym android:name="what's after that" />
+      <synonym android:name="what is after that" />
+      <synonym android:name="who's after that" />
+    </parameter-mapping>
+  </capability>
+
+  <capability android:name="actions.intent.OPEN_APP_FEATURE">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="app.bookwithai.app"
+        android:targetClass="app.bookwithai.app.wear.MainActivity">
+      <parameter android:name="feature" android:key="feature.name" />
+      <url-template android:value="bwawear://ask/today-count" />
+    </intent>
+    <parameter-mapping
+        android:name="feature"
+        android:key="feature.name">
+      <synonym android:name="how many appointments today" />
+      <synonym android:name="how many appointments do I have today" />
+    </parameter-mapping>
+  </capability>
+
+  <capability android:name="actions.intent.OPEN_APP_FEATURE">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="app.bookwithai.app"
+        android:targetClass="app.bookwithai.app.wear.MainActivity">
+      <parameter android:name="feature" android:key="feature.name" />
+      <url-template android:value="bwawear://ask/time-until-next" />
+    </intent>
+    <parameter-mapping
+        android:name="feature"
+        android:key="feature.name">
+      <synonym android:name="how long until my next client" />
+      <synonym android:name="how long until my next appointment" />
+    </parameter-mapping>
+  </capability>
+
+  <capability android:name="actions.intent.OPEN_APP_FEATURE">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:targetPackage="app.bookwithai.app"
+        android:targetClass="app.bookwithai.app.wear.MainActivity">
+      <parameter android:name="feature" android:key="feature.name" />
+      <url-template android:value="bwawear://ask/next-opening" />
+    </intent>
+    <parameter-mapping
+        android:name="feature"
+        android:key="feature.name">
+      <synonym android:name="when is my next opening" />
+      <synonym android:name="when's my next opening" />
+    </parameter-mapping>
+  </capability>
+
+</shortcuts>

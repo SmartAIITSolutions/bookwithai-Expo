@@ -1,0 +1,9 @@
+{
+  "name": "wear-bridge",
+  "version": "0.1.0",
+  "description": "Local Expo module (Android only) — pushes the owner's NEXT appointment and TODAY count to a paired Wear OS companion app via the Android Wearable Data Layer API. No independent watch auth in this version: the phone performs all Book With AI API calls and relays only the derived display summary.",
+  "main": "index.ts",
+  "types": "index.ts",
+  "platforms": ["android"],
+  "license": "UNLICENSED"
+}

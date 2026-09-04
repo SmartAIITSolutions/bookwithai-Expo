@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <!-- Standard Wearable Data Layer permission — required to send/receive
+         DataItems and messages with a paired phone. No special/Samsung
+         permission needed. -->
+    <uses-permission android:name="com.google.android.gms.permission.WEARABLE" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.DeviceDefault">
+
+        <!-- Companion mode for this foundation slice (not standalone): the
+             phone must be reachable to have fetched and pushed real Book
+             With AI data in the first place. Flipping this to true later
+             (so the watch can run with the phone absent) is a real,
+             separate P2+ decision, not implied by this value alone. -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="false" />
+
+        <!-- P4 — Google Assistant App Actions capabilities for the five
+             Ask SANAA voice commands. See shortcuts.xml for the full
+             rationale (why App Actions and not AppFunctions/Gemini yet). -->
+        <meta-data
+            android:name="android.app.shortcuts"
+            android:resource="@xml/shortcuts" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.DeviceDefault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- P4 — deep link target for App Actions fulfillment
+                 (bwawear://ask/next, .../after-next, .../today-count,
+                 .../time-until-next, .../next-opening). MainActivity's
+                 NavHost declares a matching navDeepLink on its "ask/{kind}"
+                 destination. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="bwawear" android:host="ask" />
+            </intent-filter>
+        </activity>
+
+        <!-- Receives every DataItem pushed from the phone via
+             WearBridgeModule: role (P6), the professional NEXT/TODAY
+             schedule (P2), the customer next appointment (P6), the
+             next-opening round-trip reply (P4), the professional
+             Start/Complete result (P5), and the customer action result
+             (P6). The intent-filter lets Play Services wake this service on
+             a relevant data change even if the app isn't currently
+             running. -->
+        <service
+            android:name=".DataLayerListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/bwa/role"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/bwa/schedule"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/bwa/customer-schedule"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/bwa/next-opening-result"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/bwa/action-result"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/bwa/customer-action-result"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+
+        <!-- P5 — Tile glance surface for NEXT appointment. Standard
+             AndroidX Wear Tiles API, works identically on Galaxy Watch,
+             Pixel Watch, and any other current Wear OS device. -->
+        <service
+            android:name=".NextTileService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/ic_launcher_foreground" />
+        </service>
+
+    </application>
+</manifest>

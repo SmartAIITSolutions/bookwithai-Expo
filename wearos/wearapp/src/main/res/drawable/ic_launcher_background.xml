@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder launcher background (Book With AI brand purple). Swap for a
+     real brand asset before any real distribution — this exists only so
+     the module has a valid, buildable adaptive icon. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#7C3AED" />
+</shape>

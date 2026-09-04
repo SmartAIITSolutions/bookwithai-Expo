@@ -18,6 +18,9 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Local Expo module Gradle build output (e.g. modules/wear-bridge/android/build/)
+modules/*/android/build/
+
 # Metro
 .metro-health-check*
 
@@ -49,3 +52,15 @@ GoogleService-Info.plist
 *service-account*.json
 firebase-adminsdk*.json
 google-play-service-account.json
+
+# EAS metadata — store.config.json/store/ contain App Review demo
+# credentials pulled live from App Store Connect (eas metadata:pull).
+# Never commit.
+store.config.json
+/store/
+
+# EAS-exported Android signing credentials (existing production upload
+# keystore + its passwords) — never commit. *.jks already covers the
+# keystore file itself; this covers the credentials.json pointing to it.
+/credentials.json
+/credentials/

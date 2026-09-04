@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder launcher foreground — a plain "B" mark in the brand gold.
+     Swap for a real brand asset before any real distribution. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#F4D77A"
+        android:pathData="M40,30 L40,78 L58,78 C68,78 74,72 74,63 C74,57 71,53 66,51 C70,49 72,45 72,40 C72,32 66,30 57,30 Z M50,38 L56,38 C60,38 62,40 62,43 C62,46 60,48 56,48 L50,48 Z M50,56 L58,56 C63,56 65,58 65,62 C65,66 63,68 58,68 L50,68 Z" />
+</vector>

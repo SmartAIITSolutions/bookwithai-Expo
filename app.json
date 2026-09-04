@@ -119,7 +119,8 @@
       ],
       "expo-sharing",
       "expo-web-browser",
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withWearOsModule"
     ],
     "experiments": {
       "typedRoutes": true,
