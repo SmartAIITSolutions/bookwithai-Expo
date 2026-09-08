@@ -47,10 +47,10 @@ export default function AccountScreen() {
 
   async function handleToggleNotifications(value: boolean) {
     if (value) {
-      const granted = await requestAndRegisterPushToken();
-      if (granted) {
+      const result = await requestAndRegisterPushToken();
+      if (result.status === 'success') {
         setNotifsEnabled(true);
-      } else {
+      } else if (result.status === 'permission_denied') {
         // Already denied once — OS won't show the dialog again, send them to Settings.
         Alert.alert(
           t('booking:accountScreen.enableInSettingsTitle'),
@@ -59,6 +59,15 @@ export default function AccountScreen() {
             { text: t('common:cancel'), style: 'cancel' },
             { text: t('booking:accountScreen.openSettings'), onPress: () => RNLinking.openSettings() },
           ]
+        );
+      } else {
+        // Permission is genuinely granted (token fetch or the backend save
+        // failed) — sending them to Settings would be wrong and confusing,
+        // since there's nothing to fix there. Let them retry instead.
+        setNotifsEnabled(false);
+        Alert.alert(
+          t('booking:accountScreen.pushRegistrationFailedTitle'),
+          t('booking:accountScreen.pushRegistrationFailedMessage')
         );
       }
     } else {

@@ -289,7 +289,21 @@ export default function AppointmentDetailScreen() {
           )}
         </Section>
 
-        {/* Client note (tied to the customer, not just this visit) */}
+        {/* Customer's own note for THIS appointment (bookings.notes) --
+            read-only here (editing customer-submitted text isn't an existing
+            capability, so this section doesn't add one). Distinct from
+            "Client Profile Notes" below (staff CRM notes about the customer
+            in general, from the customer_notes table) and "Internal
+            Appointment Note" further down (private staff note on this same
+            booking row). Plain <Text>, no markup/link interpretation, no
+            truncation -- shown in full. */}
+        {booking.notes && booking.notes.trim() ? (
+          <Section title={t('owner:appointmentDetail.customerNote')}>
+            <Text style={styles.customerNoteBody}>{booking.notes}</Text>
+          </Section>
+        ) : null}
+
+        {/* Client profile notes (tied to the customer, not just this visit) */}
         <Section title={t('owner:appointmentDetail.clientNote')}>
           {notes.map(n => (
             <View key={n.id} style={styles.noteCard}>
@@ -411,6 +425,7 @@ const styles = StyleSheet.create({
   chipText: { fontFamily: FontFamily.soraSemiBold, fontSize: 12.5, color: '#FFFFFF' },
   chipTextActive: { color: '#09000F' },
 
+  customerNoteBody: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
   noteCard: {
     borderRadius: BorderRadius.md, borderWidth: 1, borderColor: 'rgba(212,175,55,0.2)',
     backgroundColor: 'rgba(0,0,0,0.15)', padding: Spacing.sm, gap: 4,

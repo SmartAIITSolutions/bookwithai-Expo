@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { cancelBooking } from '@/lib/api/bookingActions';
+import { syncWearRole } from 'wear-bridge';
+import { syncCustomerWearData } from '@/lib/wear/syncCustomerWearData';
 import { submitBookingReview } from '@/lib/api/customer';
 import { Colors, FontFamily, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/Theme';
 import { API_BASE } from '@/lib/config';
@@ -242,8 +244,18 @@ export default function MyBookingScreen() {
       ExpoLinking.openSettings();
       return;
     }
-    const granted = await requestAndRegisterPushToken();
-    setNotifPermissionGranted(granted);
+    const result = await requestAndRegisterPushToken();
+    setNotifPermissionGranted(result.status === 'success');
+    if (result.status === 'token_failed' || result.status === 'backend_failed') {
+      // Permission is granted (the canAskAgain/Settings-redirect branch above
+      // already handled the denied case) — the enable-notifications card
+      // just stays visible for a retry, same as the permission-denied case,
+      // but say why instead of leaving it unexplained.
+      Alert.alert(
+        t('booking:accountScreen.pushRegistrationFailedTitle'),
+        t('booking:accountScreen.pushRegistrationFailedMessage')
+      );
+    }
   }
 
   useEffect(() => {
@@ -272,6 +284,16 @@ export default function MyBookingScreen() {
       handleOpenRating(item);
     }
   }, [openRatingBookingId, bookings]);
+
+  // P6 — Wear OS customer glance. Fires whenever this screen's own bookings
+  // list changes; no-op on iOS / when no watch is paired (see
+  // modules/wear-bridge). Pushes role once per change too -- cheap, and
+  // simpler than trying to fire it exactly once per session from here.
+  useEffect(() => {
+    if (bookings.length === 0 && loading) return;
+    syncWearRole('customer');
+    syncCustomerWearData(bookings);
+  }, [bookings, loading]);
 
   async function fetchBookings() {
     try {

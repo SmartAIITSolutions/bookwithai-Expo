@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
@@ -28,6 +28,8 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { formatCentsUSDWhole, formatTimeShort, formatWeekdayMonthDay, formatWeekdayMonthDayLong } from '@/lib/i18n/format';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
+import { syncWearData } from '@/lib/wear/syncWearData';
+import { syncWearRole } from 'wear-bridge';
 
 function thoughts(): string[] {
   return [
@@ -154,6 +156,18 @@ export default function OwnerDashboardScreen() {
   const checkinFlowMode = businessQuery.data?.checkin_flow_mode ?? 'full';
   const staff = staffQuery.data ?? [];
   const loading = dashQuery.isLoading;
+
+  // P1A Wear OS foundation -- pushes NEXT/TODAY to a paired watch whenever
+  // this screen's own already-fetched data changes. No-op on iOS and a
+  // no-op if no watch is paired (see modules/wear-bridge). Never issues its
+  // own network request beyond the one detail lookup for the next
+  // appointment -- reuses dashQuery/bookingsQuery's results, not a new
+  // dashboard fetch.
+  useEffect(() => {
+    if (!dashQuery.data || !bookingsQuery.data) return;
+    syncWearRole('owner'); // P6 — tells the watch which experience to show
+    syncWearData(dashQuery.data.next_appointment_id, bookingsQuery.data);
+  }, [dashQuery.data, bookingsQuery.data]);
 
   function reloadAll() {
     queryClient.invalidateQueries({ queryKey: ['owner-dashboard-summary', todayKey] });

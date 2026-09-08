@@ -267,6 +267,22 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
             </View>
           )}
 
+          {/* Customer's own note for THIS appointment (bookings.notes) --
+              distinct from internal_notes below (private staff note, same
+              row) and from customer_notes (CRM notes about the customer in
+              general, shown on the full Appointment Detail screen instead).
+              Shown first since it's what the customer actually asked for
+              (allergies, requests, timing) -- the thing most worth reading
+              before or while servicing the appointment. Plain text only,
+              no markup/link interpretation. */}
+          {booking.notes && booking.notes.trim() ? (
+            <BlurView intensity={90} tint="dark" style={styles.customerNoteCard}>
+              <CardOverlay />
+              <Text style={styles.customerNoteLabel}>{t('owner:appointmentSheet.customerNote')}</Text>
+              <Text style={styles.notesBody}>{booking.notes}</Text>
+            </BlurView>
+          ) : null}
+
           {booking.internal_notes ? (
             <BlurView intensity={90} tint="dark" style={styles.notesCard}>
               <CardOverlay />
@@ -369,6 +385,16 @@ const styles = StyleSheet.create({
   notesLabel: {
     fontFamily: FontFamily.soraSemiBold, fontSize: 11, textTransform: 'uppercase',
     letterSpacing: 0.5, color: '#F4D77A', marginBottom: 4,
+  },
+  // Deliberately a different accent (blue vs. Salon Notes' gold) so the two
+  // cards read as separate concepts at a glance, not just separate labels.
+  customerNoteCard: {
+    borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(143,184,255,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.md,
+  },
+  customerNoteLabel: {
+    fontFamily: FontFamily.soraSemiBold, fontSize: 11, textTransform: 'uppercase',
+    letterSpacing: 0.5, color: '#8FB8FF', marginBottom: 4,
   },
   notesBody: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
   addOnCard: {

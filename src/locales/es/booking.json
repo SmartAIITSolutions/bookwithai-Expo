@@ -99,6 +99,8 @@
     "openSettings": "Abrir Configuración",
     "turnOffInSettingsTitle": "Desactivar en Configuración",
     "turnOffInSettingsMessage": "Para dejar de recibir notificaciones, desactívalas para Book With AI en la Configuración de tu dispositivo.",
+    "pushRegistrationFailedTitle": "No se pudo completar la configuración",
+    "pushRegistrationFailedMessage": "Las notificaciones están activadas en este dispositivo, pero no pudimos terminar de conectarlas. Inténtalo de nuevo.",
     "notAvailableTitle": "No disponible",
     "notAvailableMessage": "La autenticación biométrica no está configurada en este dispositivo. Actívala primero en la configuración de tu dispositivo.",
     "verifyToEnablePrompt": "Verifica para activar el inicio de sesión biométrico",

@@ -99,6 +99,8 @@
     "openSettings": "Open Settings",
     "turnOffInSettingsTitle": "Turn off in Settings",
     "turnOffInSettingsMessage": "To stop notifications, turn them off for Book With AI in your device Settings.",
+    "pushRegistrationFailedTitle": "Couldn't finish setup",
+    "pushRegistrationFailedMessage": "Notifications are enabled on this device, but we couldn't finish connecting push notifications. Please try again.",
     "notAvailableTitle": "Not available",
     "notAvailableMessage": "Biometric authentication is not set up on this device. Please enable it in your device settings first.",
     "verifyToEnablePrompt": "Verify to enable biometric login",

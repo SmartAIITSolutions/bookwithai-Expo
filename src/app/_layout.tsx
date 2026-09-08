@@ -46,8 +46,17 @@ import { supabase } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
 import { fetchCustomerProfile, isProfileComplete, linkCustomerIdentity } from '@/lib/api/customerProfile';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
-import { checkInBooking } from '@/lib/api/bookingActions';
-import { Alert } from 'react-native';
+import { checkInBooking, sendEtaStatus, cancelBooking as cancelBookingCustomer } from '@/lib/api/bookingActions';
+import { Alert, AppState, Platform } from 'react-native';
+import {
+  addAskNextOpeningListener, sendNextOpeningResult,
+  addWatchActionListener, sendActionResult,
+  addWatchCustomerActionListener, sendCustomerActionResult,
+} from 'wear-bridge';
+import { getNextOpening } from '@/lib/api/ownerScheduling';
+import { startService, completeService } from '@/lib/api/ownerBookings';
+import { refetchAndSyncWearData } from '@/lib/wear/syncWearData';
+import { refetchAndSyncCustomerWearData } from '@/lib/wear/syncCustomerWearData';
 
 // Extract salon slug from a bookwithai.app/book/<slug> URL
 function extractSlugFromUrl(url: string): string | null {
@@ -77,6 +86,18 @@ Notifications.setNotificationHandler({
     shouldSetBadge:   true,
   }),
 });
+
+// Android only (a documented no-op elsewhere) -- explicitly creates the
+// channel every notification is delivered on, rather than relying on
+// whatever default expo-notifications/FCM provides implicitly. Isolated from
+// the registration-observability fix above; does not touch payload sending,
+// token storage, or any existing notification behavior.
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.HIGH,
+  });
+}
 
 const ONBOARDING_KEY    = 'bwa_onboarding_done';
 const BIOMETRICS_KEY    = 'bwa_biometrics_enabled';
@@ -373,7 +394,7 @@ export default function RootLayout() {
 function AuthRedirectGate() {
   const { user, role, loading } = useAuth();
   const segments = useSegments();
-  const pushRegistered = useRef(false);
+  const pushRegisteredForUser = useRef<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -423,9 +444,9 @@ function AuthRedirectGate() {
     }
   }, [user, role, loading, segments]);
 
-  // Push registration -- fires once per signed-in session, any role. Was
-  // owner-only (Sprint 5's Notification Center), but a customer whose
-  // bookings are always created by the salon (never their own, through
+  // Push registration -- fires once per signed-in user per app session, any
+  // role. Was owner-only (Sprint 5's Notification Center), but a customer
+  // whose bookings are always created by the salon (never their own, through
   // booking/confirmation.tsx) had no path to ever be prompted -- the only
   // other triggers are completing your own booking, or manually tapping
   // "Enable Notifications" on My Bookings/Account. Confirmed live: two real
@@ -434,11 +455,100 @@ function AuthRedirectGate() {
   // called requestAndRegisterPushToken() for them. If permission is
   // already granted, this call skips straight to registering a fresh
   // token -- no prompt, no user action needed.
+  //
+  // Keyed by user id (not a plain fire-once boolean) so a sign-out followed
+  // by a different account signing in within the same app session -- no
+  // cold restart in between -- still re-registers for the new user instead
+  // of inheriting the previous user's "already attempted" flag.
   useEffect(() => {
-    if (loading || !user || pushRegistered.current) return;
-    pushRegistered.current = true;
+    if (loading || !user || pushRegisteredForUser.current === user.id) return;
+    pushRegisteredForUser.current = user.id;
     requestAndRegisterPushToken();
   }, [user, role, loading]);
+
+  // Re-attempt registration when the app returns to the foreground while
+  // already signed in -- covers a user granting notification permission from
+  // iOS/Android Settings (after having denied or ignored the initial prompt)
+  // and then switching back to the app, which the effect above alone would
+  // never see again since it only runs once per user per session. Cheap and
+  // side-effect-free to call repeatedly: requestAndRegisterPushToken() only
+  // ever shows the OS permission dialog the very first time it's ever been
+  // requested for this install -- every other call just re-checks the
+  // current status and, if granted, silently re-registers the token.
+  useEffect(() => {
+    if (!user) return;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        requestAndRegisterPushToken();
+      }
+    });
+    return () => subscription.remove();
+  }, [user]);
+
+  // P4 — Wear OS "When is my next opening?" round-trip. The watch sends a
+  // request over the free Wearable Data Layer MessageClient (no auth token
+  // involved); this app, already signed in as the owner, calls the same
+  // owner-authenticated scheduling API any other screen would, then relays
+  // the result back to the watch. A no-op on iOS / when no watch is paired
+  // (see modules/wear-bridge). Owner-only — customers have no watch
+  // experience in this phase.
+  useEffect(() => {
+    if (role !== 'owner') return;
+    const unsubscribe = addAskNextOpeningListener(() => {
+      getNextOpening().then((res) => {
+        if (res.ok) {
+          sendNextOpeningResult(res.data.data.starts_at, res.data.data.ends_at);
+        } else {
+          sendNextOpeningResult(null, null);
+        }
+      });
+    });
+    return unsubscribe;
+  }, [role]);
+
+  // P5 — Start/Complete requested from the watch's Appointment Detail
+  // screen. Reuses the exact same startService/completeService actions the
+  // phone app's own Appointment Sheet uses (PATCH /api/owner/bookings/[id])
+  // -- no new booking state, no duplicate business logic. After a
+  // successful mutation, also pushes a fresh full schedule sync so the
+  // watch's list reflects the change without needing the dashboard screen
+  // open. Owner-only, no-op on iOS / when no watch is paired.
+  useEffect(() => {
+    if (role !== 'owner') return;
+    const unsubscribe = addWatchActionListener((action, bookingId) => {
+      const mutate = action === 'start' ? startService(bookingId) : completeService(bookingId);
+      mutate.then((res) => {
+        sendActionResult(action, bookingId, res.ok, res.ok ? null : res.error);
+        if (res.ok) refetchAndSyncWearData();
+      });
+    });
+    return unsubscribe;
+  }, [role]);
+
+  // P6 — customer I've-Arrived/Running-Late/Cancel requested from the
+  // watch's customer Appointment Detail screen. Reuses the exact same
+  // existing endpoints the phone app's own My Bookings screen uses
+  // (check-in, eta-status, cancel) -- no new booking state, no duplicate
+  // cancellation/deposit/cutoff logic (the cancel route enforces all of
+  // that server-side exactly as it does for the phone UI; a rejection
+  // comes back as a normal { ok: false, error } and is relayed to the
+  // watch as-is). After a successful action, pushes a fresh customer
+  // schedule sync. Customer-only, no-op on iOS / when no watch is paired.
+  useEffect(() => {
+    if (role !== 'customer') return;
+    const unsubscribe = addWatchCustomerActionListener((action, bookingId) => {
+      const mutate =
+        action === 'arrived' ? checkInBooking(bookingId)
+        : action === 'eta_almost' ? sendEtaStatus(bookingId, 'almost')
+        : action === 'eta_late' ? sendEtaStatus(bookingId, 'running_late')
+        : cancelBookingCustomer(bookingId);
+      mutate.then((res) => {
+        sendCustomerActionResult(action, bookingId, res.ok, res.ok ? null : res.error);
+        if (res.ok) refetchAndSyncCustomerWearData();
+      });
+    });
+    return unsubscribe;
+  }, [role]);
 
   // Profile-completeness gate -- phone and email are mandatory for
   // customers (the canonical identity every new salon relationship gets
