@@ -1,15 +1,28 @@
-// Wraps app.json so googleServicesFile can come from an EAS file
-// environment variable in cloud builds (the file itself is gitignored and
-// never committed) while still falling back to the local file for local
-// dev builds (expo run:android).
+// Preview-only Android identity override. Expo evaluates this on top of the
+// static app.json (the `config` param below IS app.json's already-resolved
+// "expo" object) -- production/development builds pass straight through
+// unmodified. Only EAS's own preview profile (which sets
+// EAS_BUILD_PROFILE=preview during config resolution) gets a distinct
+// applicationId/name, so the preview APK can install side-by-side with the
+// real production app on the same device instead of conflicting with it.
 //
-// Must accept and return the same `config` object reference from the
-// context argument (not `require('./app.json')` directly, and not
-// re-wrapped in `{ expo: config }`) -- expo-doctor's config-usage check
-// tags the incoming object and verifies the same reference comes back out.
+// NOTE: google-services.json only registers a Firebase Android client for
+// the production package (app.bookwithai.app) -- the preview package below
+// has no matching Firebase client, so push notifications will not register
+// in preview builds until a second Firebase Android app is added for
+// app.bookwithai.app.preview. Accepted as a known limitation for this
+// SmartFill test build (not fixed here).
 module.exports = ({ config }) => {
-  if (process.env.GOOGLE_SERVICES_JSON) {
-    config.android.googleServicesFile = process.env.GOOGLE_SERVICES_JSON;
+  if (process.env.EAS_BUILD_PROFILE !== 'preview') {
+    return config;
   }
-  return config;
+
+  return {
+    ...config,
+    name: 'Book With AI Preview',
+    android: {
+      ...config.android,
+      package: 'app.bookwithai.app.preview',
+    },
+  };
 };
