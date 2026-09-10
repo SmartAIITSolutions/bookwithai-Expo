@@ -19,6 +19,12 @@ export interface SanaaOwnerConfig {
   notify_owner_bell: boolean;
   notify_owner_email: boolean;
   upsell_enabled: boolean;
+  // Phase 2C — salon-configurable, same canonical backend fields the web
+  // owner UI (AgencySanaaTab.tsx) reads/writes via /api/sanaa/settings;
+  // this app reaches them through /api/owner/sanaa/config instead, same
+  // pattern already used for every other field above.
+  slot_priority: 'cluster_both_ends' | 'morning_forward' | 'largest_gap';
+  slot_offer_count: 1 | 2 | 3;
 }
 
 export type SanaaProvisioningStatus = 'not_started' | 'agent_created' | 'number_purchased' | 'complete';

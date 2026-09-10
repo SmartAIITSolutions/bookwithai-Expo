@@ -57,6 +57,16 @@ export default function SanaaConfigureScreen() {
     { key: 'professional_formal', label: t('sanaa:configureScreen.toneProfessional') },
     { key: 'upbeat_energetic', label: t('sanaa:configureScreen.toneUpbeat') },
   ];
+  // Phase 2C — salon-configurable, same canonical backend values the web
+  // owner UI offers (AgencySanaaTab.tsx). Global runtime internals
+  // (STT model/language, interruption thresholds, noise suppression, LLM,
+  // voice, prompt behavior) are never exposed here or anywhere in this app.
+  const SLOT_PRIORITIES: { key: SanaaOwnerConfig['slot_priority']; label: string; description: string }[] = [
+    { key: 'cluster_both_ends', label: t('sanaa:configureScreen.slotPriorityCluster'), description: t('sanaa:configureScreen.slotPriorityClusterDescription') },
+    { key: 'morning_forward', label: t('sanaa:configureScreen.slotPriorityMorning'), description: t('sanaa:configureScreen.slotPriorityMorningDescription') },
+    { key: 'largest_gap', label: t('sanaa:configureScreen.slotPriorityGaps'), description: t('sanaa:configureScreen.slotPriorityGapsDescription') },
+  ];
+  const SLOT_OFFER_COUNTS: SanaaOwnerConfig['slot_offer_count'][] = [1, 2, 3];
   function formatHours(hours: SanaaConfigResponse['business']['business_hours']): string[] {
     if (!hours) return [t('sanaa:configureScreen.hoursNotConfigured')];
     const lines: string[] = [];
@@ -278,6 +288,41 @@ export default function SanaaConfigureScreen() {
           <TouchableOpacity style={styles.saveSmallButton} onPress={saveTransferNumber} disabled={saving}>
             <Text style={styles.saveSmallButtonText}>{t('sanaa:configureScreen.saveTransferNumber')}</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* SmartFill -- salon-configurable ranking/offer-count only; global
+            runtime internals (STT/interruption/voice/model) never appear here */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('sanaa:configureScreen.smartFill')}</Text>
+          <Text style={styles.hint}>{t('sanaa:configureScreen.smartFillDescription')}</Text>
+          <Text style={[styles.fieldLabel, { marginTop: Spacing.sm }]}>{t('sanaa:configureScreen.slotPriorityLabel')}</Text>
+          <View style={styles.toneRow}>
+            {SLOT_PRIORITIES.map((p) => (
+              <TouchableOpacity
+                key={p.key}
+                style={[styles.toneChip, config.slot_priority === p.key && styles.toneChipActive]}
+                onPress={() => saveConfig({ slot_priority: p.key })}
+              >
+                <Text style={[styles.toneChipText, config.slot_priority === p.key && styles.toneChipTextActive]}>{p.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.hint}>
+            {SLOT_PRIORITIES.find((p) => p.key === config.slot_priority)?.description ?? ''}
+          </Text>
+          <Text style={[styles.fieldLabel, { marginTop: Spacing.sm }]}>{t('sanaa:configureScreen.slotOfferCountLabel')}</Text>
+          <View style={styles.toneRow}>
+            {SLOT_OFFER_COUNTS.map((n) => (
+              <TouchableOpacity
+                key={n}
+                style={[styles.toneChip, config.slot_offer_count === n && styles.toneChipActive]}
+                onPress={() => saveConfig({ slot_offer_count: n })}
+              >
+                <Text style={[styles.toneChipText, config.slot_offer_count === n && styles.toneChipTextActive]}>{n}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.hint}>{t('sanaa:configureScreen.slotOfferCountHint')}</Text>
         </View>
 
         {/* Policies -- same shared field as owner-settings/business.tsx, not a duplicate */}
