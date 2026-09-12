@@ -12,6 +12,7 @@ export interface Business {
   state: string | null;
   postal_code: string | null;
   iana_timezone: string | null;
+  booking_cutoff_minutes: number;
   cancellation_policy: string | null;
   rescheduling_policy: string | null;
   store_policy: string | null;

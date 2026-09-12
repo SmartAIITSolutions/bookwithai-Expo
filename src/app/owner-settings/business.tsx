@@ -26,6 +26,19 @@ function formatHour(h: number): string {
   return formatHourOnly(d);
 }
 
+// EOD Phase B blocker fix — the canonical cancellation/reschedule cutoff
+// (agency_clients.booking_cutoff_minutes) previously had no owner-app
+// control at all; the only mobile "cutoff"-labeled field was
+// deposit_refund_cutoff_hours, a genuinely different setting (deposit
+// refund eligibility, not cancel/reschedule eligibility). This mirrors the
+// web dashboard's existing option set exactly (SettingsView.tsx) so the
+// same value means the same thing everywhere.
+const CANCELLATION_CUTOFF_OPTIONS = [60, 120, 240, 480, 720, 1440, 2880, 4320];
+function formatCutoffOption(minutes: number): string {
+  const hours = minutes / 60;
+  return hours === 1 ? '1h' : `${hours}h`;
+}
+
 function CardOverlay() {
   return (
     <LinearGradient
@@ -107,6 +120,7 @@ export default function BusinessSetupScreen() {
       city: business.city,
       state: business.state,
       postal_code: business.postal_code,
+      booking_cutoff_minutes: business.booking_cutoff_minutes,
       cancellation_policy: business.cancellation_policy,
       rescheduling_policy: business.rescheduling_policy,
       store_policy: business.store_policy,
@@ -232,6 +246,21 @@ export default function BusinessSetupScreen() {
         </Section>
 
         <Section title={t('owner:businessScreen.policies')}>
+          <Text style={styles.fieldLabel}>{t('owner:businessScreen.cancellationReschedulingWindowQuestion')}</Text>
+          <Text style={styles.emptyHint}>{t('owner:businessScreen.cancellationReschedulingWindowHint')}</Text>
+          <View style={[styles.hourRow, { flexWrap: 'wrap', marginBottom: Spacing.sm }]}>
+            {CANCELLATION_CUTOFF_OPTIONS.map(minutes => (
+              <TouchableOpacity
+                key={minutes}
+                style={[styles.hourChip, business.booking_cutoff_minutes === minutes && styles.hourChipActive]}
+                onPress={() => set('booking_cutoff_minutes', minutes)}
+              >
+                <Text style={[styles.hourChipText, business.booking_cutoff_minutes === minutes && styles.hourChipTextActive]}>
+                  {formatCutoffOption(minutes)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <Field
             label={t('owner:businessScreen.cancellationPolicy')}
             value={business.cancellation_policy ?? ''}
