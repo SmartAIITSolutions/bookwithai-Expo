@@ -46,7 +46,13 @@ function formatDateTime(isoStr?: string) {
   return i18n.t('booking:dateTimeAt', { date: formatWeekdayMonthDay(d), time: formatTimeShort(d) });
 }
 
-function PayExistingForm() {
+function PayExistingForm({
+  stripeAccountId,
+  onStripeAccountResolved,
+}: {
+  stripeAccountId: string | null;
+  onStripeAccountResolved: (accountId: string) => void;
+}) {
   const { t } = useTranslation(['booking', 'common']);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { bookingId, priceCents, salonName, serviceName, startsAt } = useLocalSearchParams<{
@@ -63,6 +69,11 @@ function PayExistingForm() {
   const [customTipText, setCustomTipText] = useState('');
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Direct charge -- holds the fetched client_secret + payment_intent_id
+  // between "user pressed Pay" (fetchPaymentIntent) and "StripeProvider has
+  // re-initialized with the connected account" (the effect below), since
+  // initPaymentSheet can't safely run until that account context is live.
+  const [pendingPayment, setPendingPayment] = useState<{ clientSecret: string; paymentIntentId: string } | null>(null);
 
   const tipOptions = [15, 18, 20];
 
@@ -95,6 +106,9 @@ function PayExistingForm() {
     })();
   }, [bookingId, priceCents]);
 
+  // Phase 1 — fetch the PaymentIntent and hand the connected account id up
+  // to <StripeProvider> (direct charge; the SDK must be scoped to the
+  // salon's account before initPaymentSheet can use the client_secret).
   async function handlePay() {
     setPaying(true);
     setError(null);
@@ -112,47 +126,76 @@ function PayExistingForm() {
         body: JSON.stringify({ tip_cents: tipCents }),
       });
       const intent = await intentRes.json();
-      if (!intentRes.ok || !intent.client_secret) throw new Error(intent.error || t('booking:payExistingScreen.couldNotPreparePayment'));
-
-      const { error: initErr } = await initPaymentSheet({
-        paymentIntentClientSecret: intent.client_secret,
-        merchantDisplayName: salonName || 'Book With AI',
-        googlePay: { merchantCountryCode: 'US', testEnv: false },
-        style: 'alwaysDark',
-        appearance: { colors: { primary: '#F4D77A' } },
-      });
-      if (initErr) throw new Error(initErr.message);
-
-      const { error: payErr } = await presentPaymentSheet();
-      if (payErr) {
-        if (payErr.code !== 'Canceled') {
-          notificationError();
-          setError(payErr.message || t('booking:payExistingScreen.paymentFailed'));
-        }
-        setPaying(false);
-        return;
+      if (!intentRes.ok || !intent.client_secret || !intent.stripe_account_id) {
+        throw new Error(intent.error || t('booking:payExistingScreen.couldNotPreparePayment'));
       }
 
-      const confirmRes = await fetch(`${API_BASE}/api/mobile/bookings/${bookingId}/confirm-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ payment_intent_id: intent.payment_intent_id }),
-      });
-      const confirm = await confirmRes.json();
-      if (!confirmRes.ok) throw new Error(confirm.error || t('booking:payExistingScreen.couldNotConfirmPayment'));
-
-      notificationSuccess();
-      Alert.alert(t('booking:payExistingScreen.paymentConfirmedTitle'), t('booking:payExistingScreen.paymentConfirmedMessage'), [
-        { text: t('common:ok'), onPress: () => router.replace('/(tabs)/my-booking') },
-      ]);
+      setPendingPayment({ clientSecret: intent.client_secret, paymentIntentId: intent.payment_intent_id });
+      onStripeAccountResolved(intent.stripe_account_id);
     } catch (e: any) {
       setError(e.message || t('booking:payExistingScreen.contactSalonError'));
       setPaying(false);
     }
   }
+
+  // Phase 2 — only once <StripeProvider> has been re-rendered with the
+  // correct stripeAccountId (the prop coming back down from the parent) is
+  // it safe to call initPaymentSheet with this connected-account client_secret.
+  useEffect(() => {
+    if (!pendingPayment || !stripeAccountId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { error: initErr } = await initPaymentSheet({
+          paymentIntentClientSecret: pendingPayment.clientSecret,
+          merchantDisplayName: salonName || 'Book With AI',
+          googlePay: { merchantCountryCode: 'US', testEnv: false },
+          style: 'alwaysDark',
+          appearance: { colors: { primary: '#F4D77A' } },
+        });
+        if (cancelled) return;
+        if (initErr) throw new Error(initErr.message);
+
+        const { error: payErr } = await presentPaymentSheet();
+        if (cancelled) return;
+        if (payErr) {
+          if (payErr.code !== 'Canceled') {
+            notificationError();
+            setError(payErr.message || t('booking:payExistingScreen.paymentFailed'));
+          }
+          setPaying(false);
+          setPendingPayment(null);
+          return;
+        }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error(t('booking:payExistingScreen.signInToPay'));
+
+        const confirmRes = await fetch(`${API_BASE}/api/mobile/bookings/${bookingId}/confirm-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ payment_intent_id: pendingPayment.paymentIntentId }),
+        });
+        const confirm = await confirmRes.json();
+        if (!confirmRes.ok) throw new Error(confirm.error || t('booking:payExistingScreen.couldNotConfirmPayment'));
+        if (cancelled) return;
+
+        notificationSuccess();
+        Alert.alert(t('booking:payExistingScreen.paymentConfirmedTitle'), t('booking:payExistingScreen.paymentConfirmedMessage'), [
+          { text: t('common:ok'), onPress: () => router.replace('/(tabs)/my-booking') },
+        ]);
+      } catch (e: any) {
+        if (cancelled) return;
+        setError(e.message || t('booking:payExistingScreen.contactSalonError'));
+        setPaying(false);
+        setPendingPayment(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pendingPayment, stripeAccountId]);
 
   const totalCents = price + tipCents;
 
@@ -295,9 +338,10 @@ function PayExistingForm() {
 }
 
 export default function PayExistingScreen() {
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   return (
-    <StripeProvider publishableKey={STRIPE_PK}>
-      <PayExistingForm />
+    <StripeProvider publishableKey={STRIPE_PK} stripeAccountId={stripeAccountId ?? undefined}>
+      <PayExistingForm stripeAccountId={stripeAccountId} onStripeAccountResolved={setStripeAccountId} />
     </StripeProvider>
   );
 }

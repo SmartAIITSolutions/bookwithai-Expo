@@ -55,7 +55,13 @@ function formatDateTime(isoStr: string) {
 }
 
 // Inner component (needs Stripe context)
-function PaymentForm() {
+function PaymentForm({
+  stripeAccountId,
+  onStripeAccountResolved,
+}: {
+  stripeAccountId: string | null;
+  onStripeAccountResolved: (accountId: string) => void;
+}) {
   const { t } = useTranslation(['booking', 'errors']);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { user } = useAuth();
@@ -103,8 +109,8 @@ function PaymentForm() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chargedCents, setChargedCents] = useState(parseInt(totalCents || '0', 10));
-  const [stripeAccountId, setStripeAccountId] = useState('');
   const [paymentIntentId, setPaymentIntentId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
   // Non-null only when this salon/service has a deposit configured -- the
   // service's real full price, verified server-side from the services
   // table, kept separate from chargedCents (the smaller deposit amount
@@ -118,11 +124,7 @@ function PaymentForm() {
   const services = (serviceNames || '').split('||').filter(Boolean);
   const cents = parseInt(totalCents || '0', 10);
 
-  useEffect(() => {
-    initSheet();
-  }, []);
-
-  async function initSheet() {
+  async function fetchPaymentIntent() {
     setLoading(true);
     setError(null);
     try {
@@ -136,18 +138,41 @@ function PaymentForm() {
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data.client_secret) throw new Error(data.error || t('booking:paymentScreen.couldNotSetUpPayment'));
+      if (!res.ok || !data.client_secret || !data.stripe_account_id) {
+        throw new Error(data.error || t('booking:paymentScreen.couldNotSetUpPayment'));
+      }
 
       setChargedCents(data.total_cents ?? cents);
-      setStripeAccountId(data.stripe_account_id);
       setPaymentIntentId(data.payment_intent_id);
       setIsDeposit(!!data.is_deposit);
       setFullPriceCents(data.full_price_cents ?? null);
       setDepositRefundPolicyEnabled(!!data.deposit_refund_policy_enabled);
       setDepositRefundCutoffHours(data.deposit_refund_cutoff_hours ?? 24);
+      setClientSecret(data.client_secret);
+      onStripeAccountResolved(data.stripe_account_id);
+    } catch (e: any) {
+      setError(e.message || t('booking:paymentScreen.couldNotSetUpPayment'));
+      setLoading(false);
+    }
+  }
 
+  // Phase 1 — fetch the PaymentIntent and hand the connected account id up
+  // to <StripeProvider> (this is a direct charge; the SDK must be scoped to
+  // the salon's account before initPaymentSheet can use the client_secret).
+  useEffect(() => {
+    fetchPaymentIntent();
+  }, []);
+
+  // Phase 2 — only once <StripeProvider> has been re-rendered with the
+  // correct stripeAccountId (the prop coming back down from the parent)
+  // is it safe to call initPaymentSheet with this connected-account
+  // client_secret.
+  useEffect(() => {
+    if (!clientSecret || !stripeAccountId) return;
+    let cancelled = false;
+    (async () => {
       const { error: initErr } = await initPaymentSheet({
-        paymentIntentClientSecret: data.client_secret,
+        paymentIntentClientSecret: clientSecret,
         merchantDisplayName: salonName || 'Book With AI',
         googlePay: {
           merchantCountryCode: 'US',
@@ -160,15 +185,16 @@ function PaymentForm() {
           },
         },
       });
-
-      if (initErr) throw new Error(initErr.message);
-      setReady(true);
-    } catch (e: any) {
-      setError(e.message || t('booking:paymentScreen.couldNotSetUpPayment'));
-    } finally {
+      if (cancelled) return;
+      if (initErr) {
+        setError(initErr.message || t('booking:paymentScreen.couldNotSetUpPayment'));
+      } else {
+        setReady(true);
+      }
       setLoading(false);
-    }
-  }
+    })();
+    return () => { cancelled = true; };
+  }, [clientSecret, stripeAccountId]);
 
   async function handlePay() {
     if (!ready) return;
@@ -357,11 +383,15 @@ function PaymentForm() {
   );
 }
 
-// Wrap with StripeProvider at this screen level
+// Wrap with StripeProvider at this screen level. Direct charge -- the SDK
+// must be scoped to the salon's connected account (stripeAccountId), which
+// is only known after PaymentForm's initial fetch resolves; it's lifted up
+// here so the provider can be re-initialized with the correct account.
 export default function PaymentScreen() {
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
   return (
-    <StripeProvider publishableKey={STRIPE_PK}>
-      <PaymentForm />
+    <StripeProvider publishableKey={STRIPE_PK} stripeAccountId={stripeAccountId ?? undefined}>
+      <PaymentForm stripeAccountId={stripeAccountId} onStripeAccountResolved={setStripeAccountId} />
     </StripeProvider>
   );
 }
