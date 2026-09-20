@@ -48,8 +48,14 @@ export default function ServicesScreen() {
     rebookSource?: string;
   }>();
 
+  interface CartLine { service: Service; qty: number }
+
   const [groups, setGroups] = useState<{ category: string; items: Service[] }[]>([]);
-  const [selected, setSelected] = useState<Service[]>([]);
+  // Tap-to-add cart, not single-select -- tapping a service already in the
+  // cart adds another of it, matching the owner-side walk-in flow and
+  // letting a customer book the same service twice (e.g. for a friend) or
+  // combine several services into this one appointment.
+  const [cart, setCart] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -66,7 +72,7 @@ export default function ServicesScreen() {
         setGroups(groupServicesByCategory(bookable));
         if (prefillServiceIds) {
           const ids = prefillServiceIds.split(',').filter(Boolean);
-          setSelected(bookable.filter((s) => ids.includes(s.id)));
+          setCart(bookable.filter((s) => ids.includes(s.id)).map((service) => ({ service, qty: 1 })));
         }
       })
       .catch(() => setLoadError(true))
@@ -77,26 +83,37 @@ export default function ServicesScreen() {
     load();
   }, [salonId]);
 
-  function toggleService(svc: Service) {
-    setSelected((prev) =>
-      prev.find((s) => s.id === svc.id)
-        ? prev.filter((s) => s.id !== svc.id)
-        : [...prev, svc]
-    );
+  function addToCart(svc: Service) {
+    setCart((prev) => {
+      const idx = prev.findIndex((l) => l.service.id === svc.id);
+      if (idx === -1) return [...prev, { service: svc, qty: 1 }];
+      const next = [...prev];
+      next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
+      return next;
+    });
   }
 
-  function isSelected(svc: Service) {
-    return !!selected.find((s) => s.id === svc.id);
+  function removeFromCart(svcId: string) {
+    setCart((prev) => prev.flatMap((l) => {
+      if (l.service.id !== svcId) return [l];
+      return l.qty <= 1 ? [] : [{ ...l, qty: l.qty - 1 }];
+    }));
   }
 
-  const totalCents = selected.reduce((sum, s) => sum + s.price_cents, 0);
-  const totalMins = selected.reduce((sum, s) => sum + s.duration_minutes, 0);
+  function qtyOf(svc: Service) {
+    return cart.find((l) => l.service.id === svc.id)?.qty ?? 0;
+  }
+
+  const cartServiceIds = cart.flatMap((l) => Array(l.qty).fill(l.service.id));
+  const cartCount = cart.reduce((sum, l) => sum + l.qty, 0);
+  const totalCents = cart.reduce((sum, l) => sum + l.service.price_cents * l.qty, 0);
+  const totalMins = cart.reduce((sum, l) => sum + l.service.duration_minutes * l.qty, 0);
 
   function handleContinue() {
     // Fire-and-forget: a single-service booking is a clean preference
     // signal; multi-service bookings don't map to one preferred service.
-    if (user && salonId && selected.length === 1) {
-      saveCustomerPreferences(salonId, { preferred_service_id: selected[0].id }).catch(() => {});
+    if (user && salonId && cartCount === 1) {
+      saveCustomerPreferences(salonId, { preferred_service_id: cart[0].service.id }).catch(() => {});
     }
     router.push({
       pathname: '/booking/staff',
@@ -105,8 +122,8 @@ export default function ServicesScreen() {
         salonSlug,
         salonName,
         requireOnlinePayment,
-        serviceIds: selected.map((s) => s.id).join(','),
-        serviceNames: selected.map((s) => s.name).join('||'),
+        serviceIds: cartServiceIds.join(','),
+        serviceNames: cart.flatMap((l) => Array(l.qty).fill(l.service.name)).join('||'),
         totalCents: String(totalCents),
         totalMins: String(totalMins),
         ...(prefillStaffId ? { prefillStaffId } : {}),
@@ -157,17 +174,34 @@ export default function ServicesScreen() {
             <View key={category} style={styles.categoryBlock}>
               <Text style={styles.categoryLabel}>{category}</Text>
               {items.map((svc) => {
-                const sel = isSelected(svc);
+                const qty = qtyOf(svc);
+                const sel = qty > 0;
                 return (
                   <Pressable
                     key={svc.id}
                     style={[styles.serviceCard, sel && styles.serviceCardSelected]}
-                    onPress={() => toggleService(svc)}>
+                    onPress={() => addToCart(svc)}>
                     <CardOverlay />
-                    {/* Selection indicator */}
-                    <View style={[styles.checkbox, sel && styles.checkboxSelected]}>
-                      {sel && <Ionicons name="checkmark" size={14} color="#09000F" />}
-                    </View>
+                    {/* Selection indicator -- a qty stepper once at least one
+                        unit is in the cart, so tapping again adds another
+                        (same service twice) instead of deselecting. */}
+                    {sel ? (
+                      <View style={styles.qtyControls}>
+                        <Pressable
+                          style={styles.qtyBtn}
+                          onPress={(e) => { e.stopPropagation(); removeFromCart(svc.id); }}>
+                          <Ionicons name="remove" size={14} color="#F4D77A" />
+                        </Pressable>
+                        <Text style={styles.qtyText}>{qty}</Text>
+                        <Pressable
+                          style={styles.qtyBtn}
+                          onPress={(e) => { e.stopPropagation(); addToCart(svc); }}>
+                          <Ionicons name="add" size={14} color="#F4D77A" />
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <View style={styles.checkbox} />
+                    )}
 
                     {/* Info */}
                     <View style={styles.serviceInfo}>
@@ -199,11 +233,11 @@ export default function ServicesScreen() {
       )}
 
       {/* Footer — shows when services selected */}
-      {selected.length > 0 && (
+      {cartCount > 0 && (
         <View style={styles.footer}>
           <View style={styles.footerSummary}>
             <Text style={styles.footerCount}>
-              {t('booking:servicesScreen.serviceCount', { count: selected.length })}
+              {t('booking:servicesScreen.serviceCount', { count: cartCount })}
             </Text>
             <Text style={styles.footerMeta}>
               {formatDuration(totalMins)}
@@ -327,6 +361,30 @@ const styles = StyleSheet.create({
   checkboxSelected: {
     backgroundColor: '#F4D77A',
     borderColor: '#F4D77A',
+  },
+  qtyControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: Spacing.md,
+    flexShrink: 0,
+  },
+  qtyBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(212,175,55,0.08)',
+  },
+  qtyText: {
+    fontFamily: FontFamily.soraSemiBold,
+    fontSize: FontSize.sm,
+    color: '#F4D77A',
+    minWidth: 14,
+    textAlign: 'center',
   },
   serviceInfo: {
     flex: 1,
