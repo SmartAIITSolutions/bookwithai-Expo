@@ -4,6 +4,7 @@ import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView, BottomShe
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { searchCustomers, quickCreateCustomer, CustomerLite } from '@/lib/api/ownerCustomers';
 import { listServices, Service } from '@/lib/api/ownerServices';
 import { createBooking, OwnerBooking } from '@/lib/api/ownerBookings';
@@ -105,7 +106,16 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
     useEffect(() => {
       if (initialCustomer) { setSelectedCustomer(initialCustomer); setQuery(initialCustomer.name); }
     }, [initialCustomer]);
-    const [services, setServices] = useState<Service[]>([]);
+    // Caching pass — reuses the exact same query key calendar.tsx's own
+    // servicesQuery already fetches under (['owner-services']), so opening
+    // this sheet (often several times a shift) reads the cached list
+    // instead of re-fetching it every time.
+    const servicesQuery = useQuery({ queryKey: ['owner-services'], queryFn: async () => {
+      const r = await listServices();
+      if (!r.ok) throw new Error(r.error);
+      return r.data.data;
+    } });
+    const services = (servicesQuery.data ?? []).filter(s => s.active);
     // Tap-to-add cart, not single-select -- tapping a service again adds a
     // 2nd (or 3rd, ...) of it, since one walk-in often covers a whole
     // family/friend group getting the same thing.
@@ -155,10 +165,6 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
     const [newPhone, setNewPhone] = useState('');
     const [newEmail, setNewEmail] = useState('');
     const [creatingCustomer, setCreatingCustomer] = useState(false);
-
-    useEffect(() => {
-      listServices().then(r => { if (r.ok) setServices(r.data.data.filter(s => s.active)); });
-    }, []);
 
     const runSearch = useCallback(async (q: string) => {
       setQuery(q);

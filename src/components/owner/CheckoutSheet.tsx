@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { OwnerBooking, createBooking } from '@/lib/api/ownerBookings';
 import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine, sendBalancePaymentEmail, sendBalancePaymentPush, sendRebookNudge } from '@/lib/api/ownerCheckout';
 import { getStoreCredit } from '@/lib/api/ownerCheckout';
@@ -99,7 +100,17 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     const [preview, setPreview] = useState<CheckoutPreview | null>(null);
     const [catalog, setCatalog] = useState<Product[]>([]);
     const [products, setProducts] = useState<ProductLine[]>([]);
-    const [services, setServices] = useState<Service[]>([]);
+    // Caching pass — reuses the exact same query key calendar.tsx's own
+    // servicesQuery already fetches under (['owner-services']), so opening
+    // Checkout (often many times a shift) reads the cached list instead of
+    // re-fetching it every time; only the per-booking exclusion filter
+    // still needs to run fresh each time this sheet opens.
+    const servicesQuery = useQuery({ queryKey: ['owner-services'], queryFn: async () => {
+      const r = await listServices();
+      if (!r.ok) throw new Error(r.error);
+      return r.data.data;
+    } });
+    const services = (servicesQuery.data ?? []).filter(s => s.active && s.id !== booking?.service_id);
     const [addedServices, setAddedServices] = useState<Service[]>([]);
     const [showServicePicker, setShowServicePicker] = useState(false);
     const [discountCents, setDiscountCents] = useState(0);
@@ -133,10 +144,9 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
     const load = useCallback(async () => {
       if (!booking) return;
-      const [previewResult, productsResult, servicesResult] = await Promise.all([
+      const [previewResult, productsResult] = await Promise.all([
         getCheckoutPreview(booking.id),
         listProducts(),
-        listServices(),
       ]);
       if (previewResult.ok) {
         setPreview(previewResult.data);
@@ -151,7 +161,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         }
       }
       if (productsResult.ok) setCatalog(productsResult.data.data);
-      if (servicesResult.ok) setServices(servicesResult.data.data.filter(s => s.active && s.id !== booking.service_id));
       if (booking.customer_id) {
         const credit = await getStoreCredit(booking.customer_id);
         if (credit.ok) setStoreCreditBalance(credit.data.balance_cents);

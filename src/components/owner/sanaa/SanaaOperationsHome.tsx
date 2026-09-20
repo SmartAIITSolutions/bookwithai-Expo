@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,8 +9,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
 import { SanaaLifecycle, SanaaStatus, pauseSanaa, resumeSanaa, repairSanaaConnection, openSanaaBillingPortal } from '@/lib/api/ownerSanaa';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { getSanaaCalls, getSanaaCallsSummary, SanaaCall, SanaaCallsSummary } from '@/lib/api/ownerSanaaCalls';
-import { getSanaaUsage, SanaaUsage } from '@/lib/api/ownerSanaaUsage';
+import { getSanaaCalls, getSanaaCallsSummary, SanaaCall } from '@/lib/api/ownerSanaaCalls';
+import { getSanaaUsage } from '@/lib/api/ownerSanaaUsage';
 import { useSanaaCallsRealtime } from '@/lib/sanaa/useSanaaCallsRealtime';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { formatMonthDay, formatTimeShort, formatMonthDayLong, formatCentsUSD } from '@/lib/i18n/format';
@@ -95,10 +95,6 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
   const { clientId } = useAuth();
   const queryClient = useQueryClient();
 
-  const [summary, setSummary] = useState<SanaaCallsSummary | null>(null);
-  const [recentCalls, setRecentCalls] = useState<SanaaCall[]>([]);
-  const [usage, setUsage] = useState<SanaaUsage | null>(null);
-  const [loadingActivity, setLoadingActivity] = useState(true);
   const [actionPending, setActionPending] = useState(false);
 
   const commercial = sanaaStatus?.commercial_state ?? 'none';
@@ -164,19 +160,40 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
     }
   }
 
-  const loadActivity = useCallback(async () => {
-    setLoadingActivity(true);
-    const [summaryResult, callsResult, usageResult] = await Promise.all([
-      getSanaaCallsSummary(), getSanaaCalls(0), getSanaaUsage(),
-    ]);
-    if (summaryResult.ok) setSummary(summaryResult.data);
-    if (callsResult.ok) setRecentCalls(callsResult.data.calls.slice(0, 5));
-    if (usageResult.ok) setUsage(usageResult.data);
-    setLoadingActivity(false);
-  }, []);
+  // Caching pass — this used to bypass React Query (plain useState + a
+  // fresh 3-call fetch every mount), so switching away from the SANAA tab
+  // and back (a tab the owner flips to/from constantly to check on calls)
+  // always reloaded from scratch. Now cached under the shared 30s
+  // staleTime, same as everything else on Dashboard/Calendar; the
+  // realtime subscription below invalidates these specific keys on a real
+  // call-log change instead of calling a raw reload function, so it stays
+  // in sync with whatever else in the app might read the same keys.
+  const summaryQuery = useQuery({ queryKey: ['owner-sanaa-calls-summary'], queryFn: async () => {
+    const r = await getSanaaCallsSummary();
+    if (!r.ok) throw new Error(r.error);
+    return r.data;
+  } });
+  const callsQuery = useQuery({ queryKey: ['owner-sanaa-calls', 0], queryFn: async () => {
+    const r = await getSanaaCalls(0);
+    if (!r.ok) throw new Error(r.error);
+    return r.data.calls;
+  } });
+  const usageQuery = useQuery({ queryKey: ['owner-sanaa-usage'], queryFn: async () => {
+    const r = await getSanaaUsage();
+    if (!r.ok) throw new Error(r.error);
+    return r.data;
+  } });
+  const summary = summaryQuery.data ?? null;
+  const recentCalls = (callsQuery.data ?? []).slice(0, 5);
+  const usage = usageQuery.data ?? null;
+  const loadingActivity = summaryQuery.isLoading || callsQuery.isLoading || usageQuery.isLoading;
 
-  useEffect(() => { loadActivity(); }, [loadActivity]);
-  useSanaaCallsRealtime(clientId, loadActivity);
+  const invalidateActivity = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['owner-sanaa-calls-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['owner-sanaa-calls', 0] });
+    queryClient.invalidateQueries({ queryKey: ['owner-sanaa-usage'] });
+  }, [queryClient]);
+  useSanaaCallsRealtime(clientId, invalidateActivity);
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
