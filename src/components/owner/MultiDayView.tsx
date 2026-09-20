@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
 } from 'react-native-reanimated';
+import { useQueries } from '@tanstack/react-query';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
+import { ownerBookingsQueryKey } from '@/lib/calendar/useOwnerBookings';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { CalendarFilters, bookingMatchesFilters } from '@/lib/calendar/bookingFilters';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
@@ -100,7 +103,7 @@ function assignLanes(bookings: OwnerBooking[]): Lane[] {
 // appointments (only possible with "All" staff selected, since one staff
 // member can't double-book) collapse to initials-only capsules to fit.
 export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId, filters, onOpen, onFillSlot, onViewFullDay, onSwipeDate, intervalMinutes = 60 }: MultiDayViewProps) {
-  const [byDay, setByDay] = useState<Record<string, OwnerBooking[]>>({});
+  const { clientId } = useAuth();
   const { width: screenWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,16 +123,34 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
     return d;
   });
 
-  async function load() {
-    const results = await Promise.all(dates.map(d => listBookingsForDate(localDateKey(d))));
-    const map: Record<string, OwnerBooking[]> = {};
-    results.forEach((r, i) => { if (r.ok) map[localDateKey(dates[i])] = r.data.data; });
-    setByDay(map);
-  }
+  // Caching pass — this used to bypass React Query entirely (plain
+  // useState + a fresh Promise.all fetch every mount), so every switch
+  // into 3-Day/Week re-fetched every visible day from scratch even if Day
+  // view had already loaded that exact date seconds earlier, and switching
+  // straight back showed a full reload again. Reusing Day view's own
+  // per-date query key (ownerBookingsQueryKey) means a day already cached
+  // by Day view -- or by this same component's own last visit, within the
+  // shared 30s staleTime -- renders instantly instead of re-fetching.
+  const dayQueries = useQueries({
+    queries: dates.map(d => {
+      const key = localDateKey(d);
+      return {
+        queryKey: ownerBookingsQueryKey(clientId, key),
+        queryFn: async () => {
+          const r = await listBookingsForDate(key);
+          if (!r.ok) throw new Error(r.error);
+          return r.data.data;
+        },
+        enabled: !!clientId,
+      };
+    }),
+  });
+  const byDay: Record<string, OwnerBooking[]> = {};
+  dayQueries.forEach((q, i) => { byDay[localDateKey(dates[i])] = q.data ?? []; });
 
   async function handleRefresh() {
     setRefreshing(true);
-    await load();
+    await Promise.all(dayQueries.map(q => q.refetch()));
     setRefreshing(false);
   }
 
@@ -159,11 +180,6 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
     transform: [{ scale: interpolate(pullY.value, [0, PULL_THRESHOLD], [0.6, 1], Extrapolation.CLAMP) }],
   }));
   const swipeGesture = Gesture.Race(swipeNext, swipePrev, pullGesture);
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate.toDateString(), numDays]);
 
   // 3-Day gets a comfortable minimum width; Week (7 days) must fit the full
   // width with no horizontal scroll (Option 3), so it always divides evenly

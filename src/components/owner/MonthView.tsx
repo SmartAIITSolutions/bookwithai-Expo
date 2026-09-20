@@ -4,8 +4,11 @@ import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handl
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
 } from 'react-native-reanimated';
+import { useQuery } from '@tanstack/react-query';
 import { getMonthSummary, MonthSummaryPreview } from '@/lib/api/ownerCalendarSummary';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
+import { ownerBookingsQueryKey } from '@/lib/calendar/useOwnerBookings';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
 import { CalendarFilters, bookingMatchesFilters } from '@/lib/calendar/bookingFilters';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
@@ -54,17 +57,8 @@ const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6].map(weekdayShortUpperForIndex);
 // load) as an at-a-glance preview.
 export function MonthView({ month, weekSchedule, filters, onOpenBooking, onViewFullDay, onSwipeDate }: MonthViewProps) {
   const { t } = useTranslation(['calendar']);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  // Fresha-parity pass — per-day preview list (start time + status, capped
-  // at 4/day server-side) so each grid cell can show real inline mini-chips
-  // like Fresha's own Month view, instead of only a presence dot. The
-  // bottom summary card stays exactly as it was -- kept deliberately per
-  // direct instruction, so a day can still be opened for full detail
-  // without leaving Month view.
-  const [previews, setPreviews] = useState<Record<string, MonthSummaryPreview[]>>({});
+  const { clientId } = useAuth();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [dayBookings, setDayBookings] = useState<OwnerBooking[]>([]);
-  const [loadingDay, setLoadingDay] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   // Same hand-rolled pull-to-refresh as TimelineCalendar/MultiDayView --
   // this screen never scrolls at all (fixed grid + summary card), so
@@ -81,29 +75,41 @@ export function MonthView({ month, weekSchedule, filters, onOpenBooking, onViewF
   }
 
   const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+  const selectedDateKey = localDateKey(selectedDate);
 
-  async function loadMonth() {
-    const r = await getMonthSummary(monthKey);
-    if (r.ok) {
-      setCounts(r.data.counts);
-      // Defensive against an older deployed backend that hasn't shipped the
-      // `previews` field yet -- crashed the whole screen otherwise, since
-      // `previews[key]` on an undefined `previews` throws.
-      setPreviews(r.data.previews ?? {});
-    }
-  }
+  // Caching pass — both of these used to bypass React Query (plain
+  // useState + a fresh fetch on every mount/selectedDate change), so
+  // paging months or re-selecting a day already viewed this session always
+  // re-fetched from scratch. The day query reuses Day view's own per-date
+  // key (ownerBookingsQueryKey) -- selecting a day already cached by Day
+  // view, or by this same card a moment ago, renders instantly.
+  const monthQuery = useQuery({
+    queryKey: ['owner-month-summary', clientId, monthKey],
+    queryFn: async () => {
+      const r = await getMonthSummary(monthKey);
+      if (!r.ok) throw new Error(r.error);
+      return r.data;
+    },
+    enabled: !!clientId,
+  });
+  const counts = monthQuery.data?.counts ?? {};
+  const previews = monthQuery.data?.previews ?? {};
 
-  async function loadDay() {
-    setLoadingDay(true);
-    const key = localDateKey(selectedDate);
-    const r = await listBookingsForDate(key);
-    if (r.ok) setDayBookings(r.data.data.filter(b => b.status !== 'cancelled' && (!filters || bookingMatchesFilters(b, filters))));
-    setLoadingDay(false);
-  }
+  const dayQuery = useQuery({
+    queryKey: ownerBookingsQueryKey(clientId, selectedDateKey),
+    queryFn: async () => {
+      const r = await listBookingsForDate(selectedDateKey);
+      if (!r.ok) throw new Error(r.error);
+      return r.data.data;
+    },
+    enabled: !!clientId,
+  });
+  const loadingDay = dayQuery.isLoading;
+  const dayBookings = (dayQuery.data ?? []).filter(b => b.status !== 'cancelled' && (!filters || bookingMatchesFilters(b, filters)));
 
   async function handleRefresh() {
     setRefreshing(true);
-    await Promise.all([loadMonth(), loadDay()]);
+    await Promise.all([monthQuery.refetch(), dayQuery.refetch()]);
     setRefreshing(false);
   }
 
@@ -130,7 +136,6 @@ export function MonthView({ month, weekSchedule, filters, onOpenBooking, onViewF
   const swipeGesture = Gesture.Race(swipeNext, swipePrev, pullGesture);
 
   useEffect(() => {
-    loadMonth();
     // Bug fix — selectedDate (and the summary card it drives below the
     // grid) never reset when the owner navigated to a different month --
     // only tapping a cell changed it, so paging from September to October
@@ -144,11 +149,6 @@ export function MonthView({ month, weekSchedule, filters, onOpenBooking, onViewF
     setSelectedDate(todayInThisMonth ? today : new Date(month.getFullYear(), month.getMonth(), 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthKey]);
-
-  useEffect(() => {
-    loadDay();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, filters]);
 
   const firstOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
