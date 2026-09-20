@@ -2,10 +2,26 @@
   "blockTime": {
     "title": "Block Time"
   },
+  "datePicker": {
+    "inWeeks_one": "In {{count}} week",
+    "inWeeks_other": "In {{count}} weeks",
+    "close": "Close",
+    "weekday": {
+      "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun"
+    }
+  },
+  "noStaff": {
+    "title": "No scheduled team members",
+    "subtitle": "Add availability to your team by managing your scheduled shifts",
+    "scheduledShifts": "Scheduled shifts",
+    "viewAllTeamMembers": "View all team members"
+  },
   "walkIn": {
     "title": "Walk-In",
+    "newAppointmentTitle": "New Appointment",
     "bookingForTime": "Booking for {{time}}",
     "bookingForEarliest": "Booking for the earliest available chair",
+    "otherCategory": "Other",
     "outsideHoursWarning": "This time is outside normal hours — there may be no staff scheduled.",
     "customerLabel": "Customer",
     "addCustomer": "Add customer",
@@ -97,6 +113,7 @@
     "couldNotLoadTimeline": "Couldn't load the timeline.",
     "now": "Now",
     "allColumn": "All",
+    "unassignedColumn": "Unassigned",
     "blockedTimeTitle": "Blocked Time",
     "newChip": "NEW",
     "cancelledPill": "CANCELLED",
@@ -217,7 +234,8 @@
     "oneHour": "1 hour",
     "minutes_one": "{{count}} minute",
     "minutes_other": "{{count}} minutes",
-    "legendTitle": "Legend",
+    "filtersTitle": "Filters",
+    "clearFilters": "Clear",
     "bookingSourceGroup": "Booking Source",
     "sanaaVoiceAi": "SANAA Voice AI",
     "onlineBooking": "Online Booking",
@@ -229,8 +247,7 @@
     "unpaid": "Unpaid",
     "deposit": "Deposit",
     "statusGroup": "Status",
-    "cancelledNoShow": "Cancelled / No-Show",
-    "completed": "Completed",
+    "servicesGroup": "Services",
     "allTimesShownIn": "🌐 All times shown in {{timeZone}}"
   }
 }

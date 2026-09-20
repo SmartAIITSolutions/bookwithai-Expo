@@ -6,8 +6,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
+import { CalendarFilters, bookingMatchesFilters } from '@/lib/calendar/bookingFilters';
 import { findEmptySpaces, EmptySpace } from '@/lib/calendar/calendarInsights';
-import { WeekSchedule, dayScheduleFor, gridBoundsMinutes, minutesSinceMidnight, hourLabels, localDateKey, snapMinutes } from '@/lib/calendar/timeGrid';
+import { WeekSchedule, dayScheduleFor, minutesSinceMidnight, hourLabels, localDateKey, snapMinutes } from '@/lib/calendar/timeGrid';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { CalendarPalette as P } from '@/constants/CalendarPalette';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
@@ -21,6 +22,11 @@ interface MultiDayViewProps {
   numDays: 3 | 7; // 3-Day and Week modes
   weekSchedule: WeekSchedule | null;
   selectedStaffId: string | 'all';
+  // Calendar parity pass (audit §08) — status/channel/payment/service
+  // filters, on top of the staff filter above. Optional since this view
+  // still needs to render correctly for any caller that hasn't been
+  // updated to pass one.
+  filters?: CalendarFilters;
   onOpen: (b: OwnerBooking) => void;
   // Tapping empty grid space books for the exact tapped time -- when the
   // tapped day matches what's currently selected, `date` carries the real
@@ -40,7 +46,10 @@ interface MultiDayViewProps {
 }
 
 const TIME_GUTTER = 40;
-const HOUR_HEIGHT = 56;
+// Bumped from 56 alongside Day view's own increase (TimelineCalendar.tsx) --
+// same "make the slots wider/more tappable" feedback, matching Fresha's
+// more generous per-hour spacing.
+const HOUR_HEIGHT = 80;
 const MIN_COLUMN_WIDTH = 100; // below this, a full-detail block can't fit -- 3-Day always gets at least this
 
 function initials(name: string) {
@@ -90,7 +99,7 @@ function assignLanes(bookings: OwnerBooking[]): Lane[] {
 // screen at once (Option 3 in the reference mockup), so overlapping
 // appointments (only possible with "All" staff selected, since one staff
 // member can't double-book) collapse to initials-only capsules to fit.
-export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId, onOpen, onFillSlot, onViewFullDay, onSwipeDate, intervalMinutes = 60 }: MultiDayViewProps) {
+export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId, filters, onOpen, onFillSlot, onViewFullDay, onSwipeDate, intervalMinutes = 60 }: MultiDayViewProps) {
   const [byDay, setByDay] = useState<Record<string, OwnerBooking[]>>({});
   const { width: screenWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
@@ -163,18 +172,23 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
     ? (screenWidth - TIME_GUTTER) / numDays
     : Math.max(MIN_COLUMN_WIDTH, (screenWidth - TIME_GUTTER) / numDays);
 
-  // Shared grid bounds across all visible days (widest schedule wins) so
-  // every column lines up against the same hour gutter.
+  // Fresha-parity pass — full 24h scrollable range now (same change as Day
+  // view/TimelineCalendar.tsx), not capped to business hours + 30min padding.
+  // `schedules`/dayScheduleFor still drive each column's own closed-hours
+  // shading below -- only the scrollable bounds themselves changed.
   const schedules = dates.map(d => dayScheduleFor(weekSchedule, d));
-  const bounds = schedules.map(gridBoundsMinutes);
-  const gridStart = Math.min(...bounds.map(b => b.start));
-  const gridEnd = Math.max(...bounds.map(b => b.end));
+  const gridStart = 0;
+  const gridEnd = 24 * 60;
   // Scale height by the interval so a tick always keeps the same generous
   // tap size -- otherwise "15 min" would pack 4x as many ticks into the
   // same space, making them harder to tap precisely, not easier.
   const pxPerMinute = (HOUR_HEIGHT * (60 / intervalMinutes)) / 60;
   const totalHeight = (gridEnd - gridStart) * pxPerMinute;
   const labels = hourLabels(gridStart, gridEnd, intervalMinutes);
+  // Fresha-parity pass — same always-on quarter-hour minor ticks as Day
+  // view (TimelineCalendar.tsx), so 3-Day/Week stay visually consistent
+  // with it instead of only Day view getting the finer tap reference.
+  const minorLabels = intervalMinutes === 15 ? [] : hourLabels(gridStart, gridEnd, 15);
   const todayKey = localDateKey(new Date());
 
   const columnsContent = (
@@ -182,7 +196,9 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
       {dates.map((d, di) => {
         const key = localDateKey(d);
         const dayBookings = (byDay[key] ?? []).filter(b =>
-          b.status !== 'cancelled' && (selectedStaffId === 'all' || b.staff_id === selectedStaffId)
+          b.status !== 'cancelled'
+          && (selectedStaffId === 'all' || b.staff_id === selectedStaffId)
+          && (!filters || bookingMatchesFilters(b, filters))
         );
         const isClosed = schedules[di].open === false;
         const gaps = isClosed ? [] : findEmptySpaces(dayBookings, schedules[di], 30);
@@ -207,6 +223,9 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
             </Pressable>
             <View style={{ height: totalHeight }}>
               <View style={styles.gridBackground}>
+                {minorLabels.map(l => (
+                  <View key={`minor-${l.minutes}`} style={[styles.gridLineMinor, { top: (l.minutes - gridStart) * pxPerMinute }]} />
+                ))}
                 {labels.map(l => (
                   <View key={l.minutes} style={[styles.gridLine, { top: (l.minutes - gridStart) * pxPerMinute }]} />
                 ))}
@@ -292,11 +311,27 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
                   );
                 }
 
+                // Calendar parity pass (audit §09) — same stacked
+                // sub-segment treatment as Day view's AppointmentBlock, for
+                // a multi-service booking with enough room to show it.
+                const serviceNames = b.service_names ?? [];
+                const isMultiService = serviceNames.length > 1;
+                const segmentMinutes = isMultiService ? Math.max(15, endMin - startMin) / serviceNames.length : 0;
+
                 return (
                   <Pressable key={b.id} style={[styles.block, { top, height, borderLeftColor: color }]} onPress={() => onOpen(b)}>
                     <Text style={styles.time}>{formatTimeShort(new Date(b.starts_at))}</Text>
                     <Text style={styles.customer} numberOfLines={1}>{customerDisplayName(b)}</Text>
-                    {height > 44 && <Text style={styles.service} numberOfLines={1}>{serviceDisplayName(b)}</Text>}
+                    {height > 70 && isMultiService ? (
+                      serviceNames.map((name, i) => {
+                        const segStart = new Date(new Date(b.starts_at).getTime() + i * segmentMinutes * 60000);
+                        return (
+                          <Text key={i} style={styles.service} numberOfLines={1}>
+                            {formatTimeShort(segStart)} · {name}
+                          </Text>
+                        );
+                      })
+                    ) : height > 44 && <Text style={styles.service} numberOfLines={1}>{serviceDisplayName(b)}</Text>}
                   </Pressable>
                 );
               })}
@@ -411,7 +446,8 @@ const styles = StyleSheet.create({
   columnHeaderDate: { fontSize: 13, fontWeight: '700', color: P.textPrimary },
   columnHeaderTextToday: { color: P.background },
   gridBackground: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: P.border },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: P.textDisabled },
+  gridLineMinor: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(46,41,66,0.25)' },
   closedBand: { position: 'absolute', left: 0, backgroundColor: 'rgba(120,120,135,0.16)' },
   block: {
     position: 'absolute', left: 3, right: 3, backgroundColor: P.card,

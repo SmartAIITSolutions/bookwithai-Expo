@@ -2,10 +2,26 @@
   "blockTime": {
     "title": "Bloquear Horario"
   },
+  "datePicker": {
+    "inWeeks_one": "En {{count}} semana",
+    "inWeeks_other": "En {{count}} semanas",
+    "close": "Cerrar",
+    "weekday": {
+      "mon": "Lun", "tue": "Mar", "wed": "Mié", "thu": "Jue", "fri": "Vie", "sat": "Sáb", "sun": "Dom"
+    }
+  },
+  "noStaff": {
+    "title": "Sin miembros del equipo programados",
+    "subtitle": "Agrega disponibilidad a tu equipo administrando sus turnos programados",
+    "scheduledShifts": "Turnos programados",
+    "viewAllTeamMembers": "Ver todo el equipo"
+  },
   "walkIn": {
     "title": "Sin Cita Previa",
+    "newAppointmentTitle": "Nueva Cita",
     "bookingForTime": "Reservando para las {{time}}",
     "bookingForEarliest": "Reservando para la silla disponible más pronto",
+    "otherCategory": "Otro",
     "outsideHoursWarning": "Este horario está fuera del horario normal — puede que no haya personal disponible.",
     "customerLabel": "Cliente",
     "addCustomer": "Agregar cliente",
@@ -97,6 +113,7 @@
     "couldNotLoadTimeline": "No se pudo cargar la línea de tiempo.",
     "now": "Ahora",
     "allColumn": "Todo",
+    "unassignedColumn": "Sin asignar",
     "blockedTimeTitle": "Horario Bloqueado",
     "newChip": "NUEVO",
     "cancelledPill": "CANCELADA",
@@ -217,7 +234,8 @@
     "oneHour": "1 hora",
     "minutes_one": "{{count}} minuto",
     "minutes_other": "{{count}} minutos",
-    "legendTitle": "Leyenda",
+    "filtersTitle": "Filtros",
+    "clearFilters": "Borrar",
     "bookingSourceGroup": "Origen de la Reserva",
     "sanaaVoiceAi": "SANAA Voice AI",
     "onlineBooking": "Reserva en Línea",
@@ -229,8 +247,7 @@
     "unpaid": "Sin Pagar",
     "deposit": "Depósito",
     "statusGroup": "Estado",
-    "cancelledNoShow": "Cancelada / No Presentado",
-    "completed": "Completada",
+    "servicesGroup": "Servicios",
     "allTimesShownIn": "🌐 Todos los horarios se muestran en {{timeZone}}"
   }
 }

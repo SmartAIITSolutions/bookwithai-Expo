@@ -35,6 +35,15 @@ interface WalkInSheetProps {
   // starting from an empty search, so the owner doesn't have to look the
   // same customer up again right after finding them.
   initialCustomer?: CustomerLite | null;
+  // Fresha-parity pass — "New Appointment" and "Walk-in" used to open this
+  // exact same sheet with zero difference at all (both wired to the same
+  // handler). They're still genuinely the same booking flow/logic
+  // underneath (create-customer, service cart, earliest-chair-or-manual
+  // time, conflict handling -- none of that changes), but now open with a
+  // different default starting point and header, matching how Fresha's own
+  // single creation flow treats "pick a client" vs "walk-in" as two
+  // different entry points into itself rather than two separate screens.
+  mode?: 'new' | 'walkIn';
 }
 
 function TimeStepper({ label, value, onChange, step = 1, pad }: {
@@ -58,6 +67,22 @@ function TimeStepper({ label, value, onChange, step = 1, pad }: {
 
 interface CartLine { service: Service; qty: number }
 
+// Fresha-parity pass — services now browse grouped by category ("Add On",
+// "Threading", etc., same `category` field the customer-facing app's own
+// groupServicesByCategory already groups by) instead of one flat list, so
+// picking from a real service menu looks like picking from a menu, not
+// scrolling a plain index. A service with no category (or a blank one)
+// falls into one shared "Other" bucket rather than being dropped.
+function groupServicesByCategory(list: Service[], otherLabel: string): { category: string; items: Service[] }[] {
+  const groups = new Map<string, Service[]>();
+  for (const s of list) {
+    const key = s.category?.trim() || otherLabel;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(s);
+  }
+  return [...groups.entries()].map(([category, items]) => ({ category, items }));
+}
+
 function CardOverlay() {
   return (
     <LinearGradient
@@ -71,7 +96,7 @@ function CardOverlay() {
 // earliest open chair is found automatically — "Walk-In → Find earliest
 // chair → Book." Target ~15 seconds for a returning customer.
 export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
-  function WalkInSheet({ staff, todaysBookings, onBooked, initialTime, initialStaffId, outsideBusinessHours, initialCustomer }, ref) {
+  function WalkInSheet({ staff, todaysBookings, onBooked, initialTime, initialStaffId, outsideBusinessHours, initialCustomer, mode = 'new' }, ref) {
     const { t } = useTranslation(['calendar', 'errors']);
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<CustomerLite[]>([]);
@@ -114,7 +139,13 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
       setManualAmPm(base.getHours() >= 12 ? 'PM' : 'AM');
       setManualStaffId(initialStaffId ?? null);
       setManualMode(false);
-    }, [initialTime, initialStaffId]);
+      // Walk-in mode's default now tracks which entry point this sheet was
+      // opened from -- "New Appointment" starts at customer search (like
+      // Fresha's own client-select step), "Walk-in" skips straight past it.
+      // Only applies when there's no already-known customer to preserve.
+      if (!initialCustomer) setWalkInMode(mode === 'walkIn');
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialTime, initialStaffId, mode]);
 
     // New-customer form -- shown when a search comes back empty, since name,
     // phone, and email are all mandatory for every customer record (matches
@@ -176,6 +207,8 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
         return l.qty <= 1 ? [] : [{ ...l, qty: l.qty - 1 }];
       }));
     }
+
+    const groupedServices = groupServicesByCategory(services, t('calendar:walkIn.otherCategory'));
 
     const cartServiceIds = cart.flatMap(l => Array(l.qty).fill(l.service.id));
     const cartDurationMin = cart.reduce((s, l) => s + l.service.duration_minutes * l.qty, 0);
@@ -369,9 +402,9 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
             content instead of reserving space above it. */}
         <View style={styles.header}>
           <View style={styles.headerRow}>
-            <Ionicons name="walk-outline" size={18} color="#F4D77A" />
+            <Ionicons name={mode === 'walkIn' ? 'walk-outline' : 'calendar-outline'} size={18} color="#F4D77A" />
             <View>
-              <Text style={styles.title}>{t('calendar:walkIn.title')}</Text>
+              <Text style={styles.title}>{mode === 'walkIn' ? t('calendar:walkIn.title') : t('calendar:walkIn.newAppointmentTitle')}</Text>
               <Text style={styles.subtitle}>
                 {initialTime
                   ? t('calendar:walkIn.bookingForTime', { time: formatTimeShort(initialTime) })
@@ -504,15 +537,20 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
               ))}
             </View>
           )}
-          {services.map(s => (
-            <TouchableOpacity
-              key={s.id}
-              style={styles.serviceRow}
-              onPress={() => addToCart(s)}
-            >
-              <Text style={styles.serviceName}>{s.name}</Text>
-              <Text style={styles.serviceMeta}>{t('calendar:walkIn.durationPrice', { minutes: s.duration_minutes, price: formatCentsUSD(s.price_cents) })}</Text>
-            </TouchableOpacity>
+          {groupedServices.map(group => (
+            <View key={group.category}>
+              <Text style={styles.categoryLabel}>{group.category}</Text>
+              {group.items.map(s => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={styles.serviceRow}
+                  onPress={() => addToCart(s)}
+                >
+                  <Text style={styles.serviceName}>{s.name}</Text>
+                  <Text style={styles.serviceMeta}>{t('calendar:walkIn.durationPrice', { minutes: s.duration_minutes, price: formatCentsUSD(s.price_cents) })}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           ))}
 
           <Text style={styles.label}>{t('calendar:walkIn.timeAndStaffLabel')}</Text>
@@ -657,6 +695,10 @@ const styles = StyleSheet.create({
   newCustomerCancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.7)' },
   newCustomerSave: { flex: 2, alignItems: 'center', paddingVertical: 10, borderRadius: BorderRadius.sm, backgroundColor: '#F4D77A' },
   newCustomerSaveText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#09000F' },
+  categoryLabel: {
+    fontFamily: FontFamily.soraSemiBold, fontSize: 11, textTransform: 'uppercase',
+    letterSpacing: 0.6, color: 'rgba(244,215,122,0.65)', marginTop: Spacing.sm, marginBottom: 2,
+  },
   serviceRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: BorderRadius.sm, padding: Spacing.sm, marginTop: 6,

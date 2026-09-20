@@ -29,6 +29,31 @@ interface AppointmentSheetProps {
   onOpenDetail?: (booking: OwnerBooking) => void;
 }
 
+// Calendar parity pass (audit §12) — Fresha's "⋯" menu has a visible
+// activity log; there's no dedicated audit-log table backing this app, so
+// rather than build a fake/decorative entry, this derives a genuine
+// (if sparse) timeline purely from the real timestamp columns already on
+// every fetched booking (checked_in_at/service_started_at/
+// service_completed_at/cancelled_at) -- every row shown here is a real
+// event that actually happened, just not a full audit trail (no "created",
+// no "rescheduled from X to Y" -- those aren't tracked anywhere yet).
+interface ActivityEvent { label: string; at: string }
+function buildActivityEvents(booking: OwnerBooking): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+  if (booking.checked_in_at) events.push({ label: i18n.t('owner:appointmentSheet.activityCheckedIn'), at: booking.checked_in_at });
+  if (booking.service_started_at) events.push({ label: i18n.t('owner:appointmentSheet.activityServiceStarted'), at: booking.service_started_at });
+  if (booking.service_completed_at) events.push({ label: i18n.t('owner:appointmentSheet.activityServiceCompleted'), at: booking.service_completed_at });
+  if (booking.cancelled_at) {
+    events.push({
+      label: booking.cancellation_reason
+        ? i18n.t('owner:appointmentSheet.activityCancelledWithReason', { reason: booking.cancellation_reason })
+        : i18n.t('owner:appointmentSheet.activityCancelled'),
+      at: booking.cancelled_at,
+    });
+  }
+  return events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+}
+
 function elapsedLabel(startedAt: string, durationMinutes: number): string {
   const elapsedMin = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000));
   const finish = new Date(new Date(startedAt).getTime() + durationMinutes * 60000);
@@ -53,6 +78,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     const { t } = useTranslation(['owner', 'common']);
     const [working, setWorking] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [activityOpen, setActivityOpen] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
     const [confirmNoShow, setConfirmNoShow] = useState(false);
     const [addOn, setAddOn] = useState<AddOnSuggestion | null>(null);
@@ -241,6 +267,28 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
                   <Text style={[styles.menuText, { color: '#4ADE80' }]}>{t('owner:appointmentSheet.restoreAppointment')}</Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={[styles.menuItem, styles.menuItemBorder]}
+                onPress={() => { setMenuOpen(false); setActivityOpen(v => !v); }}
+              >
+                <Ionicons name="time-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.menuText}>{t('owner:appointmentSheet.viewActivity')}</Text>
+              </TouchableOpacity>
+            </BlurView>
+          )}
+
+          {activityOpen && (
+            <BlurView intensity={90} tint="dark" style={styles.notesCard}>
+              <CardOverlay />
+              <Text style={styles.notesLabel}>{t('owner:appointmentSheet.activityTitle')}</Text>
+              {buildActivityEvents(booking).map((ev, i) => (
+                <Text key={i} style={styles.activityRow}>
+                  {formatWeekdayMonthDay(new Date(ev.at))} · {formatTimeShort(new Date(ev.at))} — {ev.label}
+                </Text>
+              ))}
+              {buildActivityEvents(booking).length === 0 && (
+                <Text style={styles.notesBody}>{t('owner:appointmentSheet.activityEmpty')}</Text>
+              )}
             </BlurView>
           )}
 
@@ -397,6 +445,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5, color: '#8FB8FF', marginBottom: 4,
   },
   notesBody: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
+  activityRow: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
   addOnCard: {
     backgroundColor: 'rgba(212,175,55,0.08)', borderRadius: BorderRadius.sm, padding: Spacing.sm,
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)',

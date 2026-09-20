@@ -14,7 +14,7 @@ import { CheckoutSheet, CheckoutSheetHandle } from '@/components/owner/CheckoutS
 import { WalkInSheet } from '@/components/owner/WalkInSheet';
 import { TimelineCalendar } from '@/components/owner/TimelineCalendar';
 import { CalendarDatePicker } from '@/components/owner/CalendarDatePicker';
-import { DayKpiStrip } from '@/components/owner/DayKpiStrip';
+import { FreshaDatePicker } from '@/components/owner/FreshaDatePicker';
 import { MonthView } from '@/components/owner/MonthView';
 import { MultiDayView } from '@/components/owner/MultiDayView';
 import { QueueFlowView } from '@/components/owner/QueueFlowView';
@@ -22,9 +22,12 @@ import { useOwnerBookings } from '@/lib/calendar/useOwnerBookings';
 import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
 import { getBusiness, Business } from '@/lib/api/ownerBusiness';
 import { OwnerBooking, getBooking, blockTime, updateBooking } from '@/lib/api/ownerBookings';
+import { listServices, Service } from '@/lib/api/ownerServices';
 import { CustomerLite } from '@/lib/api/ownerCustomers';
 import { zonedDateKey, zonedHeaderLabels, dayScheduleForZoned } from '@/lib/calendar/timeGrid';
-import { computeDayKpis } from '@/lib/calendar/dayKpis';
+import { BookingSource, SOURCE_COLOR, PaymentBadge, PAYMENT_COLOR } from '@/lib/calendar/appointmentVisual';
+import { ALL_STATUS_KEYS, STATUS_COLOR, statusLabel } from '@/lib/calendar/bookingStatus';
+import { CalendarFilters, emptyFilters, isFiltersActive, activeFilterCount, bookingMatchesFilters } from '@/lib/calendar/bookingFilters';
 import { buildSampleDay, buildLateSampleBooking, isSampleBooking } from '@/lib/calendar/sampleDayFixture';
 import { getDaySampleMode, setDaySampleMode } from '@/lib/calendar/daySampleMode';
 import { ErrorState } from '@/components/ErrorState';
@@ -34,6 +37,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { formatMonthYearLong, formatMonthDay, formatTimeShortInTZ, formatWeekdayMonthDayYearInTZ } from '@/lib/i18n/format';
 
 const gridIntervalKey = (businessId: string) => `calendar_grid_interval_${businessId}`;
+const selectedStaffKey = (businessId: string) => `calendar_selected_staff_${businessId}`;
 
 function roundToNext15(d: Date): Date {
   const next = new Date(d);
@@ -98,15 +102,29 @@ export default function OwnerCalendarScreen() {
   const [date, setDate] = useState(new Date());
   const [mode, setMode] = useState<CalendarMode>('agenda');
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [business, setBusiness] = useState<Business | null>(null);
   const [businessError, setBusinessError] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | 'all'>('all');
+  // Calendar parity pass (audit §08) — the four new filter dimensions
+  // (status/channel/payment/services) that were previously only a read-only
+  // color legend. Session-only (not persisted like the staff filter) --
+  // these are meant as a temporary "show me X right now" lens, not a
+  // sticky default that could silently hide bookings on the next visit.
+  const [filters, setFilters] = useState<CalendarFilters>(emptyFilters());
   const [gridInterval, setGridInterval] = useState<15 | 30 | 60>(60);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   // Set when a specific empty grid slot was tapped, so the Walk-In sheet
   // books for that exact time/staff instead of "earliest available now".
   // Cleared before any generic Walk-In entry point (header/nav button).
   const [walkInPrefill, setWalkInPrefill] = useState<{ startsAt: Date; staffId: string | null; outsideHours?: boolean } | null>(null);
+  // Fresha-parity pass — "New Appointment" and "Walk-in" now open the same
+  // sheet with a genuinely different starting point (see WalkInSheet's own
+  // `mode` prop comment) instead of being silently identical. Defaults to
+  // 'new' since that's the more capable starting point (customer search) --
+  // every generic/unlabeled entry point falls back to it.
+  const [walkInFlowMode, setWalkInFlowMode] = useState<'new' | 'walkIn'>('new');
   // Set when arriving from a customer profile's "Book" action -- stays
   // pending (shown as a dismissible banner) across mode switches and date
   // navigation until the owner actually taps a slot to book, or a booking
@@ -225,8 +243,25 @@ export default function OwnerCalendarScreen() {
 
   useEffect(() => {
     listStaff().then(result => { if (result.ok) setStaff(result.data.data.filter(s => s.active)); });
+    listServices().then(result => { if (result.ok) setServices(result.data.data.filter(s => s.active)); });
     loadBusiness();
   }, [loadBusiness]);
+
+  // Toggles one value within one filter dimension -- checking a second box
+  // in the same section (e.g. "SANAA" + "Walk-in" under Channel) is an OR
+  // within that axis; a box checked in a different section is an AND across
+  // axes (see bookingFilters.ts's own comment for the exact semantics).
+  function toggleFilter<K extends keyof CalendarFilters>(dimension: K, value: CalendarFilters[K] extends Set<infer V> ? V : never) {
+    setFilters(prev => {
+      const next = new Set(prev[dimension] as Set<typeof value>);
+      if (next.has(value)) next.delete(value); else next.add(value);
+      return { ...prev, [dimension]: next };
+    });
+  }
+
+  function clearFilters() {
+    setFilters(emptyFilters());
+  }
 
   // A single-staff salon has no real use for "All" vs. the one person --
   // default straight to them instead of the generic "All" chip. Only
@@ -239,6 +274,30 @@ export default function OwnerCalendarScreen() {
       setSelectedStaffId(staff[0].id);
     }
   }, [staff]);
+
+  // Remember the last-selected staff filter per salon, same pattern as the
+  // grid interval below -- previously this always reset to "All" on every
+  // screen mount (app restart, or navigating away and back), even right
+  // after an owner had deliberately switched to one person. Only restores
+  // once staff has actually loaded, so a persisted id can be checked
+  // against who's still active (a staff member removed since the last
+  // visit falls back to "All" instead of silently filtering to nobody).
+  const staffRestored = useRef(false);
+  useEffect(() => {
+    if (!business || staff.length === 0 || staffRestored.current) return;
+    staffRestored.current = true;
+    AsyncStorage.getItem(selectedStaffKey(business.id)).then(v => {
+      if (v && staff.some(s => s.id === v)) {
+        staffAutoSelected.current = true; // a real persisted choice beats the single-staff auto-select above
+        setSelectedStaffId(v);
+      }
+    });
+  }, [business, staff]);
+
+  function handleSetSelectedStaffId(id: string | 'all') {
+    setSelectedStaffId(id);
+    if (business) AsyncStorage.setItem(selectedStaffKey(business.id), id);
+  }
 
   // Remember the chosen grid interval per salon so it survives a reload,
   // instead of always resetting to the 1h default.
@@ -279,12 +338,6 @@ export default function OwnerCalendarScreen() {
     }
   }
 
-  const navLabels =
-    mode === 'week' ? { prev: t('calendar:screen.navLastWeek'), next: t('calendar:screen.navNextWeek') } :
-    mode === '3day' ? { prev: t('calendar:screen.navPrevious3Days'), next: t('calendar:screen.navNext3Days') } :
-    mode === 'month' ? { prev: t('calendar:screen.navLastMonth'), next: t('calendar:screen.navNextMonth') } :
-    { prev: t('calendar:screen.navYesterday'), next: t('calendar:screen.navTomorrow') };
-
   function openBooking(b: OwnerBooking) {
     setSelectedBooking(b);
     sheetRef.current?.present();
@@ -314,11 +367,13 @@ export default function OwnerCalendarScreen() {
     // specific staff to attribute the tap to -- WalkInSheet will still
     // pick whichever staff is actually free at this exact time.
     setWalkInPrefill({ startsAt: d, staffId: null, outsideHours });
+    setWalkInFlowMode('new');
     walkInRef.current?.present();
   }
 
-  function openWalkInFor(startsAt: Date, staffId: string | null, outsideHours?: boolean) {
+  function openWalkInFor(startsAt: Date, staffId: string | null, outsideHours?: boolean, flowMode: 'new' | 'walkIn' = 'new') {
     setWalkInPrefill({ startsAt, staffId, outsideHours });
+    setWalkInFlowMode(flowMode);
     walkInRef.current?.present();
   }
 
@@ -533,8 +588,9 @@ export default function OwnerCalendarScreen() {
     Alert.alert(t('calendar:screen.couldNotDeleteBlockTitle'), result.error);
   }
 
-  function openWalkInGeneric() {
+  function openWalkInGeneric(flowMode: 'new' | 'walkIn' = 'new') {
     setWalkInPrefill(null);
+    setWalkInFlowMode(flowMode);
     walkInRef.current?.present();
   }
 
@@ -586,9 +642,9 @@ export default function OwnerCalendarScreen() {
   // staff is selected, not just under "All" -- otherwise a single-staff
   // salon (which auto-selects its own column) silently loses them off the
   // grid entirely, with no way to see or claim them.
-  const visibleBookings = selectedStaffId === 'all'
-    ? effectiveBookings
-    : effectiveBookings.filter(b => b.staff_id === selectedStaffId || b.staff_id === null);
+  const visibleBookings = effectiveBookings
+    .filter(b => selectedStaffId === 'all' || b.staff_id === selectedStaffId || b.staff_id === null)
+    .filter(b => bookingMatchesFilters(b, filters));
 
   const isToday = zonedDateKey(new Date(), timeZone) === dateKey;
   const schedule = business ? dayScheduleForZoned(business.week_schedule, date, timeZone) : null;
@@ -629,9 +685,9 @@ export default function OwnerCalendarScreen() {
       {mode === 'agenda' && <View style={styles.rowDivider} />}
       {mode === 'agenda' && (
         <>
-          <StaffChip label={t('calendar:screen.all')} active={selectedStaffId === 'all'} onPress={() => setSelectedStaffId('all')} />
+          <StaffChip label={t('calendar:screen.all')} active={selectedStaffId === 'all'} onPress={() => handleSetSelectedStaffId('all')} />
           {staff.map(s => (
-            <StaffChip key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => setSelectedStaffId(s.id)} />
+            <StaffChip key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => handleSetSelectedStaffId(s.id)} />
           ))}
         </>
       )}
@@ -670,6 +726,7 @@ export default function OwnerCalendarScreen() {
 
       <Pressable style={styles.dayFilterIconBtn} onPress={() => setFilterSheetOpen(true)}>
         <Ionicons name="options-outline" size={16} color={P.textPrimary} />
+        {isFiltersActive(filters) && <View style={styles.filterActiveBadge} />}
       </Pressable>
 
       {__DEV__ && (
@@ -708,8 +765,13 @@ export default function OwnerCalendarScreen() {
         </View>
       )}
 
-      <View style={styles.dateRow}>
-        <Pressable onPress={() => shiftView(-1)}><Text style={styles.dateNav}>{navLabels.prev}</Text></Pressable>
+      {/* Fresha-parity pass — the old "← Yesterday | date | Tomorrow →" text
+          row is gone; Fresha's own header (confirmed live) is just the date
+          plus a chevron that opens the scrollable multi-month picker below,
+          with swipe-the-grid as the actual day-to-day navigation gesture
+          (shiftDay/shiftView, unchanged, still power every onSwipeDate
+          callback passed into the grid views). */}
+      <Pressable style={styles.dateRow} onPress={() => setDatePickerOpen(true)}>
         <Text style={styles.dateLabel}>
           {mode === 'month'
             ? formatMonthYearLong(date)
@@ -717,12 +779,14 @@ export default function OwnerCalendarScreen() {
             ? t('calendar:screen.weekOf', { date: formatMonthDay(date) })
             : isToday ? t('calendar:screen.today') : zonedHeaderLabels(date, timeZone).dateLabel}
         </Text>
-        <Pressable onPress={() => shiftView(1)}><Text style={styles.dateNav}>{navLabels.next}</Text></Pressable>
-      </View>
-
-      {mode === 'agenda' && business && schedule && (
-        <DayKpiStrip kpis={computeDayKpis(visibleBookings, schedule, timeZone)} />
-      )}
+        <Ionicons name="chevron-down" size={16} color={P.textSecondary} />
+      </Pressable>
+      <FreshaDatePicker
+        visible={datePickerOpen}
+        selectedDate={date}
+        onSelect={setDate}
+        onClose={() => setDatePickerOpen(false)}
+      />
 
       {/* Mode switcher, interval picker, and staff filter all share one
           horizontally-scrollable row -- previously up to 3 stacked rows,
@@ -751,7 +815,7 @@ export default function OwnerCalendarScreen() {
           onOpen={openBooking}
           onReadyForCheckout={openForCheckout}
           onChanged={reload}
-          onAddWalkIn={openWalkInGeneric}
+          onAddWalkIn={() => openWalkInGeneric('walkIn')}
         />
       ) : mode === 'agenda' ? (
         // Option A: the grid sits on a fully opaque panel, so the animated
@@ -772,6 +836,7 @@ export default function OwnerCalendarScreen() {
               onChanged={reload}
               onFillSlot={openSlotMenu}
               intervalMinutes={gridInterval}
+              onIntervalChange={handleSetGridInterval}
               onSwipeDate={(direction) => shiftDay(direction === 'next' ? 1 : -1)}
               onOpenAnother={openWalkInFor}
             />
@@ -787,13 +852,14 @@ export default function OwnerCalendarScreen() {
             <QuickActionCard icon="ban-outline" label={t('calendar:blockTime.title')} sub={t('calendar:screen.blockTimeSub')}
               onPress={() => openBlockTimeFor(roundToNext15(new Date()), null)} />
             <QuickActionCard icon="person-add-outline" label={t('calendar:screen.walkIn')} sub={t('calendar:screen.walkInSub')}
-              onPress={openWalkInGeneric} />
+              onPress={() => openWalkInGeneric('walkIn')} />
           </View>
         </View>
       ) : mode === 'month' ? (
         <MonthView
           month={date}
           weekSchedule={business.week_schedule}
+          filters={filters}
           onOpenBooking={openBooking}
           onViewFullDay={handleViewFullDay}
           onSwipeDate={(direction) => shiftView(direction === 'next' ? 1 : -1)}
@@ -807,6 +873,7 @@ export default function OwnerCalendarScreen() {
             numDays={3}
             weekSchedule={business.week_schedule}
             selectedStaffId={selectedStaffId}
+            filters={filters}
             onOpen={openBooking}
             onFillSlot={handleFillSlotOnDate}
             onViewFullDay={handleViewFullDay}
@@ -820,6 +887,7 @@ export default function OwnerCalendarScreen() {
           numDays={7}
           weekSchedule={business.week_schedule}
           selectedStaffId={selectedStaffId}
+          filters={filters}
           onOpen={openBooking}
           onFillSlot={handleFillSlotOnDate}
           onViewFullDay={handleViewFullDay}
@@ -845,6 +913,7 @@ export default function OwnerCalendarScreen() {
         initialTime={walkInPrefill?.startsAt ?? null}
         initialStaffId={walkInPrefill?.staffId}
         outsideBusinessHours={walkInPrefill?.outsideHours}
+        mode={walkInFlowMode}
         initialCustomer={bookingForCustomer}
       />
 
@@ -855,11 +924,11 @@ export default function OwnerCalendarScreen() {
             <Text style={styles.pickerTitle}>{t('calendar:screen.add')}</Text>
             <PickerRow label={t('calendar:screen.newAppointment')} active={false} onPress={() => {
               setSlotMenuOpen(false);
-              if (slotMenu) openWalkInFor(slotMenu.startsAt, slotMenu.staffId, slotMenu.outsideHours);
+              if (slotMenu) openWalkInFor(slotMenu.startsAt, slotMenu.staffId, slotMenu.outsideHours, 'new');
             }} />
             <PickerRow label={t('calendar:screen.walkIn')} active={false} onPress={() => {
               setSlotMenuOpen(false);
-              if (slotMenu) openWalkInFor(slotMenu.startsAt, slotMenu.staffId, slotMenu.outsideHours);
+              if (slotMenu) openWalkInFor(slotMenu.startsAt, slotMenu.staffId, slotMenu.outsideHours, 'walkIn');
             }} />
             <PickerRow label={t('calendar:screen.blockTimeMenuItem')} active={false} onPress={() => {
               setSlotMenuOpen(false);
@@ -1110,9 +1179,9 @@ export default function OwnerCalendarScreen() {
         <Pressable style={styles.pickerBackdrop} onPress={() => setStaffPickerOpen(false)}>
           <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>{t('calendar:screen.staffPickerTitle')}</Text>
-            <PickerRow label={t('calendar:screen.allStaff')} active={selectedStaffId === 'all'} onPress={() => { setSelectedStaffId('all'); setStaffPickerOpen(false); }} />
+            <PickerRow label={t('calendar:screen.allStaff')} active={selectedStaffId === 'all'} onPress={() => { handleSetSelectedStaffId('all'); setStaffPickerOpen(false); }} />
             {staff.map(s => (
-              <PickerRow key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => { setSelectedStaffId(s.id); setStaffPickerOpen(false); }} />
+              <PickerRow key={s.id} label={s.name} active={selectedStaffId === s.id} onPress={() => { handleSetSelectedStaffId(s.id); setStaffPickerOpen(false); }} />
             ))}
           </View>
         </Pressable>
@@ -1132,29 +1201,82 @@ export default function OwnerCalendarScreen() {
         </Pressable>
       </Modal>
 
-      {/* Calendar 2.0 Day View — Part 2: the Legend isn't permanent screen
-          space, it's a design-system explainer that lives behind the filter
-          icon. Real color/icon tokens only -- nothing here is decorative. */}
+      {/* Calendar 2.0 Day View — Part 2's original Legend, now doubling as a
+          real interactive filter sheet (audit §08) -- the same color/icon
+          tokens, but each row is now checkable and actually narrows what
+          the grid/queue/month card show, instead of only explaining what
+          the colors mean. */}
       <Modal visible={filterSheetOpen} transparent animationType="fade" onRequestClose={() => setFilterSheetOpen(false)}>
         <Pressable style={styles.pickerBackdrop} onPress={() => setFilterSheetOpen(false)}>
           <Pressable style={styles.legendCard} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.pickerTitle}>{t('calendar:screen.legendTitle')}</Text>
+            <View style={styles.filterHeaderRow}>
+              <Text style={styles.pickerTitle}>{t('calendar:screen.filtersTitle')}</Text>
+              {isFiltersActive(filters) && (
+                <Pressable onPress={clearFilters} hitSlop={8}>
+                  <Text style={styles.filterClearText}>{t('calendar:screen.clearFilters')} ({activeFilterCount(filters)})</Text>
+                </Pressable>
+              )}
+            </View>
 
-            <Text style={styles.legendGroupLabel}>{t('calendar:screen.bookingSourceGroup')}</Text>
-            <LegendDot color={P.sourceSanaa} label={t('calendar:screen.sanaaVoiceAi')} />
-            <LegendDot color={P.sourceOnline} label={t('calendar:screen.onlineBooking')} />
-            <LegendDot color={P.sourceWalkIn} label={t('calendar:screen.walkInLegend')} />
-            <LegendDot color={P.sourceManual} label={t('calendar:screen.manual')} />
-            <LegendDot color={P.sourceBlock} label={t('calendar:screen.blockedTime')} />
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.legendGroupLabel}>{t('calendar:screen.statusGroup')}</Text>
+              {ALL_STATUS_KEYS.map(key => (
+                <FilterDot
+                  key={key}
+                  color={STATUS_COLOR[key]}
+                  label={statusLabel(key)}
+                  active={filters.statuses.has(key)}
+                  onPress={() => toggleFilter('statuses', key)}
+                />
+              ))}
 
-            <Text style={styles.legendGroupLabel}>{t('calendar:screen.paymentGroup')}</Text>
-            <LegendDot color={P.success} label={t('calendar:screen.paid')} />
-            <LegendDot color={P.warning} label={t('calendar:screen.unpaid')} />
-            <LegendDot color={P.accentGold} label={t('calendar:screen.deposit')} />
+              <Text style={styles.legendGroupLabel}>{t('calendar:screen.bookingSourceGroup')}</Text>
+              {([
+                ['sanaa', P.sourceSanaa, t('calendar:screen.sanaaVoiceAi')],
+                ['online', P.sourceOnline, t('calendar:screen.onlineBooking')],
+                ['walk_in', P.sourceWalkIn, t('calendar:screen.walkInLegend')],
+                ['manual', P.sourceManual, t('calendar:screen.manual')],
+                ['block', P.sourceBlock, t('calendar:screen.blockedTime')],
+              ] as [BookingSource, string, string][]).map(([key, color, label]) => (
+                <FilterDot
+                  key={key}
+                  color={color}
+                  label={label}
+                  active={filters.channels.has(key)}
+                  onPress={() => toggleFilter('channels', key)}
+                />
+              ))}
 
-            <Text style={styles.legendGroupLabel}>{t('calendar:screen.statusGroup')}</Text>
-            <LegendDot color={P.error} label={t('calendar:screen.cancelledNoShow')} />
-            <LegendDot color={P.success} label={t('calendar:screen.completed')} />
+              <Text style={styles.legendGroupLabel}>{t('calendar:screen.paymentGroup')}</Text>
+              {([
+                ['paid', PAYMENT_COLOR.paid, t('calendar:screen.paid')],
+                ['unpaid', PAYMENT_COLOR.unpaid, t('calendar:screen.unpaid')],
+                ['deposit', PAYMENT_COLOR.deposit, t('calendar:screen.deposit')],
+              ] as [Exclude<PaymentBadge, null>, string, string][]).map(([key, color, label]) => (
+                <FilterDot
+                  key={key}
+                  color={color}
+                  label={label}
+                  active={filters.payment.has(key)}
+                  onPress={() => toggleFilter('payment', key)}
+                />
+              ))}
+
+              {services.length > 0 && (
+                <>
+                  <Text style={styles.legendGroupLabel}>{t('calendar:screen.servicesGroup')}</Text>
+                  {services.map(s => (
+                    <FilterDot
+                      key={s.id}
+                      color={P.textDisabled}
+                      label={s.name}
+                      active={filters.serviceIds.has(s.id)}
+                      onPress={() => toggleFilter('serviceIds', s.id)}
+                    />
+                  ))}
+                </>
+              )}
+            </ScrollView>
 
             <Text style={styles.legendFooter}>{t('calendar:screen.allTimesShownIn', { timeZone })}</Text>
           </Pressable>
@@ -1173,12 +1295,15 @@ function PickerRow({ label, active, onPress }: { label: string; active: boolean;
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
+function FilterDot({ color, label, active, onPress }: { color: string; label: string; active: boolean; onPress: () => void }) {
   return (
-    <View style={styles.legendRow}>
+    <Pressable style={styles.legendRow} onPress={onPress}>
+      <View style={[styles.filterCheckbox, active && styles.filterCheckboxActive]}>
+        {active && <Ionicons name="checkmark" size={12} color={P.background} />}
+      </View>
       <View style={[styles.legendSwatch, { backgroundColor: color }]} />
-      <Text style={styles.legendLabel}>{label}</Text>
-    </View>
+      <Text style={[styles.legendLabel, active && styles.legendLabelActive]} numberOfLines={1}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -1226,6 +1351,10 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: BorderRadius.full, alignItems: 'center', justifyContent: 'center',
     backgroundColor: P.surface, borderWidth: 1, borderColor: P.border,
   },
+  filterActiveBadge: {
+    position: 'absolute', top: 3, right: 3, width: 7, height: 7, borderRadius: 3.5,
+    backgroundColor: P.accentGold,
+  },
 
   // ── Quick Action row (Day View Parts 28/29) ─────────────────────────────
   quickActionRow: {
@@ -1255,13 +1384,21 @@ const styles = StyleSheet.create({
 
   // ── Filter / Legend sheet ───────────────────────────────────────────────
   legendCard: {
-    width: '86%', maxWidth: 340, backgroundColor: P.surface, borderRadius: BorderRadius.xl,
+    width: '86%', maxWidth: 340, maxHeight: '78%', backgroundColor: P.surface, borderRadius: BorderRadius.xl,
     borderWidth: 1, borderColor: P.border, padding: Spacing.lg,
   },
+  filterHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  filterClearText: { fontSize: 12, fontWeight: '700', color: P.accentGold },
   legendGroupLabel: { fontSize: 11, fontWeight: '800', color: P.textDisabled, letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 12, marginBottom: 4 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  filterCheckbox: {
+    width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: P.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  filterCheckboxActive: { backgroundColor: P.accentGold, borderColor: P.accentGold },
   legendSwatch: { width: 12, height: 12, borderRadius: 6 },
-  legendLabel: { fontSize: 13, color: P.textPrimary },
+  legendLabel: { fontSize: 13, color: P.textPrimary, flex: 1 },
+  legendLabelActive: { color: P.accentGold, fontWeight: '700' },
   legendFooter: { fontSize: 11.5, color: P.textSecondary, marginTop: 14, textAlign: 'center' },
   blockSubmitBtn: {
     marginTop: 16, backgroundColor: P.accentGold, borderRadius: BorderRadius.full,

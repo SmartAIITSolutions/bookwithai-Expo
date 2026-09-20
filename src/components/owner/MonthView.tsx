@@ -4,9 +4,10 @@ import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handl
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
 } from 'react-native-reanimated';
-import { getMonthSummary } from '@/lib/api/ownerCalendarSummary';
+import { getMonthSummary, MonthSummaryPreview } from '@/lib/api/ownerCalendarSummary';
 import { listBookingsForDate, OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { bookingStatusColor, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
+import { CalendarFilters, bookingMatchesFilters } from '@/lib/calendar/bookingFilters';
 import { findEmptySpaces } from '@/lib/calendar/calendarInsights';
 import { WeekSchedule, dayScheduleFor, localDateKey } from '@/lib/calendar/timeGrid';
 import { BreathingHeart } from '@/components/BreathingHeart';
@@ -30,6 +31,13 @@ function weekdayShortUpperForIndex(index: number): string {
 interface MonthViewProps {
   month: Date; // any date within the target month
   weekSchedule: WeekSchedule | null;
+  // Calendar parity pass (audit §08) — applies to the bottom summary card's
+  // own booking list (it has the full OwnerBooking shape). The grid's own
+  // per-day dot/preview counts come from a separate lightweight server
+  // aggregate (getMonthSummary) that doesn't carry channel/service data, so
+  // they intentionally stay unfiltered (whole-month totals) rather than
+  // silently mismatching the card below them.
+  filters?: CalendarFilters;
   onOpenBooking: (b: OwnerBooking) => void;
   onViewFullDay: (d: Date) => void; // tapping a day cell -> switches to Day mode
   // Swiping the grid pages by a full month -- same left-to-go-forward/
@@ -44,9 +52,16 @@ const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6].map(weekdayShortUpperForIndex);
 // into Day view for that date; the inline summary below the grid always
 // reflects whichever date was tapped most recently (or today, on first
 // load) as an at-a-glance preview.
-export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, onSwipeDate }: MonthViewProps) {
+export function MonthView({ month, weekSchedule, filters, onOpenBooking, onViewFullDay, onSwipeDate }: MonthViewProps) {
   const { t } = useTranslation(['calendar']);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  // Fresha-parity pass — per-day preview list (start time + status, capped
+  // at 4/day server-side) so each grid cell can show real inline mini-chips
+  // like Fresha's own Month view, instead of only a presence dot. The
+  // bottom summary card stays exactly as it was -- kept deliberately per
+  // direct instruction, so a day can still be opened for full detail
+  // without leaving Month view.
+  const [previews, setPreviews] = useState<Record<string, MonthSummaryPreview[]>>({});
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [dayBookings, setDayBookings] = useState<OwnerBooking[]>([]);
   const [loadingDay, setLoadingDay] = useState(true);
@@ -56,23 +71,33 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, o
   // there's no scrollY to gate on: any downward drag counts as a pull.
   const pullY = useSharedValue(0);
 
+  // Fresha never leaves Month view on a plain cell tap -- it only updates
+  // which day the (kept) summary card below is showing. Full-day drill-down
+  // still exists, just moved to the explicit "view full day" affordances
+  // (long-press, or the summary card's own button) instead of firing on
+  // every tap.
   function handleCellPress(d: Date) {
     setSelectedDate(d);
-    onViewFullDay(d);
   }
 
   const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
 
   async function loadMonth() {
     const r = await getMonthSummary(monthKey);
-    if (r.ok) setCounts(r.data.counts);
+    if (r.ok) {
+      setCounts(r.data.counts);
+      // Defensive against an older deployed backend that hasn't shipped the
+      // `previews` field yet -- crashed the whole screen otherwise, since
+      // `previews[key]` on an undefined `previews` throws.
+      setPreviews(r.data.previews ?? {});
+    }
   }
 
   async function loadDay() {
     setLoadingDay(true);
     const key = localDateKey(selectedDate);
     const r = await listBookingsForDate(key);
-    if (r.ok) setDayBookings(r.data.data.filter(b => b.status !== 'cancelled'));
+    if (r.ok) setDayBookings(r.data.data.filter(b => b.status !== 'cancelled' && (!filters || bookingMatchesFilters(b, filters))));
     setLoadingDay(false);
   }
 
@@ -106,13 +131,24 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, o
 
   useEffect(() => {
     loadMonth();
+    // Bug fix — selectedDate (and the summary card it drives below the
+    // grid) never reset when the owner navigated to a different month --
+    // only tapping a cell changed it, so paging from September to October
+    // left "Sunday, September 20" (whatever selectedDate happened to
+    // default to on mount) showing under an October grid. Reset it to
+    // today when today falls inside the newly-viewed month, else the 1st
+    // of that month, same "closest sensible default" MonthView already
+    // uses for empty-state days elsewhere.
+    const today = new Date();
+    const todayInThisMonth = today.getFullYear() === month.getFullYear() && today.getMonth() === month.getMonth();
+    setSelectedDate(todayInThisMonth ? today : new Date(month.getFullYear(), month.getMonth(), 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthKey]);
 
   useEffect(() => {
     loadDay();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+  }, [selectedDate, filters]);
 
   const firstOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
@@ -149,16 +185,37 @@ export function MonthView({ month, weekSchedule, onOpenBooking, onViewFullDay, o
           if (!d) return <View key={i} style={styles.cell} />;
           const key = localDateKey(d);
           const count = counts[key] ?? 0;
+          const dayPreviews = previews[key] ?? [];
+          const CHIP_CAP = 2;
+          const shownPreviews = dayPreviews.slice(0, CHIP_CAP);
+          const overflow = count - shownPreviews.length;
           const isToday = key === todayKey;
           const isSelected = key === selectedKey;
           return (
-            <Pressable key={i} style={styles.cell} onPress={() => handleCellPress(d)}>
+            <Pressable
+              key={i}
+              style={[styles.cell, isSelected && styles.cellSelected]}
+              onPress={() => handleCellPress(d)}
+              onLongPress={() => onViewFullDay(d)}
+            >
               <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
                 <Text style={[styles.dayNumber, isToday && !isSelected && styles.dayNumberToday, isSelected && styles.dayNumberSelected]}>
                   {d.getDate()}
                 </Text>
               </View>
-              {count > 0 && <View style={styles.countDot} />}
+              <View style={styles.chipStack}>
+                {shownPreviews.map((b, bi) => {
+                  const { color } = bookingStatusColor(b);
+                  return (
+                    <View key={bi} style={[styles.chip, { backgroundColor: color + '26', borderColor: color }]}>
+                      <Text style={[styles.chipText, { color }]} numberOfLines={1}>
+                        {formatTimeShort(new Date(b.starts_at))}
+                      </Text>
+                    </View>
+                  );
+                })}
+                {overflow > 0 && <Text style={styles.chipMore}>+{overflow}</Text>}
+              </View>
             </Pressable>
           );
         })}
@@ -221,13 +278,20 @@ const styles = StyleSheet.create({
   weekdayRow: { flexDirection: 'row' },
   weekdayLabel: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 10.5, color: P.textDisabled, fontWeight: '700', letterSpacing: 0.5 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 4 },
-  dayCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  cell: {
+    width: `${100 / 7}%`, minHeight: 72, alignItems: 'center',
+    paddingTop: 4, paddingBottom: 4, paddingHorizontal: 2, borderRadius: BorderRadius.sm,
+  },
+  cellSelected: { backgroundColor: 'rgba(255,200,87,0.08)' },
+  dayCircle: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   dayCircleSelected: { backgroundColor: P.accentGold },
-  dayNumber: { fontSize: 13, color: P.textPrimary },
+  dayNumber: { fontSize: 12.5, color: P.textPrimary },
   dayNumberToday: { color: P.accentGold, fontWeight: '800' },
   dayNumberSelected: { color: P.background, fontWeight: '800' },
-  countDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: P.highlightPurple, marginTop: 2 },
+  chipStack: { width: '100%', alignItems: 'center', gap: 2, marginTop: 3 },
+  chip: { alignSelf: 'stretch', borderRadius: BorderRadius.sm, borderWidth: 1, paddingVertical: 1, paddingHorizontal: 3 },
+  chipText: { fontSize: 8.5, fontWeight: '700', textAlign: 'center' },
+  chipMore: { fontSize: 8.5, fontWeight: '700', color: P.textDisabled, marginTop: 1 },
 
   summaryCard: {
     backgroundColor: P.card,

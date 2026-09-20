@@ -5,16 +5,17 @@ import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { OwnerBooking, updateBooking, resizeBooking, checkIn, startService, completeService, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { StaffMember } from '@/lib/api/ownerStaff';
-import { nextAction, isRebookNudgeBooking, REBOOK_NUDGE_COLOR } from '@/lib/calendar/bookingStatus';
+import { nextAction, isRebookNudgeBooking, REBOOK_NUDGE_COLOR, bookingStatusColor } from '@/lib/calendar/bookingStatus';
 import {
   WeekSchedule, dayScheduleFor, hourLabels, snapMinutes,
   zonedMinutesSinceMidnight, zonedDateKey, zonedClockLabel,
 } from '@/lib/calendar/timeGrid';
 import { isSampleBooking } from '@/lib/calendar/sampleDayFixture';
 import {
-  bookingSource, SOURCE_COLOR, primaryPill, cornerIcon,
+  primaryPill, cornerIcon,
   PAYMENT_COLOR, paymentLabel,
 } from '@/lib/calendar/appointmentVisual';
 import { SanaaMark } from '@/components/SanaaMark';
@@ -47,23 +48,19 @@ function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
-// Density pass — was 64 (px per hour at zoom=1, interval=60m). At that
-// scale a typical 9 AM–7 PM operating day (11h including the existing
-// 30-min open/close padding -- gridBoundsMinutes) rendered ~700px tall
-// before even accounting for the interval multiplier below, which made a
-// 15-min-interval day (the persisted-per-business default once anyone
-// picks it) 4x that -- ~2800px, only a couple hours fitting on screen at
-// once, exactly the reported "too vertically zoomed-in" symptom. 44
-// brings that same 11h span to ~480px -- close to a full phone screen's
-// visible grid area at the default 1h interval, matching the reference's
-// overview-first density, while MIN_ZOOM/MAX_ZOOM (unchanged) still give
-// pinch-zoom the same relative range to compress further or zoom in for
-// detail from this new baseline.
-const HOUR_HEIGHT_DEFAULT = 44; // px per 60 minutes at zoom = 1
+// Was 44 (an earlier "overview-first" density pass), then explicitly
+// reversed per direct feedback: the resulting quarter-hour slots read as
+// too cramped to tap/see accurately even with the minor gridlines added
+// above, and Fresha's own Day view (confirmed live) runs meaningfully
+// taller per hour than that. 100 gives each 15-min slot ~25px -- a real,
+// comfortable tap target -- accepting more vertical scrolling as the
+// trade-off, matching Fresha's own choice of the same trade-off. Fresha-
+// parity pass — pinch steps intervalMinutes directly (see the `pinch`
+// gesture below) instead of scaling this baseline continuously, so there's
+// no separate zoom range constant to tune anymore.
+const HOUR_HEIGHT_DEFAULT = 100; // px per 60 minutes
 const COLUMN_WIDTH = 160;
 const TIME_GUTTER = 52;
-const MIN_ZOOM = 0.6;
-const MAX_ZOOM = 2.4;
 interface Column { id: string | null; label: string }
 
 interface TimelineCalendarProps {
@@ -87,6 +84,14 @@ interface TimelineCalendarProps {
   // staff may actually be scheduled then.
   onFillSlot?: (startsAt: Date, staffId: string | null, outsideHours?: boolean) => void;
   intervalMinutes?: 15 | 30 | 60;
+  // Fresha-parity pass — pinch now steps intervalMinutes between 60/30/15
+  // directly (pinch-in = finer, pinch-out = coarser) instead of driving a
+  // separate continuous zoom factor, matching Fresha's own pinch behavior
+  // (confirmed live: pinching snaps the grid density, it doesn't smoothly
+  // scale). intervalMinutes stays owned by the parent (Calendar screen),
+  // same as the existing 15m/30m/1h chip control -- this just gives pinch a
+  // second way to drive the exact same state.
+  onIntervalChange?: (mins: 15 | 30 | 60) => void;
   // Swiping the empty grid background (not an appointment block, which has
   // its own drag gesture) pages a day forward/back, same direction
   // convention as a page-turn: swipe left to go to the next day.
@@ -96,9 +101,8 @@ interface TimelineCalendarProps {
   onOpenAnother?: (startsAt: Date, staffId: string | null) => void;
 }
 
-export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, timeZone, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60, onSwipeDate, onOpenAnother }: TimelineCalendarProps) {
-  const zoom = useSharedValue(1);
-  const [committedZoom, setCommittedZoom] = useState(1);
+export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, timeZone, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60, onIntervalChange, onSwipeDate, onOpenAnother }: TimelineCalendarProps) {
+  const pinchTriggered = useSharedValue(false);
   const { width: screenWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,6 +115,7 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   // Tracking scrollY ourselves and adding one more gesture to the same
   // Race sidesteps the conflict instead of fighting two touch systems.
   const scrollY = useSharedValue(0);
+  const scrollX = useSharedValue(0);
   const pullY = useSharedValue(0);
 
   async function handleRefresh() {
@@ -139,81 +144,115 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   }));
 
   const schedule = dayScheduleFor(weekSchedule, date);
-  // Calendar 2.0 Part 8 — default to the salon's real operating range, not
-  // a meaningless full 24h grid. Still expands to include any booking/
-  // block that genuinely falls outside that range (a late add-on, an
-  // early cleanup shift) rather than clipping it off screen.
-  //
-  // Density-pass follow-up — this used to be gridBoundsMinutes(schedule)'s
-  // own 30-min padding, the same helper findEmptySpaces() uses for Smart
-  // Gap detection. That's fine as a SCROLLABLE-RANGE floor/ceiling when the
-  // grid renders tall (the old, less dense default), but once the density
-  // pass shrank px-per-minute, a schedule-hours-sized grid became short
-  // enough to fit near-entirely on one screen -- so that same 30-min edge,
-  // previously reached only after real scrolling, became an immediately
-  // obvious hard stop a few minutes past open/close, with no way to scroll
-  // to an early/late hour that just doesn't happen to have a booking on
-  // it. This is Day view's OWN scrollable-range padding, intentionally
-  // wider and intentionally NOT gridBoundsMinutes -- reusing that shared
-  // helper here would also have widened Smart Gap's own detection window
-  // (and MonthView/dayKpis's, which call it too), none of which this pass
-  // is allowed to touch. The initial scroll position (further below,
-  // useEffect keyed on date/intervalMinutes) still targets salon-local
-  // "now" or the schedule's own opening time, unchanged -- only how far
-  // you can scroll past that changed.
-  const DAY_SCROLL_PADDING_MIN = 180;
-  const scheduleBounds = {
-    start: Math.max(0, schedule.start * 60 - DAY_SCROLL_PADDING_MIN),
-    end: Math.min(24 * 60, schedule.end * 60 + DAY_SCROLL_PADDING_MIN),
-  };
-  const bookingMinuteBounds = bookings.reduce(
-    (acc, b) => {
-      const s = zonedMinutesSinceMidnight(b.starts_at, timeZone);
-      const e = zonedMinutesSinceMidnight(b.ends_at, timeZone);
-      return { min: Math.min(acc.min, s), max: Math.max(acc.max, e) };
-    },
-    { min: scheduleBounds.start, max: scheduleBounds.end },
-  );
-  const gridStart = Math.max(0, Math.min(scheduleBounds.start, bookingMinuteBounds.min));
-  const gridEnd = Math.min(24 * 60, Math.max(scheduleBounds.end, bookingMinuteBounds.max));
+  // Fresha-parity pass — always the full 24h scrollable range now, per
+  // direct request (was previously capped at business hours + 3h padding,
+  // which made a genuinely early/late booking impossible to reach by
+  // scrolling at all). `schedule` still drives shading -- closed-hours
+  // bands below and scheduleForColumn's per-staff shift bands -- and the
+  // initial scroll-to position (further below, useEffect keyed on date/
+  // intervalMinutes) still targets salon-local "now" or the schedule's own
+  // opening time; only the scrollable bounds themselves changed.
+  const gridStart = 0;
+  const gridEnd = 24 * 60;
   // Scale height by the interval so a tick always keeps the same generous
   // tap size -- otherwise "15 min" would pack 4x as many ticks into the
   // same space, making them harder to tap precisely, not easier.
-  const hourHeight = HOUR_HEIGHT_DEFAULT * committedZoom * (60 / intervalMinutes);
+  const hourHeight = HOUR_HEIGHT_DEFAULT * (60 / intervalMinutes);
   const pxPerMinute = hourHeight / 60;
   const totalHeight = (gridEnd - gridStart) * pxPerMinute;
 
-  // Calendar 2.0 Day View — always a single unified column, regardless of
-  // staff selection. The reference contract shows one timeline with no
-  // per-staff columns at all; the previous "All Staff" behavior (a
-  // full-height column per staff member, "Any Staff" included) was a
-  // pre-existing pattern carried over from before this screen's redesign,
-  // and it visibly breaks the reference match -- confirmed live: a real
-  // staff roster produces mostly-empty side-by-side columns instead of one
-  // readable day, and overlapping appointments already have their own
-  // reference-matching side-by-side layout via layoutOverlaps() (used
-  // below) for genuinely simultaneous bookings, which is the reference's
-  // actual mechanism for showing more than one appointment at once.
-  // Trade-off, disclosed rather than silently dropped: this removes
-  // drag-a-card-sideways-to-reassign-staff, which only existed in that
-  // multi-column mode. Nothing in AppointmentSheet offers a staff-reassign
-  // control today either, so that capability isn't available through any
-  // path right now -- a real gap, not something this change newly creates,
-  // but worth a follow-up.
-  const columns: Column[] = useMemo(() => [{ id: 'all', label: i18n.t('calendar:timeline.allColumn') }], []);
-  const columnWidth = Math.max(COLUMN_WIDTH, screenWidth - TIME_GUTTER);
+  // Restored side-by-side staff columns (Fresha-parity pass). Calendar 2.0
+  // had deliberately collapsed this to one unified column to match an
+  // earlier design reference (see git history on this block) -- that
+  // reference is being explicitly overridden now in favor of matching
+  // Fresha's own chair-view calendar, per direct instruction.
+  //
+  // One column per ACTIVE staff member when the filter is "All", plus an
+  // "Unassigned" column only when at least one real (non-cancelled,
+  // non-block) booking today actually has no staff_id -- so a salon with
+  // every booking properly staffed never shows a pointless empty column.
+  // Selecting one specific staff still renders a single column, but now
+  // carries that staff's real id/name (previously the generic "All" id
+  // even when filtered to one person), which is what lets per-column shift
+  // shading below resolve correctly in both modes.
+  //
+  // Still NOT restored in this pass: drag-a-card-sideways-to-reassign-staff.
+  // That's a real, separate capability (AppointmentSheet has no
+  // staff-reassign control either) -- disclosed, not silently dropped.
+  const columns: Column[] = useMemo(() => {
+    if (selectedStaffId !== 'all') {
+      const member = staff.find(s => s.id === selectedStaffId);
+      return [{ id: selectedStaffId, label: member?.name ?? i18n.t('calendar:timeline.allColumn') }];
+    }
+    const active = staff.filter(s => s.active);
+    const cols: Column[] = active.map(s => ({ id: s.id, label: s.name }));
+    const hasUnassigned = bookings.some(b => !b.staff_id && b.status !== 'cancelled' && b.source !== 'time_block');
+    if (hasUnassigned) cols.push({ id: null, label: i18n.t('calendar:timeline.unassignedColumn') });
+    return cols.length > 0 ? cols : [{ id: 'all', label: i18n.t('calendar:timeline.allColumn') }];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStaffId, staff, bookings]);
+  const columnWidth = columns.length > 1 ? COLUMN_WIDTH : Math.max(COLUMN_WIDTH, screenWidth - TIME_GUTTER);
 
-  function columnForBooking(_b: OwnerBooking): number {
-    return 0;
+  function columnForBooking(b: OwnerBooking): number {
+    const idx = columns.findIndex(c => c.id === b.staff_id);
+    if (idx !== -1) return idx;
+    const unassignedIdx = columns.findIndex(c => c.id === null);
+    return unassignedIdx !== -1 ? unassignedIdx : 0;
   }
 
+  // Per-column shift shading -- a real staff column shades by THAT
+  // person's own availability (day-of-week match, same day_of_week
+  // convention as DAY_KEYS/date.getDay() used everywhere else in this
+  // file); the synthetic "Unassigned"/"All" fallback columns, and any
+  // staff member with no availability rows configured yet, fall back to
+  // the salon-wide `schedule` unchanged -- identical output to before this
+  // restore for every case that isn't a real, configured staff column.
+  function scheduleForColumn(col: Column): { open: boolean; start: number; end: number } {
+    if (typeof col.id === 'string' && col.id !== 'all') {
+      const member = staff.find(s => s.id === col.id);
+      const avail = member?.availability?.find(a => a.day_of_week === date.getDay());
+      if (avail) {
+        const [sh, sm] = avail.start_time.split(':').map(Number);
+        const [eh, em] = avail.end_time.split(':').map(Number);
+        return { open: avail.is_working, start: sh + sm / 60, end: eh + em / 60 };
+      }
+    }
+    return schedule;
+  }
+
+  // Fresha-parity pass — Fresha's own "All Staff" Day view (confirmed live)
+  // shows a dedicated empty state, not an empty grid, when nobody on the
+  // team has ANY availability configured yet (not just "closed today" --
+  // genuinely no shifts set up at all). Only applies to the "All" filter;
+  // a specific staff selection with no availability rows just falls back to
+  // the salon-wide schedule (scheduleForColumn's own existing behavior).
+  const noScheduledStaff = selectedStaffId === 'all' && !staff.some(s => s.active && s.availability?.some(a => a.is_working));
+
+  function stepInterval(direction: 'finer' | 'coarser') {
+    if (!onIntervalChange) return;
+    const order: (15 | 30 | 60)[] = [60, 30, 15];
+    const idx = order.indexOf(intervalMinutes);
+    if (direction === 'finer' && idx < order.length - 1) onIntervalChange(order[idx + 1]);
+    else if (direction === 'coarser' && idx > 0) onIntervalChange(order[idx - 1]);
+  }
+
+  // Fresha-parity pinch — one discrete step (60->30->15 pinching in,
+  // 15->30->60 pinching out) per pinch gesture, not a continuous scale.
+  // pinchTriggered guards against firing more than once while the same two
+  // fingers are still down; onStart resets it for the next gesture.
   const pinch = Gesture.Pinch()
-    .onUpdate((e) => {
-      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, committedZoom * e.scale));
-      zoom.value = next;
+    .onStart(() => {
+      pinchTriggered.value = false;
     })
-    .onEnd(() => {
-      runOnJS(setCommittedZoom)(zoom.value);
+    .onUpdate((e) => {
+      if (pinchTriggered.value) return;
+      if (e.scale > 1.35) {
+        pinchTriggered.value = true;
+        runOnJS(stepInterval)('finer');
+      } else if (e.scale < 0.7) {
+        pinchTriggered.value = true;
+        runOnJS(stepInterval)('coarser');
+      }
     });
 
   // Swipe the empty grid background to page a day forward/back. Each
@@ -251,12 +290,14 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   // computes only numbers/booleans, runOnJS crosses the bridge with those
   // primitives only, and the Date itself is constructed here, on the JS
   // thread, where `date` was already safe to close over.
-  function handleEmptyTap(tappedMinutes: number, outsideHours: boolean) {
+  function handleEmptyTap(tappedMinutes: number, outsideHours: boolean, colIndex: number) {
     if (!onFillSlot) return;
     const dayBase = new Date(date);
     dayBase.setHours(0, 0, 0, 0);
     const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
-    onFillSlot(startsAt, null, outsideHours);
+    const colId = columns[colIndex]?.id;
+    const staffId = typeof colId === 'string' && colId !== 'all' ? colId : null;
+    onFillSlot(startsAt, staffId, outsideHours);
   }
 
   // Bug fix — tapping truly empty grid space (not a booking, not a Smart
@@ -265,17 +306,34 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   // it. e.y is relative to this GestureDetector's own view (the ScrollView's
   // un-scrolled viewport), so scrollY.value (tracked from onScroll) has to
   // be added back to get the true position within the scrolled content.
+  //
+  // Staff-columns restore — e.x is relative to that SAME outer view, which
+  // also contains the time gutter before the horizontally-scrolling columns
+  // even start, so the gutter width has to come off first; scrollX.value
+  // (tracked from the horizontal ScrollView's onScroll below) adds back
+  // however far that row has been scrolled. columns/columnWidth are plain
+  // JS values closed over at gesture-creation time, same pattern gridStart/
+  // pxPerMinute already use in this exact worklet.
   const emptyTap = Gesture.Tap()
     .onEnd((e) => {
       const contentY = e.y + scrollY.value;
       const tappedMinutes = snapMinutesWorklet(gridStart + contentY / pxPerMinute);
       const outsideHours = schedule.open === false || tappedMinutes < schedule.start * 60 || tappedMinutes >= schedule.end * 60;
-      runOnJS(handleEmptyTap)(tappedMinutes, outsideHours);
+      const contentX = e.x - TIME_GUTTER + scrollX.value;
+      const colIndex = Math.min(columns.length - 1, Math.max(0, Math.floor(contentX / columnWidth)));
+      runOnJS(handleEmptyTap)(tappedMinutes, outsideHours, colIndex);
     })
     .simultaneousWithExternalGesture(scrollRef as never);
   const backgroundGesture = Gesture.Race(pinchWithScroll, swipeNextDayWithScroll, swipePrevDayWithScroll, pullGestureWithScroll, emptyTap);
 
   const labels = hourLabels(gridStart, gridEnd, intervalMinutes);
+  // Fresha-parity pass — quarter-hour tick marks, always rendered at 15-min
+  // steps regardless of the labeled interval (confirmed live: Fresha's own
+  // grid keeps faint :15/:30/:45 dividers inside every hour even when
+  // zoomed out to 1h ticks, so a tap still lands on an accurate quarter-hour
+  // without switching zoom first). No-op labels-wise when the interval is
+  // already 15 -- `labels` itself already covers every quarter hour then.
+  const minorLabels = intervalMinutes === 15 ? [] : hourLabels(gridStart, gridEnd, 15);
   const isToday = zonedDateKey(new Date(), timeZone) === zonedDateKey(date, timeZone);
   // Explicit width for the row of columns, since a horizontal ScrollView's
   // content container doesn't reliably infer it from nested content.
@@ -312,11 +370,27 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
 
   // Everything outside business hours (midnight to opening, closing to
   // midnight) gets a flat gray band. A fully closed day (e.g. Sunday) grays
-  // out the whole grid.
-  const isClosedToday = schedule.open === false;
-  const closedTopHeight = isClosedToday ? totalHeight : Math.max(0, schedule.start * 60 - gridStart) * pxPerMinute;
-  const closedBottomTop = Math.max(0, schedule.end * 60 - gridStart) * pxPerMinute;
-  const closedBottomHeight = isClosedToday ? 0 : Math.max(0, gridEnd - schedule.end * 60) * pxPerMinute;
+  // out the whole grid. Computed per-column now (scheduleForColumn, used
+  // inside the columns.map render loop below) rather than once globally --
+  // `schedule` itself (the salon-wide fallback) is still used directly there.
+
+  if (noScheduledStaff) {
+    return (
+      <View style={styles.noStaffContainer}>
+        <Ionicons name="people-outline" size={48} color={P.textDisabled} />
+        <Text style={styles.noStaffTitle}>{i18n.t('calendar:noStaff.title')}</Text>
+        <Text style={styles.noStaffSubtitle}>{i18n.t('calendar:noStaff.subtitle')}</Text>
+        <View style={styles.noStaffButtonRow}>
+          <Pressable style={styles.noStaffButtonOutline} onPress={() => router.push('/owner-settings/staff' as never)}>
+            <Text style={styles.noStaffButtonOutlineText}>{i18n.t('calendar:noStaff.scheduledShifts')}</Text>
+          </Pressable>
+          <Pressable style={styles.noStaffButtonFilled} onPress={() => router.push('/owner-settings/staff' as never)}>
+            <Text style={styles.noStaffButtonFilledText}>{i18n.t('calendar:noStaff.viewAllTeamMembers')}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <TimelineErrorBoundary>
@@ -365,22 +439,30 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
             })()}
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            onScroll={(e) => { scrollX.value = e.nativeEvent.contentOffset.x; }}
+            scrollEventThrottle={16}
+          >
             <View style={{ height: totalHeight, width: rowWidth }}>
-              {/* Gridlines */}
+              {/* Gridlines -- quarter-hour minor ticks render first (below,
+                  fainter), major labeled ticks on top so a coinciding
+                  minute (e.g. the top of the hour) always shows the
+                  stronger line. */}
               <View style={styles.gridBackground}>
+                {minorLabels.map(l => (
+                  <View key={`minor-${l.minutes}`} style={[styles.gridLineMinor, { top: (l.minutes - gridStart) * pxPerMinute }]} />
+                ))}
                 {labels.map(l => (
                   <View key={l.minutes} style={[styles.gridLine, { top: (l.minutes - gridStart) * pxPerMinute }]} />
                 ))}
               </View>
 
-              {/* Closed-hours fringe (before opening / after closing) */}
-              {closedTopHeight > 0 && (
-                <View style={[styles.closedBand, { top: 0, height: closedTopHeight, width: rowWidth }]} />
-              )}
-              {closedBottomHeight > 0 && (
-                <View style={[styles.closedBand, { top: closedBottomTop, height: closedBottomHeight, width: rowWidth }]} />
-              )}
+              {/* Closed-hours fringe moved into the per-column loop below --
+                  a real staff column shades by that person's own hours
+                  (scheduleForColumn), not the salon-wide band that used to
+                  span every column identically. */}
 
               {/* Block Time background layer — a time_block booking is NOT
                   an appointment; it represents a period where new
@@ -418,57 +500,60 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                   // band instead, so it's excluded here entirely.
                   const colBookings = bookings.filter(b => columnForBooking(b) === colIndex && b.status !== 'cancelled' && b.source !== 'time_block');
                   const overlapLayout = layoutOverlaps(colBookings);
+                  // Staff-columns restore — this column's own shift bounds,
+                  // falling back to the salon-wide `schedule` for
+                  // Unassigned/All/no-availability-configured (identical to
+                  // the old global bands in every one of those cases).
+                  const colSchedule = scheduleForColumn(col);
+                  const colClosedTopHeight = colSchedule.open === false ? totalHeight : Math.max(0, colSchedule.start * 60 - gridStart) * pxPerMinute;
+                  const colClosedBottomTop = Math.max(0, colSchedule.end * 60 - gridStart) * pxPerMinute;
+                  const colClosedBottomHeight = colSchedule.open === false ? 0 : Math.max(0, gridEnd - colSchedule.end * 60) * pxPerMinute;
+                  // A real staff column passes ITS OWN id for a fill-slot tap
+                  // (so tapping Tina's empty column books Tina, not nobody);
+                  // the Unassigned/All synthetic columns still pass null,
+                  // same as before ("All Staff" auto-assigns from null).
+                  const colStaffId = typeof col.id === 'string' && col.id !== 'all' ? col.id : null;
                   return (
-                    <View key={col.id ?? 'all'} style={{ width: columnWidth, height: totalHeight, borderRightWidth: 1, borderRightColor: P.border }}>
-                      {columns.length > 1 && <Text style={styles.columnLabel}>{col.label}</Text>}
+                    <View key={col.id ?? 'unassigned'} style={{ width: columnWidth, height: totalHeight, borderRightWidth: 1, borderRightColor: P.border }}>
+                      {col.id !== 'all' && <Text style={styles.columnLabel}>{col.label}</Text>}
                       {/* Closed-hours fringe (and fully closed days, via
-                          closedTopHeight covering the whole grid) is still
-                          tappable to book -- an owner may have a staff
+                          colClosedTopHeight covering the whole column) is
+                          still tappable to book -- an owner may have a staff
                           member coming in early/late, or want to log a
                           walk-in on a day marked closed. `onFillSlot`'s
                           outsideHours flag lets the caller show a reminder
                           that no staff may actually be scheduled then. */}
-                      {onFillSlot && closedTopHeight > 0 && (
+                      {colClosedTopHeight > 0 && (
+                        <View style={[styles.closedBand, { top: 0, height: colClosedTopHeight, width: columnWidth }]} pointerEvents="none" />
+                      )}
+                      {colClosedBottomHeight > 0 && (
+                        <View style={[styles.closedBand, { top: colClosedBottomTop, height: colClosedBottomHeight, width: columnWidth }]} pointerEvents="none" />
+                      )}
+                      {onFillSlot && colClosedTopHeight > 0 && (
                         <ClosedSlotBlock
                           top={0}
-                          height={closedTopHeight}
+                          height={colClosedTopHeight}
                           gridStart={gridStart}
                           pxPerMinute={pxPerMinute}
                           onPressAt={(tappedMinutes) => {
                             const dayBase = new Date(date);
                             dayBase.setHours(0, 0, 0, 0);
                             const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
-                            // Bug fix — `col.id` is always the single merged
-                            // day-view column's literal id ('all', see the
-                            // `columns` useMemo above), not a real staff id.
-                            // It used to be forwarded here whenever it wasn't
-                            // exactly 'unassigned', so tapping the closed-hours
-                            // fringe while the staff filter was on "All Staff"
-                            // sent the literal string "all" as staff_id to the
-                            // booking API, which failed a UUID column check
-                            // server-side. The real, meaningful signal for
-                            // "which staff member was this tap for" is the
-                            // selectedStaffId filter prop, not the column id:
-                            // a specific staff selection is preserved, and
-                            // "All Staff" now passes null (WalkInSheet already
-                            // auto-assigns a real staff member from null).
-                            onFillSlot(startsAt, selectedStaffId === 'all' ? null : selectedStaffId, true);
+                            onFillSlot(startsAt, colStaffId, true);
                           }}
                         />
                       )}
-                      {onFillSlot && closedBottomHeight > 0 && (
+                      {onFillSlot && colClosedBottomHeight > 0 && (
                         <ClosedSlotBlock
-                          top={closedBottomTop}
-                          height={closedBottomHeight}
+                          top={colClosedBottomTop}
+                          height={colClosedBottomHeight}
                           gridStart={gridStart}
                           pxPerMinute={pxPerMinute}
                           onPressAt={(tappedMinutes) => {
                             const dayBase = new Date(date);
                             dayBase.setHours(0, 0, 0, 0);
                             const startsAt = new Date(dayBase.getTime() + tappedMinutes * 60000);
-                            // See the matching comment on the closed-top-fringe
-                            // handler above -- same fix, same reasoning.
-                            onFillSlot(startsAt, selectedStaffId === 'all' ? null : selectedStaffId, true);
+                            onFillSlot(startsAt, colStaffId, true);
                           }}
                         />
                       )}
@@ -637,12 +722,15 @@ function AppointmentBlock({
 
   const isBlockedTime = booking.source === 'time_block';
   const isTerminal = booking.status === 'cancelled' || booking.status === 'no_show';
-  const source = bookingSource(booking);
+  // Calendar parity pass (audit §10) — main block color now keys off
+  // appointment STATUS (matching Fresha, and matching how MultiDayView's
+  // 3-Day/Week columns already colored their own blocks), not booking
+  // SOURCE. Source moved to a secondary role: it still drives the corner
+  // badge (cornerIcon() below) whenever status isn't one of the more urgent
+  // states that badge already prioritizes.
   const color = isRebookNudgeBooking(booking) ? REBOOK_NUDGE_COLOR
     : isBlockedTime ? P.sourceBlock
-    : booking.status === 'cancelled' ? P.error
-    : booking.status === 'no_show' ? P.error
-    : SOURCE_COLOR[source];
+    : bookingStatusColor(booking).color;
   const action = nextAction(booking);
 
   // Horizontal drag first tries to reassign the block to a different staff
@@ -706,10 +794,16 @@ function AppointmentBlock({
   }
 
   async function commitMove(newStartMinutes: number, newColIndex: number, dayOffset: number, overrideConflict = false) {
-    // Single-column now (see the `columns` comment above) -- a move only
-    // ever changes time/day, never staff, since there's no longer a column
-    // to drag a card into.
-    const newStaffId = booking.staff_id;
+    // Staff-columns restore — dragging a card sideways into a real staff
+    // column now reassigns it (this arithmetic, and the "past the first/
+    // last column pages days instead" fallback, already existed and just
+    // wasn't being read here). Dropped into the synthetic "All"/"Unassigned"
+    // fallback that only appears when this salon has no active staff at
+    // all keeps the booking's own staff unchanged; dropped into an actual
+    // Unassigned column (col.id === null, only shown when a real
+    // unassigned booking exists today) explicitly clears staff_id.
+    const targetCol = columns[newColIndex];
+    const newStaffId = !targetCol || targetCol.id === 'all' ? booking.staff_id : targetCol.id;
     const dayBase = new Date(booking.starts_at);
     dayBase.setHours(0, 0, 0, 0);
     dayBase.setDate(dayBase.getDate() + dayOffset);
@@ -738,7 +832,7 @@ function AppointmentBlock({
       // confirmMove's own Ignore/Reschedule pattern above.
       Alert.alert(
         i18n.t('calendar:timeline.timeSlotTaken'),
-        i18n.t('calendar:timeline.staffAlreadyHasAppointment', { staffName: booking.staff?.name ?? i18n.t('calendar:timeline.thatStaffMember') }),
+        i18n.t('calendar:timeline.staffAlreadyHasAppointment', { staffName: columns[newColIndex]?.label ?? booking.staff?.name ?? i18n.t('calendar:timeline.thatStaffMember') }),
         [
           { text: i18n.t('calendar:timeline.cancel'), style: 'cancel', onPress: () => { translateY.value = withSpring(0); translateX.value = withSpring(0); } },
           { text: i18n.t('calendar:timeline.doubleBook'), style: 'destructive', onPress: () => commitMove(newStartMinutes, newColIndex, dayOffset, true) },
@@ -909,6 +1003,17 @@ function AppointmentBlock({
   const pill = primaryPill(booking);
   const corner = cornerIcon(booking);
   const showMeta = baseHeight >= 44;
+  // Calendar parity pass (audit §09) — Fresha renders a multi-service
+  // booking as stacked sub-segments, each with its own start time, instead
+  // of one joined label. Segment boundaries are an even split of the real
+  // total duration (per-service durations live in the services catalog,
+  // not on the booking itself, and aren't worth threading through this
+  // component's drag/resize gesture tree just for a label) -- still
+  // genuinely time-ordered along the appointment's actual span, not a
+  // fake/decorative breakdown.
+  const serviceNames = booking.service_names ?? [];
+  const isMultiService = serviceNames.length > 1;
+  const segmentMinutes = isMultiService ? durationMin / serviceNames.length : durationMin;
   const compact = baseHeight < 60; // ~15-min card at 1x zoom -- tighter content per Part 12
   // Card pass Part 10 — a genuinely overlapping card (slotCount > 1, so
   // this card only gets a fraction of the column's width) can't fit the
@@ -1084,7 +1189,18 @@ function AppointmentBlock({
                   <View style={styles.newChip}><Text style={styles.newChipText}>{i18n.t('calendar:timeline.newChip')}</Text></View>
                 )}
               </View>
-              {showMeta && (
+              {showMeta && isMultiService && !compact && !narrow ? (
+                <View style={styles.serviceSegments}>
+                  {serviceNames.map((name, i) => {
+                    const segStart = new Date(new Date(booking.starts_at).getTime() + i * segmentMinutes * 60000);
+                    return (
+                      <Text key={i} style={styles.blockMetaSegment} numberOfLines={1}>
+                        {formatTimeShortInTZ(segStart, timeZone)} · {name}
+                      </Text>
+                    );
+                  })}
+                </View>
+              ) : showMeta && (
                 <Text style={styles.blockMeta} numberOfLines={1}>
                   {serviceDisplayName(booking)}{booking.staff?.name ? ` · ${booking.staff.name}` : ''}
                 </Text>
@@ -1385,13 +1501,33 @@ function BlockTimeBand({ band, gridStart, pxPerMinute, rowWidth, timeZone, onOpe
 }
 
 const styles = StyleSheet.create({
+  noStaffContainer: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.sm,
+  },
+  noStaffTitle: { fontSize: 18, fontWeight: '700', color: P.textPrimary, textAlign: 'center', marginTop: Spacing.sm },
+  noStaffSubtitle: { fontSize: 14, color: P.textSecondary, textAlign: 'center', maxWidth: 320 },
+  noStaffButtonRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+  noStaffButtonOutline: {
+    paddingHorizontal: Spacing.md, paddingVertical: 12, borderRadius: BorderRadius.full,
+    borderWidth: 1, borderColor: P.border,
+  },
+  noStaffButtonOutlineText: { fontSize: 14, fontWeight: '600', color: P.textPrimary },
+  noStaffButtonFilled: {
+    paddingHorizontal: Spacing.md, paddingVertical: 12, borderRadius: BorderRadius.full,
+    backgroundColor: P.textPrimary,
+  },
+  noStaffButtonFilledText: { fontSize: 14, fontWeight: '600', color: P.background },
   pullIndicator: {
     position: 'absolute', top: 10, left: 0, right: 0,
     alignItems: 'center', zIndex: 20,
   },
   hourLabel: { position: 'absolute', fontSize: 12, fontWeight: '700', color: P.textSecondary, right: 6, width: TIME_GUTTER - 6, textAlign: 'right' },
   gridBackground: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: P.border },
+  // Hour lines stronger, quarter-hour lines fainter -- was both the same
+  // hue/weight, which read too flat to tell "top of the hour" apart from
+  // "just a quarter-hour tick" at a glance.
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: P.textDisabled },
+  gridLineMinor: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(46,41,66,0.25)' },
   closedBand: { position: 'absolute', left: 0, backgroundColor: 'rgba(120,120,135,0.16)' },
   nowLine: { position: 'absolute', left: 0, height: 2, backgroundColor: P.error, zIndex: 5 },
   nowBadge: {
@@ -1434,6 +1570,8 @@ const styles = StyleSheet.create({
   // (blockTimeText, 11.5/700) and service (blockMeta, 11/400).
   blockCustomer: { fontSize: 14, fontWeight: '800', color: P.textPrimary, flexShrink: 1 },
   blockMeta: { fontSize: 11, color: P.textSecondary, marginTop: 1 },
+  serviceSegments: { marginTop: 1, gap: 1 },
+  blockMetaSegment: { fontSize: 10.5, color: P.textSecondary },
   newChip: { backgroundColor: P.secondaryPurple + '33', borderRadius: BorderRadius.sm, paddingHorizontal: 4, paddingVertical: 1 },
   newChipText: { fontSize: 8, fontWeight: '800', color: P.secondaryPurple },
   blockRightCol: { alignItems: 'flex-end', gap: 2 },

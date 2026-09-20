@@ -36,7 +36,10 @@ export type StatusKey =
 // not components/hooks themselves -- the same, officially-supported
 // outside-of-React i18next usage pattern already used for
 // customerDisplayName()/serviceDisplayName() (see ownerBookings.ts).
-function statusLabel(key: StatusKey): string {
+// Exported (was module-private) so the Calendar filter sheet's Status
+// section can list every real StatusKey with its exact existing label/color
+// instead of inventing a second, parallel copy of this same taxonomy.
+export function statusLabel(key: StatusKey): string {
   const K = {
     cancelled: 'common:status.cancelled', no_show: 'common:status.noShow', completed: 'common:status.completed',
     paid: 'common:status.paid', payment_pending: 'common:status.paymentPending', in_service: 'common:status.inService',
@@ -45,7 +48,11 @@ function statusLabel(key: StatusKey): string {
   } as const;
   return i18n.t(K[key]);
 }
-const STATUS_COLOR: Record<StatusKey, string> = {
+export const ALL_STATUS_KEYS: StatusKey[] = [
+  'confirmed', 'pending', 'arriving_soon', 'checked_in', 'in_service', 'late',
+  'payment_pending', 'paid', 'completed', 'no_show', 'cancelled',
+];
+export const STATUS_COLOR: Record<StatusKey, string> = {
   cancelled: Colors.textDisabled, no_show: Colors.statusLate, completed: Colors.statusCompleted,
   paid: Colors.statusPaid, payment_pending: Colors.statusPaymentPending, in_service: Colors.statusInService,
   checked_in: Colors.statusCheckedIn, late: Colors.statusLate, arriving_soon: Colors.statusArrivingSoon,
