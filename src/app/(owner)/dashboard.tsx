@@ -169,12 +169,21 @@ export default function OwnerDashboardScreen() {
     syncWearData(dashQuery.data.next_appointment_id, bookingsQuery.data);
   }, [dashQuery.data, bookingsQuery.data]);
 
+  // Caching pass — this used to also invalidate ['owner-business'] and
+  // ['owner-staff'] on every focus, which are the same cache keys Calendar
+  // reads (see calendar.tsx's businessQuery/staffQuery). Since this effect
+  // fires every single time the owner switches back to the Dashboard tab,
+  // it was silently undoing that cross-screen cache for anyone bouncing
+  // between Dashboard and Calendar -- a business profile and staff roster
+  // rarely change mid-shift, so there's no real freshness need to force
+  // them to refetch here; the shared 30s staleTime already covers it.
+  // Only the three genuinely time-sensitive, dashboard-specific queries
+  // (today's summary/bookings/payment status) still force-refresh on
+  // focus.
   function reloadAll() {
     queryClient.invalidateQueries({ queryKey: ['owner-dashboard-summary', todayKey] });
     queryClient.invalidateQueries({ queryKey: ownerBookingsQueryKey(clientId, todayKey) });
     queryClient.invalidateQueries({ queryKey: ['owner-payment-status', todayKey] });
-    queryClient.invalidateQueries({ queryKey: ['owner-business'] });
-    queryClient.invalidateQueries({ queryKey: ['owner-staff'] });
   }
 
   // Tabs stay mounted when you switch away -- without this, revisiting
