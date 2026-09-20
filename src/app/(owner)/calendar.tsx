@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { View, Text, Pressable, StyleSheet, ScrollView, Modal, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,10 +20,10 @@ import { MonthView } from '@/components/owner/MonthView';
 import { MultiDayView } from '@/components/owner/MultiDayView';
 import { QueueFlowView } from '@/components/owner/QueueFlowView';
 import { useOwnerBookings } from '@/lib/calendar/useOwnerBookings';
-import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
-import { getBusiness, Business } from '@/lib/api/ownerBusiness';
+import { listStaff } from '@/lib/api/ownerStaff';
+import { getBusiness } from '@/lib/api/ownerBusiness';
 import { OwnerBooking, getBooking, blockTime, updateBooking } from '@/lib/api/ownerBookings';
-import { listServices, Service } from '@/lib/api/ownerServices';
+import { listServices } from '@/lib/api/ownerServices';
 import { CustomerLite } from '@/lib/api/ownerCustomers';
 import { zonedDateKey, zonedHeaderLabels, dayScheduleForZoned } from '@/lib/calendar/timeGrid';
 import { BookingSource, SOURCE_COLOR, PaymentBadge, PAYMENT_COLOR } from '@/lib/calendar/appointmentVisual';
@@ -101,10 +102,6 @@ export default function OwnerCalendarScreen() {
   };
   const [date, setDate] = useState(new Date());
   const [mode, setMode] = useState<CalendarMode>('agenda');
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [businessError, setBusinessError] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | 'all'>('all');
   // Calendar parity pass (audit §08) — the four new filter dimensions
   // (status/channel/payment/services) that were previously only a read-only
@@ -173,6 +170,36 @@ export default function OwnerCalendarScreen() {
   const [blockTimeFieldOpen, setBlockTimeFieldOpen] = useState<'from' | 'to' | null>(null);
   const BLOCK_REASON_PRESETS = ['Meeting', 'Lunch', 'Personal', 'Training', 'Cleaning', 'Break', 'Other'] as const;
 
+  // Caching pass — these three used to bypass React Query (plain useState
+  // + a fresh fetch in a useEffect on every Calendar mount), duplicating
+  // whatever Dashboard had already fetched moments earlier instead of
+  // sharing it. `business`/`staff` now reuse Dashboard's own exact query
+  // keys (dashboard.tsx's businessQuery/staffQuery) -- visiting either
+  // screen after the other reads the same cached data instead of
+  // re-fetching. `services` is new to this screen (only Calendar's filter
+  // sheet needs it) but still benefits from the shared 30s staleTime on
+  // Calendar's own repeat visits/mode switches.
+  const businessQuery = useQuery({ queryKey: ['owner-business'], queryFn: async () => {
+    const r = await getBusiness();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.business;
+  } });
+  const staffQuery = useQuery({ queryKey: ['owner-staff'], queryFn: async () => {
+    const r = await listStaff();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const servicesQuery = useQuery({ queryKey: ['owner-services'], queryFn: async () => {
+    const r = await listServices();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const business = businessQuery.data ?? null;
+  const businessError = businessQuery.error instanceof Error ? businessQuery.error.message : null;
+  const staff = (staffQuery.data ?? []).filter(s => s.active);
+  const services = (servicesQuery.data ?? []).filter(s => s.active);
+  const loadBusiness = useCallback(() => { businessQuery.refetch(); }, [businessQuery]);
+
   // Calendar 2.0 Part 1 — the salon's own timezone, not the device's.
   // Falls back to the same default the backend itself uses when a salon
   // hasn't set one (src/lib/salon-timezone.ts), so Day/Queue's date key
@@ -232,20 +259,6 @@ export default function OwnerCalendarScreen() {
     const fresh = bookings.find(b => b.id === selectedBooking.id);
     if (fresh && fresh !== selectedBooking) setSelectedBooking(fresh);
   }, [bookings, selectedBooking]);
-
-  const loadBusiness = useCallback(() => {
-    setBusinessError(null);
-    getBusiness().then(result => {
-      if (result.ok) setBusiness(result.data.business);
-      else setBusinessError(result.error);
-    });
-  }, []);
-
-  useEffect(() => {
-    listStaff().then(result => { if (result.ok) setStaff(result.data.data.filter(s => s.active)); });
-    listServices().then(result => { if (result.ok) setServices(result.data.data.filter(s => s.active)); });
-    loadBusiness();
-  }, [loadBusiness]);
 
   // Toggles one value within one filter dimension -- checking a second box
   // in the same section (e.g. "SANAA" + "Walk-in" under Channel) is an OR
