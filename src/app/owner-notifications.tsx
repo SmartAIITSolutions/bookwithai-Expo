@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { Stack, router } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { listNotifications, markNotificationRead, markAllNotificationsRead, OwnerNotification } from '@/lib/api/ownerNotifications';
 import { supabase } from '@/lib/supabase';
@@ -34,33 +35,47 @@ function CardOverlay() {
 // Phase 0.1 Notification Center — "one center, not popups." Realtime-backed
 // (same pattern as Sprint 2's calendar) so a new booking/cancellation
 // appears here instantly, on top of the actual push notification.
+const ownerNotificationsQueryKey = ['owner-notifications'] as const;
+
 export default function OwnerNotificationsScreen() {
   const { t } = useTranslation(['owner']);
   const { clientId } = useAuth();
-  const [items, setItems] = useState<OwnerNotification[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    const result = await listNotifications();
-    if (result.ok) setItems(result.data.data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const queryClient = useQueryClient();
+  // Perf pass — this screen is pushed onto the stack (not a tab), so it
+  // fully unmounts/remounts on every visit -- its own `loading` state used
+  // to reset to true and blank to a spinner every single time the bell
+  // icon was tapped, even seconds after it was last closed. React Query's
+  // cache lives on the shared QueryClient, outside this component's own
+  // lifecycle, so a revisit now reads the still-fresh cached list
+  // instantly (isLoading only true when there's genuinely no cached data
+  // yet) while quietly re-validating in the background.
+  const notificationsQuery = useQuery({
+    queryKey: ownerNotificationsQueryKey,
+    queryFn: async () => {
+      const result = await listNotifications();
+      if (!result.ok) throw new Error(result.error);
+      return result.data.data;
+    },
+  });
+  const items = notificationsQuery.data ?? [];
+  const loading = notificationsQuery.isLoading;
 
   useEffect(() => {
     if (!clientId) return;
     const channel = supabase
       .channel(`owner-notifications:${clientId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `client_id=eq.${clientId}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `client_id=eq.${clientId}` }, () => notificationsQuery.refetch())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [clientId, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
 
   async function handlePress(n: OwnerNotification) {
     if (!n.read) {
       await markNotificationRead(n.id);
-      setItems(list => list.map(x => x.id === n.id ? { ...x, read: true } : x));
+      queryClient.setQueryData<OwnerNotification[]>(ownerNotificationsQueryKey, (prev) =>
+        (prev ?? []).map(x => x.id === n.id ? { ...x, read: true } : x)
+      );
     }
     // P10.11: SANAA deep links, reusing only existing screens -- no new
     // navigation architecture for notification routing.
@@ -75,7 +90,9 @@ export default function OwnerNotificationsScreen() {
 
   async function handleMarkAll() {
     await markAllNotificationsRead();
-    setItems(list => list.map(x => ({ ...x, read: true })));
+    queryClient.setQueryData<OwnerNotification[]>(ownerNotificationsQueryKey, (prev) =>
+      (prev ?? []).map(x => ({ ...x, read: true }))
+    );
   }
 
   return (
