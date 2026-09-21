@@ -533,9 +533,6 @@
   "checkoutSheet": {
     "collectCardPayment": "Cobrar pago con tarjeta",
     "collectCardPaymentHint": "Comparte este enlace con el cliente. Puede agregar una propina y luego pagar de forma segura. Esta visita se completa automáticamente después de que el pago se realice con éxito (normalmente en segundos).",
-    "visitBalance": "Saldo de la visita: {{balance}}",
-    "cardCharge": "Cargo a la tarjeta: {{charge}}",
-    "cardChargeDiffHint": "La diferencia cubre el procesamiento de la tarjeta cuando tu salón traslada las comisiones al cliente.",
     "openPaymentPage": "Abrir página de pago",
     "copyLink": "Copiar enlace",
     "emailLink": "Enviar por correo",

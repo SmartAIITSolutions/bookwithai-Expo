@@ -422,14 +422,14 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       else setInfoModal({ title: t('owner:checkoutSheet.sentTitle'), message: t('owner:checkoutSheet.pushSentMessage') });
     }
 
-    // Matches the web dashboard's own "Collect card payment" panel exactly
-    // -- same copy, same Visit balance/Card charge line, same three actions
-    // plus a scannable QR code, same "Cancel" escape hatch back to picking
-    // a different method. Nothing about the underlying Stripe session
-    // changes here; this only mirrors how it's presented.
+    // Previously mirrored the web dashboard's "Collect card payment" panel
+    // exactly, including a Visit balance/Card charge breakdown box -- removed
+    // here per explicit request, so this screen now intentionally diverges
+    // from the web dashboard's copy. cardResultInfo itself is untouched
+    // (still needed by emailLink/pushLink below), only its on-screen
+    // breakdown display is gone.
     if (result?.status === 'awaiting_card_payment' && result.payment_url) {
       const url = result.payment_url;
-      const showBreakdown = !!cardResultInfo && cardResultInfo.cardTotalCents !== cardResultInfo.visitDueCents;
       return (
         <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="90%">
           <ScrollView contentContainerStyle={styles.content}>
@@ -437,15 +437,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             <Text style={styles.hint}>
               {t('owner:checkoutSheet.collectCardPaymentHint')}
             </Text>
-
-            {showBreakdown && cardResultInfo && (
-              <View style={styles.balanceBox}>
-                <Text style={styles.balanceBoxText}>
-                  {t('owner:checkoutSheet.visitBalance', { balance: money(cardResultInfo.visitDueCents) })} · <Text style={styles.balanceBoxStrong}>{t('owner:checkoutSheet.cardCharge', { charge: money(cardResultInfo.cardTotalCents) })}</Text>
-                </Text>
-                <Text style={styles.balanceBoxHint}>{t('owner:checkoutSheet.cardChargeDiffHint')}</Text>
-              </View>
-            )}
 
             <View style={styles.cardActionsRow}>
               <TouchableOpacity style={styles.cardActionPrimary} onPress={() => Linking.openURL(url)}>
@@ -854,13 +845,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6, color: '#F4D77A', marginBottom: 4,
   },
   section: { gap: Spacing.xs },
-  balanceBox: {
-    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)',
-    backgroundColor: 'rgba(74,222,128,0.08)', padding: Spacing.sm, gap: 4,
-  },
-  balanceBoxText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.75)' },
-  balanceBoxStrong: { fontFamily: FontFamily.soraSemiBold, color: '#FFFFFF' },
-  balanceBoxHint: { fontFamily: FontFamily.sora, fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)' },
   cardActionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   cardActionPrimary: {
     backgroundColor: '#4ADE80', borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10,

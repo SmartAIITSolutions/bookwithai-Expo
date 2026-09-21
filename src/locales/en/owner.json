@@ -533,9 +533,6 @@
   "checkoutSheet": {
     "collectCardPayment": "Collect card payment",
     "collectCardPaymentHint": "Share this link with the customer. They can add a tip, then pay securely. This visit completes automatically after payment succeeds (usually within seconds).",
-    "visitBalance": "Visit balance: {{balance}}",
-    "cardCharge": "Card charge: {{charge}}",
-    "cardChargeDiffHint": "Difference covers card processing when your salon passes fees to the customer.",
     "openPaymentPage": "Open payment page",
     "copyLink": "Copy link",
     "emailLink": "Email link",
