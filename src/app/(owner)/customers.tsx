@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, FlatList, Pressable, StyleSheet } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
@@ -41,18 +41,34 @@ export default function OwnerCustomersScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [duplicateGroups, setDuplicateGroups] = useState(0);
 
+  // Perf pass — `load` used to unconditionally blank the whole list behind
+  // a full-screen spinner, including on the useFocusEffect below's own
+  // "just re-validate in case something changed elsewhere" call -- so
+  // every single switch back to this tab flashed a reload even though the
+  // list just shown a moment ago was still perfectly valid. Only the
+  // genuinely first fetch for a given query now shows that spinner;
+  // revisiting with the same query silently refreshes in the background
+  // and swaps the list in place once the new data arrives, keeping the
+  // guaranteed-fresh-on-focus behavior the comment below explains without
+  // the jarring blank-then-repopulate flash on every visit.
+  const lastLoadedQuery = useRef<string | null>(null);
   const load = useCallback(async (q: string) => {
-    setLoading(true);
-    setLoadError(null);
+    const silent = lastLoadedQuery.current === q;
+    if (!silent) { setLoading(true); setLoadError(null); }
     const result = await listCustomers(q, 0, PAGE_SIZE);
     if (result.ok) {
       setCustomers(result.data.data);
       setPage(0);
       setHasMore(result.data.data.length === PAGE_SIZE && result.data.data.length < result.data.total);
-    } else {
+      lastLoadedQuery.current = q;
+    } else if (!silent) {
+      // A silent background refresh failing keeps showing whatever list is
+      // already on screen rather than replacing it with an error state --
+      // same "best effort, don't discard good data" behavior as this
+      // screen's own explicit pull-to-refresh would want.
       setLoadError(result.error);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   const loadMore = useCallback(async () => {
