@@ -99,6 +99,20 @@ export default function AuthWelcomeScreen() {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
   }, []);
 
+  // Chrome Custom Tabs pays a one-time process-spin-up cost on its first
+  // launch each session -- warming it up while the user is still looking at
+  // this screen (instead of only at tap time) moves that cost off the
+  // critical path, so "Continue with Google" opens the tab immediately
+  // instead of visibly stalling first. No-op on iOS/when no Custom Tabs
+  // browser is present.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    WebBrowser.warmUpAsync().catch(() => {});
+    return () => {
+      WebBrowser.coolDownAsync().catch(() => {});
+    };
+  }, []);
+
   const cycle = useSharedValue(0);
   useEffect(() => {
     cycle.value = withRepeat(
