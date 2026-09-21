@@ -639,11 +639,30 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     // own first auth state event (INITIAL_SESSION, fired once the stored
     // session has fully settled) instead of racing getSession() + an
     // immediate query removes that gap at the source.
+    // Timeout safety net — this wait had no upper bound, so a stuck
+    // internal token refresh (confirmed live: reproducible after enough
+    // rapid force-kill-mid-refresh cycles leave a stale/already-rotated
+    // refresh token in storage, which the client then hangs trying to
+    // reconcile with no network error to catch) left the splash screen
+    // spinning forever with no recovery path. 8s is generous for a normal
+    // cold start even on a slow connection. Falling back to null/"/auth"
+    // on timeout is safe rather than a guess: AuthContext runs its own
+    // independent session listener, so a session that resolves after this
+    // gives up still gets picked up and redirects home on its own.
     const session = await new Promise<Session | null>((resolve) => {
+      let settled = false;
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (settled) return;
+        settled = true;
         subscription.unsubscribe();
         resolve(session);
       });
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        subscription.unsubscribe();
+        resolve(null);
+      }, 8000);
     });
     if (!session) {
       router.replace('/auth');
