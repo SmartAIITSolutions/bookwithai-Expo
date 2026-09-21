@@ -98,7 +98,6 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
     const { clientId } = useAuth();
     const [preview, setPreview] = useState<CheckoutPreview | null>(null);
-    const [catalog, setCatalog] = useState<Product[]>([]);
     const [products, setProducts] = useState<ProductLine[]>([]);
     // Caching pass — reuses the exact same query key calendar.tsx's own
     // servicesQuery already fetches under (['owner-services']), so opening
@@ -111,6 +110,16 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       return r.data.data;
     } });
     const services = (servicesQuery.data ?? []).filter(s => s.active && s.id !== booking?.service_id);
+    // Same caching pass, same reasoning -- owner-settings/products.tsx
+    // already fetches the catalog under this exact key. This used to be its
+    // own uncached listProducts() call inside load() below, refetched from
+    // scratch on every single Checkout open.
+    const productsQuery = useQuery({ queryKey: ['owner-products'], queryFn: async () => {
+      const r = await listProducts();
+      if (!r.ok) throw new Error(r.error);
+      return r.data.data;
+    } });
+    const catalog = productsQuery.data ?? [];
     const [addedServices, setAddedServices] = useState<Service[]>([]);
     const [showServicePicker, setShowServicePicker] = useState(false);
     const [discountCents, setDiscountCents] = useState(0);
@@ -144,9 +153,16 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
     const load = useCallback(async () => {
       if (!booking) return;
-      const [previewResult, productsResult] = await Promise.all([
+      // Real bug fixed here: getStoreCredit used to be a separate `await`
+      // sitting AFTER this Promise.all resolved, adding a whole extra
+      // network round trip to the critical path of every Checkout open for
+      // a booking with a customer_id (i.e. almost all of them) -- not
+      // because it depends on the preview result, it doesn't, it was just
+      // written sequentially. Folded into the same Promise.all so all three
+      // requests actually fire together.
+      const [previewResult, creditResult] = await Promise.all([
         getCheckoutPreview(booking.id),
-        listProducts(),
+        booking.customer_id ? getStoreCredit(booking.customer_id) : Promise.resolve(null),
       ]);
       if (previewResult.ok) {
         setPreview(previewResult.data);
@@ -160,11 +176,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
           setRebookTime(toLocalTimeStr(suggested));
         }
       }
-      if (productsResult.ok) setCatalog(productsResult.data.data);
-      if (booking.customer_id) {
-        const credit = await getStoreCredit(booking.customer_id);
-        if (credit.ok) setStoreCreditBalance(credit.data.balance_cents);
-      }
+      if (creditResult?.ok) setStoreCreditBalance(creditResult.data.balance_cents);
       // Keyed on booking?.id, not the whole `booking` object -- see the
       // reset effect below for why.
     }, [booking?.id]);
