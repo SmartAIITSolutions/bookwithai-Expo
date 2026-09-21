@@ -15,6 +15,7 @@ import { listServices, Service } from '@/lib/api/ownerServices';
 import { StaffMember } from '@/lib/api/ownerStaff';
 import { RebookDateTimeModal } from '@/components/owner/RebookDateTimeModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { ErrorState } from '@/components/ErrorState';
 import { cardChargeFromVisitDueCents } from '@/lib/stripe/fees';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -98,6 +99,14 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
 
     const { clientId } = useAuth();
     const [preview, setPreview] = useState<CheckoutPreview | null>(null);
+    // Real bug fixed here: a failed getCheckoutPreview call (network error,
+    // 500, anything) previously just fell through with no else branch --
+    // `preview` stayed null forever, and the `if (!booking || !preview)`
+    // gate below shows nothing but a spinner, so the sheet was stuck
+    // loading indefinitely with zero feedback and no way to retry short of
+    // closing it. ownerFetch itself is designed to always resolve (never
+    // hang/throw), so this was reachable on any real API failure.
+    const [previewError, setPreviewError] = useState<string | null>(null);
     const [products, setProducts] = useState<ProductLine[]>([]);
     // Caching pass — reuses the exact same query key calendar.tsx's own
     // servicesQuery already fetches under (['owner-services']), so opening
@@ -173,6 +182,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         booking.customer_id ? getStoreCredit(booking.customer_id) : Promise.resolve(null),
       ]);
       if (previewResult.ok) {
+        setPreviewError(null);
         setPreview(previewResult.data);
         // Most walk-in/manual checkouts are cash; a booking that already
         // has money on it (an online deposit at booking time) almost
@@ -183,6 +193,8 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
           setRebookDate(toLocalDateStr(suggested));
           setRebookTime(toLocalTimeStr(suggested));
         }
+      } else {
+        setPreviewError(previewResult.error);
       }
       if (creditResult?.ok) setStoreCreditBalance(creditResult.data.balance_cents);
       // Keyed on booking?.id, not the whole `booking` object -- see the
@@ -204,6 +216,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     useEffect(() => {
       if (booking) {
         setResult(null); setCardResultInfo(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setAddedServices([]);
+        setPreviewError(null);
         setOriginalPriceOverrideCents(null); setAddedServicePriceOverrides({}); setPriceEditText({});
         setCustomDiscount(false); setCustomDiscountText(''); setCustomTip(false); setCustomTipText('');
         setBookNext(false); setPerformedByStaffId(booking.staff_id);
@@ -270,7 +283,19 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       { method: tenderMethod, amount_cents: pendingTenderAmount };
     const checkoutRemaining = remaining - (pendingTender?.amount_cents ?? 0);
 
-    if (!booking || !preview) {
+    if (!booking) return null;
+
+    if (previewError && !preview) {
+      return (
+        <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="60%">
+          <View style={styles.centered}>
+            <ErrorState message={previewError} onRetry={load} />
+          </View>
+        </SheetModal>
+      );
+    }
+
+    if (!preview) {
       return (
         <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="60%">
           <View style={styles.centered}><ActivityIndicator color="#F4D77A" /></View>
