@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
@@ -28,8 +29,8 @@ import Reanimated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { fetchSalonBySlug, formatHours, type SalonInfo } from '@/lib/api/salon';
-import { fetchCustomerSummary, type CustomerSummary } from '@/lib/api/customer';
+import { fetchSalonBySlug, formatHours } from '@/lib/api/salon';
+import { fetchCustomerSummary } from '@/lib/api/customer';
 import { useFavorites } from '@/lib/favorites/FavoritesContext';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -129,14 +130,8 @@ export default function SalonScreen() {
   const { user } = useAuth();
   const { width, height } = useWindowDimensions();
   const [hoursExpanded, setHoursExpanded] = useState(false);
-  const [salon, setSalon] = useState<SalonInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [summary, setSummary] = useState<CustomerSummary | null>(null);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const { salons: favoriteSalons, addFavorite, removeFavorite } = useFavorites();
-  const isFavorite = !!salon && favoriteSalons.some((s) => s.id === salon.id);
 
   const policyCycle = useSharedValue(0);
   useEffect(() => {
@@ -150,28 +145,23 @@ export default function SalonScreen() {
   const reschedulingBreathe = usePolicyBreatheStyle(policyCycle, 1);
   const storeBreathe = usePolicyBreatheStyle(policyCycle, 2);
 
-  function load() {
-    if (!slug) return;
-    setLoading(true);
-    setLoadError(false);
-    setNotFound(false);
-    fetchSalonBySlug(slug)
-      .then((data) => {
-        if (!data) setNotFound(true);
-        else setSalon(data);
-      })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
-  }
+  const salonQuery = useQuery({
+    queryKey: ['salon', slug],
+    queryFn: () => fetchSalonBySlug(slug!),
+    enabled: !!slug,
+  });
+  const salon = salonQuery.data ?? null;
+  const loading = salonQuery.isLoading;
+  const loadError = salonQuery.isError;
+  const notFound = salonQuery.isSuccess && !salonQuery.data;
 
-  useEffect(() => {
-    load();
-  }, [slug]);
-
-  useEffect(() => {
-    if (!user || !salon) return;
-    fetchCustomerSummary(salon.id).then(setSummary);
-  }, [user, salon]);
+  const summaryQuery = useQuery({
+    queryKey: ['customer-summary', salon?.id, user?.id],
+    queryFn: () => fetchCustomerSummary(salon!.id),
+    enabled: !!user && !!salon,
+  });
+  const summary = summaryQuery.data ?? null;
+  const isFavorite = !!salon && favoriteSalons.some((s) => s.id === salon.id);
 
   async function handleToggleFavorite() {
     if (!salon) return;
@@ -255,7 +245,7 @@ export default function SalonScreen() {
             hitSlop={10}>
             <Ionicons name="chevron-back" size={24} color="#F4D77A" />
           </Pressable>
-          <ErrorState message={t('booking:salonDetail.loadErrorMessage')} onRetry={load} />
+          <ErrorState message={t('booking:salonDetail.loadErrorMessage')} onRetry={() => salonQuery.refetch()} />
         </SafeAreaView>
       </View>
     );
