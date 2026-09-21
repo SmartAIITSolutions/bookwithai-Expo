@@ -221,11 +221,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // network dependency, nothing to fail).
   async function signOut(scope: 'local' | 'global' = 'local') {
     const userId = user?.id;
-    try {
-      await unregisterPushToken();
-    } catch (err) {
+    // Perf pass — this used to be awaited here, blocking the whole sign-out
+    // (and the "Log out" button) on unregisterPushToken()'s own chain of
+    // calls, the slowest of which (Notifications.getExpoPushTokenAsync(), a
+    // real round-trip to Expo's push service) is well-known to take
+    // 1-3+ seconds. It was already documented as best-effort/failure-
+    // tolerant -- sign-out was never meant to depend on it succeeding, so
+    // there's no reason to depend on its timing either. Fired without
+    // awaiting; still logs on failure, same as before.
+    unregisterPushToken().catch((err) => {
       console.error('AuthContext: push token unregister failed during sign-out (continuing)', err);
-    }
+    });
     if (userId) {
       await AsyncStorage.removeItem(`${ROLE_CACHE_PREFIX}${userId}`).catch(() => {});
     }

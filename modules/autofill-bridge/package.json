@@ -1,0 +1,9 @@
+{
+  "name": "autofill-bridge",
+  "version": "0.1.0",
+  "description": "Local Expo module (Android only) — explicitly commits Android's AutofillManager after a successful sign-in/sign-up, so the OS actually offers to save the credential. React Native's own form submission (a JS-driven navigation, no native form/Activity finish) doesn't trigger Android's usual save-prompt heuristics on its own; this tells the framework directly.",
+  "main": "index.ts",
+  "types": "index.ts",
+  "platforms": ["android"],
+  "license": "UNLICENSED"
+}

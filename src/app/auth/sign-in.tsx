@@ -18,6 +18,7 @@ import Reanimated, {
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { supabase } from '@/lib/supabase';
+import { commitAutofill } from 'autofill-bridge';
 import { isValidEmail } from '@/lib/validation';
 import { useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -73,6 +74,11 @@ export default function SignInScreen() {
         password: password.trim(),
       });
       if (error) throw error;
+      // Tells Android's AutofillManager the sign-in succeeded, so it can
+      // offer to save the credential -- React Native's own navigation away
+      // from this screen never triggers that prompt on its own. No-op on
+      // iOS (not needed there) and before the native module is linked.
+      commitAutofill();
       // Auth state change will trigger redirect in _layout.tsx
     } catch (e: any) {
       Alert.alert(t('errors:auth.signInFailedTitle'), e.message || t('errors:auth.incorrectCredentials'));
@@ -113,6 +119,16 @@ export default function SignInScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  // Remember-my-login pass — hints the OS's own password
+                  // manager (iCloud Keychain / Google Password Manager),
+                  // not app storage, so it can offer to save and then
+                  // autofill this account's email + password together next
+                  // time. Neither field had these before, which is why
+                  // neither platform's save-password prompt was reliably
+                  // showing up after a successful sign-in.
+                  textContentType="username"
+                  autoComplete="email"
+                  importantForAutofill="yes"
                 />
                 {email.length > 0 && !isValidEmail(email) && (
                   <Text style={styles.errorText}>{t('errors:auth.invalidEmail')}</Text>
@@ -132,6 +148,9 @@ export default function SignInScreen() {
                     secureTextEntry={!showPass}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    textContentType="password"
+                    autoComplete="password"
+                    importantForAutofill="yes"
                   />
                   <Pressable onPress={() => setShowPass(!showPass)} style={styles.eyeBtn}>
                     <Ionicons

@@ -18,6 +18,7 @@ import Reanimated, {
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { supabase } from '@/lib/supabase';
+import { commitAutofill } from 'autofill-bridge';
 import { isValidEmail, isValidPhone, getPasswordError } from '@/lib/validation';
 import { Trans, useTranslation } from 'react-i18next';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -83,6 +84,8 @@ export default function SignUpScreen() {
         },
       });
       if (error) throw error;
+      // Same "tell Android the form actually succeeded" signal as sign-in.
+      commitAutofill();
       // Account creation doesn't require email confirmation to sign in --
       // if signUp already returned a session, AuthRedirectGate picks it up
       // and routes home automatically. Otherwise fall back to sign-in.
@@ -141,6 +144,9 @@ export default function SignUpScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  textContentType="username"
+                  autoComplete="email"
+                  importantForAutofill="yes"
                 />
                 {email.length > 0 && !isValidEmail(email) && (
                   <Text style={styles.errorText}>{t('errors:auth.invalidEmail')}</Text>
@@ -174,6 +180,12 @@ export default function SignUpScreen() {
                     secureTextEntry={!showPass}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    // newPassword (not "password") -- this is account
+                    // creation, so the OS should offer to generate/save a
+                    // new credential, not fill an existing one.
+                    textContentType="newPassword"
+                    autoComplete="password-new"
+                    importantForAutofill="yes"
                   />
                   <Pressable onPress={() => setShowPass(!showPass)} style={styles.eyeBtn}>
                     <Ionicons
