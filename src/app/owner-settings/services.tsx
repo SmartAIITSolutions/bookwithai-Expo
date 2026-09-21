@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
@@ -8,7 +9,7 @@ import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { listServices, createService, archiveService, getServiceStaff, setServiceStaff, updateService, Service } from '@/lib/api/ownerServices';
-import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
+import { listStaff } from '@/lib/api/ownerStaff';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 import { formatCentsUSD } from '@/lib/i18n/format';
 
@@ -23,9 +24,25 @@ function CardOverlay() {
 
 export default function ServicesScreen() {
   const { t } = useTranslation(['owner']);
-  const [loading, setLoading] = useState(true);
-  const [services, setServices] = useState<Service[]>([]);
-  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const queryClient = useQueryClient();
+  // Perf pass — reuses the exact same ['owner-services']/['owner-staff']
+  // query keys calendar.tsx's own filter sheet already fetches under, so
+  // this settings screen (pushed onto the stack, fully unmounts/remounts
+  // on every visit) reads whatever's already cached instantly on a
+  // revisit instead of blanking to a spinner and re-fetching every time.
+  const servicesQuery = useQuery({ queryKey: ['owner-services'], queryFn: async () => {
+    const r = await listServices();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const staffQuery = useQuery({ queryKey: ['owner-staff'], queryFn: async () => {
+    const r = await listStaff();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const loading = servicesQuery.isLoading || staffQuery.isLoading;
+  const services = (servicesQuery.data ?? []).filter(s => s.active);
+  const staff = (staffQuery.data ?? []).filter(s => s.active);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [duration, setDuration] = useState('');
@@ -43,15 +60,6 @@ export default function ServicesScreen() {
   const [depositPercentInput, setDepositPercentInput] = useState('');
   const [depositAmountInput, setDepositAmountInput] = useState('');
   const [depositSaving, setDepositSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    const [servicesResult, staffResult] = await Promise.all([listServices(), listStaff()]);
-    if (servicesResult.ok) setServices(servicesResult.data.data.filter(s => s.active));
-    if (staffResult.ok) setStaff(staffResult.data.data.filter(s => s.active));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   async function handleToggleStaffPanel(serviceId: string) {
     if (expandedServiceId === serviceId) {
@@ -113,7 +121,7 @@ export default function ServicesScreen() {
     setSaving(false);
     if (result.ok) {
       setName(''); setDuration(''); setPrice(''); setBookableOnline(true); setAdding(false);
-      load();
+      servicesQuery.refetch();
     } else {
       Alert.alert(t('owner:servicesScreen.couldNotAddServiceTitle'), result.error);
     }
@@ -131,7 +139,7 @@ export default function ServicesScreen() {
     const result = await updateService(s.id, { deposit_type: type });
     setDepositSaving(false);
     if (result.ok) {
-      setServices(list => list.map(x => x.id === s.id ? { ...x, deposit_type: type } : x));
+      queryClient.setQueryData<Service[]>(['owner-services'], (prev) => (prev ?? []).map(x => x.id === s.id ? { ...x, deposit_type: type } : x));
     } else {
       Alert.alert(t('owner:servicesScreen.couldNotSaveTitle'), result.error);
     }
@@ -145,7 +153,7 @@ export default function ServicesScreen() {
     const result = await updateService(s.id, patch);
     setDepositSaving(false);
     if (result.ok) {
-      setServices(list => list.map(x => x.id === s.id ? { ...x, ...patch } : x));
+      queryClient.setQueryData<Service[]>(['owner-services'], (prev) => (prev ?? []).map(x => x.id === s.id ? { ...x, ...patch } : x));
     } else {
       Alert.alert(t('owner:servicesScreen.couldNotSaveTitle'), result.error);
     }
@@ -153,7 +161,7 @@ export default function ServicesScreen() {
 
   async function handleArchive(id: string) {
     const result = await archiveService(id);
-    if (result.ok) setServices(s => s.filter(x => x.id !== id));
+    if (result.ok) queryClient.setQueryData<Service[]>(['owner-services'], (prev) => (prev ?? []).filter(x => x.id !== id));
     else Alert.alert(t('owner:servicesScreen.couldNotRemoveTitle'), result.error);
   }
 

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Stack } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -43,25 +44,22 @@ export default function OwnerReportsScreen() {
     { key: 'month', label: t('owner:reportsScreen.rangeMonth') },
   ];
   const [range, setRange] = useState<ReportRange>('week');
-  const [report, setReport] = useState<OwnerReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getOwnerReport(range)
-      .then(result => {
-        if (result.ok) setReport(result.data);
-        else setError(result.error);
-      })
-      .catch(() => setError(t('owner:reportsScreen.unableToLoad')))
-      .finally(() => setLoading(false));
-  }, [range]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Perf pass — cached per range under React Query so flipping between
+  // Today/Week/Month and back (and revisiting this screen at all -- it's
+  // pushed onto the stack, fully unmounts on every visit) reads whatever
+  // was already fetched instantly instead of blanking to a spinner and
+  // re-fetching every time.
+  const reportQuery = useQuery({
+    queryKey: ['owner-report', range],
+    queryFn: async () => {
+      const result = await getOwnerReport(range);
+      if (!result.ok) throw new Error(result.error);
+      return result.data;
+    },
+  });
+  const report = reportQuery.data ?? null;
+  const loading = reportQuery.isLoading;
+  const error = reportQuery.isError ? (reportQuery.error instanceof Error ? reportQuery.error.message : t('owner:reportsScreen.unableToLoad')) : null;
 
   return (
     <View style={styles.container}>
@@ -83,7 +81,7 @@ export default function OwnerReportsScreen() {
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
       ) : error ? (
-        <ErrorState message={error} onRetry={load} />
+        <ErrorState message={error} onRetry={() => reportQuery.refetch()} />
       ) : !report ? null : (
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.snapshotGrid}>

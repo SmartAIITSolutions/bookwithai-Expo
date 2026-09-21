@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
@@ -14,22 +15,24 @@ import { formatCentsUSD } from '@/lib/i18n/format';
 
 export default function ServicePackagesScreen() {
   const { t } = useTranslation(['owner']);
-  const [loading, setLoading] = useState(true);
-  const [packages, setPackages] = useState<ServicePackage[]>([]);
+  const queryClient = useQueryClient();
+  // Perf pass — cached under React Query so this screen (pushed onto the
+  // stack, fully unmounts/remounts on every visit) reads whatever's
+  // already cached instantly on a revisit instead of blanking to a
+  // spinner and re-fetching every time.
+  const packagesQuery = useQuery({ queryKey: ['owner-service-packages'], queryFn: async () => {
+    const r = await listServicePackages();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const loading = packagesQuery.isLoading;
+  const packages = (packagesQuery.data ?? []).filter(p => p.active);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [includedVisits, setIncludedVisits] = useState('');
   const [expiresAfterDays, setExpiresAfterDays] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    const result = await listServicePackages();
-    if (result.ok) setPackages(result.data.data.filter(p => p.active));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   async function handleAdd() {
     const priceNum = parseFloat(price);
@@ -48,7 +51,7 @@ export default function ServicePackagesScreen() {
     setSaving(false);
     if (result.ok) {
       setName(''); setPrice(''); setIncludedVisits(''); setExpiresAfterDays(''); setAdding(false);
-      load();
+      packagesQuery.refetch();
     } else {
       Alert.alert(t('owner:servicePackagesScreen.couldNotCreateTitle'), result.error);
     }
@@ -56,7 +59,7 @@ export default function ServicePackagesScreen() {
 
   async function handleArchive(id: string) {
     const result = await updateServicePackage(id, { active: false });
-    if (result.ok) setPackages(p => p.filter(x => x.id !== id));
+    if (result.ok) queryClient.setQueryData<ServicePackage[]>(['owner-service-packages'], (prev) => (prev ?? []).filter(x => x.id !== id));
     else Alert.alert(t('owner:servicePackagesScreen.couldNotRemoveTitle'), result.error);
   }
 

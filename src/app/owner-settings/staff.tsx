@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
@@ -53,8 +54,24 @@ export default function StaffScreen() {
     stylist: t('owner:staffScreen.roleStylist'),
     assistant: t('owner:staffScreen.roleAssistant'),
   };
-  const [loading, setLoading] = useState(true);
-  const [staff, setStaff] = useState<StaffMember[]>([]);
+  // Perf pass — reuses the same ['owner-staff']/['owner-business'] query
+  // keys calendar.tsx/dashboard.tsx already fetch under, so this settings
+  // screen (pushed onto the stack, fully unmounts/remounts on every
+  // visit) reads whatever's already cached instantly on a revisit instead
+  // of blanking to a spinner and re-fetching every time.
+  const staffQuery = useQuery({ queryKey: ['owner-staff'], queryFn: async () => {
+    const r = await listStaff();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const businessQuery = useQuery({ queryKey: ['owner-business'], queryFn: async () => {
+    const r = await getBusiness();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.business;
+  } });
+  const loading = staffQuery.isLoading || businessQuery.isLoading;
+  const staff = (staffQuery.data ?? []).filter(s => s.active);
+  const staffLoginMode = businessQuery.data?.staff_login_mode ?? 'shared_device';
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [role, setRole] = useState('');
@@ -64,21 +81,11 @@ export default function StaffScreen() {
   const [exceptionForId, setExceptionForId] = useState<string | null>(null);
   const [exceptionDate, setExceptionDate] = useState('');
   const [exceptionReason, setExceptionReason] = useState('');
-  const [staffLoginMode, setStaffLoginMode] = useState<'shared_device' | 'individual_accounts'>('shared_device');
   const [pinDraftFor, setPinDraftFor] = useState<string | null>(null);
   const [pinDraft, setPinDraft] = useState('');
   const [inviteDraftFor, setInviteDraftFor] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [savingRoleFor, setSavingRoleFor] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const [result, businessResult] = await Promise.all([listStaff(), getBusiness()]);
-    if (result.ok) setStaff(result.data.data.filter(s => s.active));
-    if (businessResult.ok) setStaffLoginMode(businessResult.data.business.staff_login_mode);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   async function handleAdd() {
     if (!name.trim()) {
@@ -90,7 +97,7 @@ export default function StaffScreen() {
     setSaving(false);
     if (result.ok) {
       setName(''); setRole(''); setAdding(false);
-      load();
+      staffQuery.refetch();
     } else {
       Alert.alert(t('owner:staffScreen.couldNotAddStaffTitle'), result.error);
     }
@@ -108,7 +115,7 @@ export default function StaffScreen() {
 
   async function handleSaveHours(staffId: string) {
     const result = await saveStaffAvailability(staffId, editingWeek);
-    if (result.ok) { setExpandedId(null); load(); }
+    if (result.ok) { setExpandedId(null); staffQuery.refetch(); }
     else Alert.alert(t('owner:staffScreen.couldNotSaveHoursTitle'), result.error);
   }
 
@@ -116,7 +123,7 @@ export default function StaffScreen() {
     setSavingRoleFor(staffId);
     const result = await updateStaff(staffId, { permission_role: role });
     setSavingRoleFor(null);
-    if (result.ok) load();
+    if (result.ok) staffQuery.refetch();
     else Alert.alert(t('owner:staffScreen.couldNotUpdateRoleTitle'), result.error);
   }
 
@@ -127,7 +134,7 @@ export default function StaffScreen() {
       return;
     }
     const result = await updateStaff(staffId, { default_commission_rate_pct: pct });
-    if (result.ok) load();
+    if (result.ok) staffQuery.refetch();
     else Alert.alert(t('owner:staffScreen.couldNotSaveTitle'), result.error);
   }
 
@@ -139,7 +146,7 @@ export default function StaffScreen() {
     const result = await updateStaff(staffId, { pin: pinDraft });
     if (result.ok) {
       setPinDraftFor(null); setPinDraft('');
-      load();
+      staffQuery.refetch();
     } else {
       Alert.alert(t('owner:staffScreen.couldNotSavePinTitle'), result.error);
     }
@@ -154,7 +161,7 @@ export default function StaffScreen() {
     if (result.ok) {
       Alert.alert(t('owner:staffScreen.inviteSentTitle'), t('owner:staffScreen.inviteSentMessage', { email: inviteEmail.trim() }));
       setInviteDraftFor(null); setInviteEmail('');
-      load();
+      staffQuery.refetch();
     } else {
       Alert.alert(t('owner:staffScreen.couldNotSendInviteTitle'), result.error);
     }
@@ -173,7 +180,7 @@ export default function StaffScreen() {
             const result = await updateStaff(s.id, { active: false });
             if (result.ok) {
               setExpandedId(null);
-              load();
+              staffQuery.refetch();
             } else {
               Alert.alert(t('owner:staffScreen.couldNotRemoveStaffTitle'), result.error);
             }

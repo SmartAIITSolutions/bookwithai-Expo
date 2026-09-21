@@ -1,13 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { listShifts, clockStaff, ShiftEntry } from '@/lib/api/ownerShifts';
-import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
+import { listShifts, clockStaff } from '@/lib/api/ownerShifts';
+import { listStaff } from '@/lib/api/ownerStaff';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { Shadows } from '@/constants/Shadows';
@@ -22,25 +23,36 @@ function formatTime(iso: string) {
 // PIN just confirms which staff member it is (shared_device mode).
 export default function ClockKioskScreen() {
   const { t } = useTranslation(['owner']);
-  const [loading, setLoading] = useState(true);
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [openShifts, setOpenShifts] = useState<ShiftEntry[]>([]);
-  const [recentShifts, setRecentShifts] = useState<ShiftEntry[]>([]);
+  // Perf pass — this kiosk screen is pushed onto the stack, so it fully
+  // unmounts/remounts on every visit -- with plain useState this meant a
+  // full blank-spinner reload every single clock-in/out during a shift,
+  // the most frequently-revisited screen under More. React Query's cache
+  // survives the unmount, so a revisit reads the still-fresh data
+  // instantly while quietly re-validating; a real clock action still
+  // triggers an explicit refetch() below.
+  const clockDataQuery = useQuery({
+    queryKey: ['owner-clock-data'],
+    queryFn: async () => {
+      const [staffResult, openResult, recentResult] = await Promise.all([
+        listStaff(), listShifts({ openOnly: true }), listShifts(),
+      ]);
+      if (!staffResult.ok) throw new Error(staffResult.error);
+      if (!openResult.ok) throw new Error(openResult.error);
+      if (!recentResult.ok) throw new Error(recentResult.error);
+      return {
+        staff: staffResult.data.data.filter(s => s.active),
+        openShifts: openResult.data.data,
+        recentShifts: recentResult.data.data.slice(0, 15),
+      };
+    },
+  });
+  const loading = clockDataQuery.isLoading;
+  const staff = clockDataQuery.data?.staff ?? [];
+  const openShifts = clockDataQuery.data?.openShifts ?? [];
+  const recentShifts = clockDataQuery.data?.recentShifts ?? [];
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  const load = useCallback(async () => {
-    const [staffResult, openResult, recentResult] = await Promise.all([
-      listStaff(), listShifts({ openOnly: true }), listShifts(),
-    ]);
-    if (staffResult.ok) setStaff(staffResult.data.data.filter(s => s.active));
-    if (openResult.ok) setOpenShifts(openResult.data.data);
-    if (recentResult.ok) setRecentShifts(recentResult.data.data.slice(0, 15));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const openStaffIds = new Set(openShifts.map(s => s.staff_id));
 
@@ -61,7 +73,7 @@ export default function ClockKioskScreen() {
       setPin('');
       if (result.ok) {
         setSelectedStaffId(null);
-        load();
+        clockDataQuery.refetch();
       } else {
         Alert.alert(t('owner:clockScreen.couldNotClockTitle'), result.error);
       }

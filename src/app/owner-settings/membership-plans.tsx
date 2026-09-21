@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
@@ -14,8 +15,18 @@ import { formatCentsUSD } from '@/lib/i18n/format';
 
 export default function MembershipPlansScreen() {
   const { t } = useTranslation(['owner']);
-  const [loading, setLoading] = useState(true);
-  const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const queryClient = useQueryClient();
+  // Perf pass — cached under React Query so this screen (pushed onto the
+  // stack, fully unmounts/remounts on every visit) reads whatever's
+  // already cached instantly on a revisit instead of blanking to a
+  // spinner and re-fetching every time.
+  const plansQuery = useQuery({ queryKey: ['owner-membership-plans'], queryFn: async () => {
+    const r = await listMembershipPlans();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const loading = plansQuery.isLoading;
+  const plans = (plansQuery.data ?? []).filter(p => p.active);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -24,14 +35,6 @@ export default function MembershipPlansScreen() {
   const [discountPct, setDiscountPct] = useState('');
   const [includedVisits, setIncludedVisits] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    const result = await listMembershipPlans();
-    if (result.ok) setPlans(result.data.data.filter(p => p.active));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   async function handleAdd() {
     const priceNum = parseFloat(price);
@@ -51,7 +54,7 @@ export default function MembershipPlansScreen() {
     setSaving(false);
     if (result.ok) {
       setName(''); setPrice(''); setDiscountPct(''); setIncludedVisits(''); setAdding(false);
-      load();
+      plansQuery.refetch();
     } else {
       Alert.alert(t('owner:membershipPlansScreen.couldNotCreateTitle'), result.error);
     }
@@ -59,7 +62,7 @@ export default function MembershipPlansScreen() {
 
   async function handleArchive(id: string) {
     const result = await updateMembershipPlan(id, { active: false });
-    if (result.ok) setPlans(p => p.filter(x => x.id !== id));
+    if (result.ok) queryClient.setQueryData<MembershipPlan[]>(['owner-membership-plans'], (prev) => (prev ?? []).filter(x => x.id !== id));
     else Alert.alert(t('owner:membershipPlansScreen.couldNotRemoveTitle'), result.error);
   }
 

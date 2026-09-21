@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
-import { listOwnerReviews, OwnerReview } from '@/lib/api/ownerReviews';
+import { listOwnerReviews } from '@/lib/api/ownerReviews';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 function CardOverlay() {
@@ -33,16 +33,17 @@ function Stars({ count }: { count: number }) {
 }
 
 export default function ReviewsScreen() {
-  const [loading, setLoading] = useState(true);
-  const [reviews, setReviews] = useState<OwnerReview[]>([]);
-
-  const load = useCallback(async () => {
-    const result = await listOwnerReviews();
-    if (result.ok) setReviews(result.data.data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  // Perf pass — cached under React Query so this screen (pushed onto the
+  // stack, fully unmounts on every visit) reads whatever's already cached
+  // instantly on a revisit instead of blanking to a spinner and
+  // re-fetching every time.
+  const reviewsQuery = useQuery({ queryKey: ['owner-reviews'], queryFn: async () => {
+    const r = await listOwnerReviews();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const loading = reviewsQuery.isLoading;
+  const reviews = reviewsQuery.data ?? [];
 
   const average = reviews.length > 0
     ? (reviews.reduce((s, r) => s + r.stars, 0) / reviews.length).toFixed(1)

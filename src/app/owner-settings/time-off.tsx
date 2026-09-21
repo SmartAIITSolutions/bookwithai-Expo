@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { BreathingHeart } from '@/components/BreathingHeart';
 import { FontFamily } from '@/constants/Theme';
 import { Stack } from 'expo-router';
@@ -7,7 +8,7 @@ import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { listTimeOff, createTimeOff, decideTimeOff, TimeOffEntry } from '@/lib/api/ownerTimeOff';
-import { listStaff, StaffMember } from '@/lib/api/ownerStaff';
+import { listStaff } from '@/lib/api/ownerStaff';
 import { CalendarDatePicker } from '@/components/owner/CalendarDatePicker';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Spacing';
@@ -39,9 +40,23 @@ export default function TimeOffScreen() {
     denied: t('owner:timeOffScreen.denied'),
     pending: t('owner:timeOffScreen.pending'),
   };
-  const [loading, setLoading] = useState(true);
-  const [entries, setEntries] = useState<TimeOffEntry[]>([]);
-  const [staff, setStaff] = useState<StaffMember[]>([]);
+  // Perf pass — reuses the shared ['owner-staff'] query key; `entries` gets
+  // its own key. This screen is pushed onto the stack (fully unmounts on
+  // every visit), so React Query's cache is what lets a revisit read
+  // instantly instead of blanking to a spinner and re-fetching every time.
+  const entriesQuery = useQuery({ queryKey: ['owner-time-off'], queryFn: async () => {
+    const r = await listTimeOff();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const staffQuery = useQuery({ queryKey: ['owner-staff'], queryFn: async () => {
+    const r = await listStaff();
+    if (!r.ok) throw new Error(r.error);
+    return r.data.data;
+  } });
+  const loading = entriesQuery.isLoading || staffQuery.isLoading;
+  const entries = entriesQuery.data ?? [];
+  const staff = (staffQuery.data ?? []).filter(s => s.active);
   const [adding, setAdding] = useState(false);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
@@ -50,15 +65,6 @@ export default function TimeOffScreen() {
   const [openField, setOpenField] = useState<'start' | 'end' | null>(null);
   const [saving, setSaving] = useState(false);
   const [decidingId, setDecidingId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const [entriesResult, staffResult] = await Promise.all([listTimeOff(), listStaff()]);
-    if (entriesResult.ok) setEntries(entriesResult.data.data);
-    if (staffResult.ok) setStaff(staffResult.data.data.filter(s => s.active));
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   async function handleCreate() {
     const missing: string[] = [];
@@ -74,7 +80,7 @@ export default function TimeOffScreen() {
     setSaving(false);
     if (result.ok) {
       setAdding(false); setStaffId(null); setStartDate(''); setEndDate(''); setReason(''); setOpenField(null);
-      load();
+      entriesQuery.refetch();
     } else {
       Alert.alert(t('owner:timeOffScreen.couldNotSaveTitle'), result.error);
     }
@@ -84,7 +90,7 @@ export default function TimeOffScreen() {
     setDecidingId(id);
     const result = await decideTimeOff(id, status);
     setDecidingId(null);
-    if (result.ok) load();
+    if (result.ok) entriesQuery.refetch();
     else Alert.alert(t('owner:timeOffScreen.couldNotUpdateTitle'), result.error);
   }
 
