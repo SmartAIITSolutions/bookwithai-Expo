@@ -1,32 +1,33 @@
-import { useCallback, useState } from 'react';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router, useFocusEffect, useSegments } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { Bell } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
-import { fetchNotifications } from '@/lib/notifications/api';
+import { useNotifications } from '@/lib/notifications/useNotifications';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { Colors, FontFamily, FontSize } from '@/constants/Theme';
 
 export function NotificationBell() {
   const insets = useSafeAreaInsets();
   const segments = useSegments();
-  const [unreadCount, setUnreadCount] = useState(0);
+  // Perf pass — shared query key (see useNotifications.ts) so this bell,
+  // mounted independently on every customer tab, reads the same cached
+  // list as its sibling instances and the full notifications screen
+  // instead of each firing its own fetch.
+  const { data, refetch } = useNotifications();
+  const unreadCount = (data ?? []).filter((n) => !n.read).length;
+  useRefetchOnFocus(refetch);
   // All three customer tabs now use the dark/gold background redesign --
   // the default dark icon color would be invisible there, so swap to a
   // blurred glass button with a gold lucide icon on all of them.
   const onDarkScreen = ['book', 'my-salons', 'my-booking', 'account'].includes(segments[segments.length - 1]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchNotifications().then((items) => {
-        const count = items.filter((n) => !n.read).length;
-        setUnreadCount(count);
-        Notifications.setBadgeCountAsync(count);
-      });
-    }, [])
-  );
+  useEffect(() => {
+    Notifications.setBadgeCountAsync(unreadCount);
+  }, [unreadCount]);
 
   const badge = unreadCount > 0 && (
     <View style={styles.badge}>

@@ -295,10 +295,20 @@ export default function MyBookingScreen() {
     syncCustomerWearData(bookings);
   }, [bookings, loading]);
 
-  async function fetchBookings() {
+  // Perf/freshness pass — this screen previously only fetched bookings once,
+  // on `user` becoming available (login) -- never on revisiting this tab,
+  // so completing/cancelling/rescheduling a booking from elsewhere (e.g. a
+  // notification's rebook flow, or a deep link) left this list stale until
+  // the app restarted. Now also refreshes on every focus, same as
+  // Customers/SANAA elsewhere in the app -- but only the genuinely first
+  // load shows the full-screen spinner; a revisit silently re-validates in
+  // the background and swaps the list in place, so it doesn't reintroduce
+  // the blank-on-every-visit flash customers.tsx had before its own fix.
+  const hasLoadedOnce = useRef(false);
+  const fetchBookings = useCallback(async () => {
+    const silent = hasLoadedOnce.current;
     try {
-      setLoading(true);
-      setLoadError(false);
+      if (!silent) { setLoading(true); setLoadError(false); }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
@@ -306,14 +316,20 @@ export default function MyBookingScreen() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const json = await res.json();
-      if (res.ok && json.data) setBookings(sortBookings(json.data));
-      else setLoadError(true);
+      if (res.ok && json.data) {
+        setBookings(sortBookings(json.data));
+        hasLoadedOnce.current = true;
+      } else if (!silent) {
+        setLoadError(true);
+      }
     } catch (e) {
-      setLoadError(true);
+      if (!silent) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }
+  }, []);
+
+  useFocusEffect(useCallback(() => { fetchBookings(); }, [fetchBookings]));
 
   async function handleRefresh() {
     setRefreshing(true);

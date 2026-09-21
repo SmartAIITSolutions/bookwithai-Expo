@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Image, ImageBackground, Animated, Easing, useWindowDimensions, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,9 +13,11 @@ import { STORE_URL, STORE_URL_FALLBACK } from '@/components/UpdateNagModal';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import {
-  fetchNotifications, markNotificationRead,
+  markNotificationRead,
   type NotificationItem,
 } from '@/lib/notifications/api';
+import { useNotifications, notificationsQueryKey } from '@/lib/notifications/useNotifications';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
 
 // Standalone-instance pattern (matches appointmentVisual.ts's paymentLabel())
@@ -374,8 +377,12 @@ function HeroGoldButton({
 export default function NotificationsScreen() {
   const { t } = useTranslation(['notifications']);
   const HERO_CARD_CONFIG = buildHeroCardConfig(t);
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  // Perf pass — shared query key with NotificationBell.tsx (see
+  // useNotifications.ts), instead of this screen firing its own separate,
+  // uncached fetch of the exact same list.
+  const { data, isLoading: loading, refetch } = useNotifications();
+  const items = data ?? [];
   const [refreshing, setRefreshing] = useState(false);
   // Explicit computed height (not aspectRatio -- that fights the row's
   // flex:1 text child in Yoga and ends up narrower than the sibling cards)
@@ -386,17 +393,11 @@ export default function NotificationsScreen() {
   // shows a brief confirmation in place of the 4 buttons instead of a toast.
   const [checkinSentFor, setCheckinSentFor] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    const data = await fetchNotifications();
-    setItems(data);
-    setLoading(false);
-  }, []);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useRefetchOnFocus(refetch);
 
   async function handleRefresh() {
     setRefreshing(true);
-    await load();
+    await refetch();
     setRefreshing(false);
   }
 
@@ -511,7 +512,7 @@ export default function NotificationsScreen() {
             onPress: async () => {
               await fetch(`${API_BASE}/api/mobile/bookings/${item.booking_id}/cancel`, { method: 'POST', headers, body: '{}' });
               setCheckinSentFor((prev) => ({ ...prev, [item.id]: t('notifications:checkin.cancelledStatus') }));
-              load();
+              refetch();
             },
           },
         ]
@@ -535,7 +536,12 @@ export default function NotificationsScreen() {
 
   async function handlePress(item: NotificationItem) {
     if (!item.read) {
-      setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
+      // Optimistic update against the shared cache (not local state) so
+      // NotificationBell's own instances reflect the read/unread change
+      // immediately too, not just this screen.
+      queryClient.setQueryData<NotificationItem[]>(notificationsQueryKey, (prev) =>
+        (prev ?? []).map((n) => (n.id === item.id ? { ...n, read: true } : n))
+      );
       await markNotificationRead(item.id);
     }
     if (item.type === 'balance_due' && item.booking_id) {
