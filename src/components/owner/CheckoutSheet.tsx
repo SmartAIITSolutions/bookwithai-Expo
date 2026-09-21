@@ -121,7 +121,15 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     } });
     const catalog = productsQuery.data ?? [];
     const [addedServices, setAddedServices] = useState<Service[]>([]);
-    const [showServicePicker, setShowServicePicker] = useState(false);
+    // Invoice-style editable pricing — null/empty means "use the default"
+    // (preview.subtotal_cents for the original service, the catalog price
+    // for an added one). Editing either doesn't change what's booked/sold,
+    // only what this specific visit is charged, mirroring a paper invoice
+    // line being crossed out and rewritten.
+    const [originalPriceOverrideCents, setOriginalPriceOverrideCents] = useState<number | null>(null);
+    const [addedServicePriceOverrides, setAddedServicePriceOverrides] = useState<Record<string, number>>({});
+    const [priceEditText, setPriceEditText] = useState<Record<string, string>>({});
+    const [showServiceModal, setShowServiceModal] = useState(false);
     const [discountCents, setDiscountCents] = useState(0);
     const [customDiscount, setCustomDiscount] = useState(false);
     const [customDiscountText, setCustomDiscountText] = useState('');
@@ -196,6 +204,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     useEffect(() => {
       if (booking) {
         setResult(null); setCardResultInfo(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setAddedServices([]);
+        setOriginalPriceOverrideCents(null); setAddedServicePriceOverrides({}); setPriceEditText({});
         setCustomDiscount(false); setCustomDiscountText(''); setCustomTip(false); setCustomTipText('');
         setBookNext(false); setPerformedByStaffId(booking.staff_id);
         load();
@@ -209,8 +218,12 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     // this component (an early `if (!booking || !preview) return` used to
     // sit above this, which made the tenderAmount-sync effect conditional
     // and threw "rendered more hooks than during the previous render").
-    const addedServicesTotal = addedServices.reduce((s, sv) => s + sv.price_cents, 0);
-    const serviceBaseCents = (preview?.subtotal_cents ?? 0) + addedServicesTotal;
+    const originalServiceName = booking?.service?.name
+      ?? (booking?.service_names && booking.service_names.length > 0 ? booking.service_names.join(' + ') : t('owner:checkoutSheet.service'));
+    const originalServicePriceCents = originalPriceOverrideCents ?? preview?.subtotal_cents ?? 0;
+    const addedServicesTotal = addedServices.reduce((s, sv) => s + (addedServicePriceOverrides[sv.id] ?? sv.price_cents), 0);
+    const serviceBaseCents = originalServicePriceCents + addedServicesTotal;
+    const servicePriceEdited = originalPriceOverrideCents !== null || addedServices.length > 0;
     const productTotal = products.reduce((s, p) => s + p.quantity * p.price_cents_each, 0);
     const subtotal = serviceBaseCents + productTotal;
     // Recomputed reactively, not frozen from the initial preview call --
@@ -273,6 +286,35 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       });
     }
 
+    function handleOriginalPriceChange(text: string) {
+      setPriceEditText(m => ({ ...m, original: text }));
+      setOriginalPriceOverrideCents(Math.round((parseFloat(text) || 0) * 100));
+    }
+
+    function handleAddedPriceChange(serviceId: string, text: string) {
+      setPriceEditText(m => ({ ...m, [serviceId]: text }));
+      setAddedServicePriceOverrides(m => ({ ...m, [serviceId]: Math.round((parseFloat(text) || 0) * 100) }));
+    }
+
+    function addServiceFromModal(s: Service) {
+      setAddedServices(list => [...list, s]);
+      setShowServiceModal(false);
+    }
+
+    function removeAddedService(serviceId: string) {
+      setAddedServices(list => list.filter(x => x.id !== serviceId));
+      setAddedServicePriceOverrides(m => {
+        const next = { ...m };
+        delete next[serviceId];
+        return next;
+      });
+      setPriceEditText(m => {
+        const next = { ...m };
+        delete next[serviceId];
+        return next;
+      });
+    }
+
     async function handleValidateGift() {
       if (!clientId || !giftCode.trim()) return;
       const r = await validateGiftCard(clientId, giftCode.trim());
@@ -305,7 +347,12 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         tip_cents: tipCents, discount_cents: discountCents, tax_cents: taxCents,
         products, tenders: finalTenders, send_receipt_email: true,
         added_service_ids: addedServices.length > 0 ? addedServices.map(s => s.id) : undefined,
-        total_service_price_cents: addedServices.length > 0 ? serviceBaseCents : undefined,
+        // Sent whenever either the original service's price was edited or
+        // any service was added/priced-in -- the backend treats this as the
+        // one combined effective price (see checkout/route.ts), so an edit
+        // to just the original line's price has to travel through here too,
+        // not only the addedServices-driven case this used to gate on.
+        total_service_price_cents: servicePriceEdited ? serviceBaseCents : undefined,
         staff_id: performedByStaffId !== booking.staff_id ? performedByStaffId : undefined,
       });
       setSubmitting(false);
@@ -499,28 +546,35 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             </Section>
           )}
 
+          {/* Invoice-style itemization — every service this visit is being
+              charged for, each with its own editable price, instead of a
+              single opaque "Subtotal" number. The original booked service
+              is always the first line and can't be removed (it's what the
+              appointment was for), only re-priced; added services get both. */}
           <Section title={t('owner:checkoutSheet.service')}>
+            <View style={styles.invoiceRow}>
+              <Text style={styles.invoiceItemName} numberOfLines={2}>{originalServiceName}</Text>
+              <PriceInput
+                value={priceEditText.original ?? (originalServicePriceCents / 100).toFixed(2)}
+                onChangeText={handleOriginalPriceChange}
+              />
+            </View>
             {addedServices.map(s => (
-              <View key={s.id} style={styles.tenderRow}>
-                <Text style={styles.tenderText}>+ {s.name} — {money(s.price_cents)}</Text>
-                <TouchableOpacity onPress={() => setAddedServices(list => list.filter(x => x.id !== s.id))}>
+              <View key={s.id} style={styles.invoiceRow}>
+                <Text style={styles.invoiceItemName} numberOfLines={2}>+ {s.name}</Text>
+                <PriceInput
+                  value={priceEditText[s.id] ?? ((addedServicePriceOverrides[s.id] ?? s.price_cents) / 100).toFixed(2)}
+                  onChangeText={(v) => handleAddedPriceChange(s.id, v)}
+                />
+                <TouchableOpacity onPress={() => removeAddedService(s.id)} hitSlop={8}>
                   <Ionicons name="close" size={16} color="#F09595" />
                 </TouchableOpacity>
               </View>
             ))}
-            <TouchableOpacity style={styles.addRow} onPress={() => setShowServicePicker(v => !v)}>
+            <TouchableOpacity style={styles.addRow} onPress={() => setShowServiceModal(true)}>
               <Ionicons name="add-circle-outline" size={16} color="#F4D77A" />
               <Text style={styles.linkText}>{t('owner:checkoutSheet.addService')}</Text>
             </TouchableOpacity>
-            {showServicePicker && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                {services.filter(s => !addedServices.some(a => a.id === s.id)).map(s => (
-                  <TouchableOpacity key={s.id} style={styles.chip} onPress={() => setAddedServices(list => [...list, s])}>
-                    <Text style={styles.chipText}>{s.name} · {money(s.price_cents)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
           </Section>
 
           <Section title={t('owner:checkoutSheet.products')}>
@@ -714,6 +768,27 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
             onConfirm={(d) => { setRebookDate(toLocalDateStr(d)); setRebookTime(toLocalTimeStr(d)); setShowRebookPicker(false); }}
           />
         )}
+
+        {/* Small popup picker for "Add service" — was an inline horizontal-
+            scrolling chip row, which only worked while a salon had a
+            handful of services; a real catalog just ran off-screen. A
+            proper list in its own sheet scales to any size. Nested Modal
+            (on top of this sheet's own Modal) is the same pattern already
+            proven by RebookDateTimeModal/ConfirmModal above. */}
+        <SheetModal visible={showServiceModal} onRequestClose={() => setShowServiceModal(false)} maxHeight="70%">
+          <Text style={styles.sectionTitle}>{t('owner:checkoutSheet.selectServiceTitle')}</Text>
+          <ScrollView contentContainerStyle={styles.serviceModalList}>
+            {services.filter(s => !addedServices.some(a => a.id === s.id)).map(s => (
+              <TouchableOpacity key={s.id} style={styles.serviceModalRow} onPress={() => addServiceFromModal(s)}>
+                <Text style={styles.serviceModalName} numberOfLines={2}>{s.name}</Text>
+                <Text style={styles.serviceModalPrice}>{money(s.price_cents)}</Text>
+              </TouchableOpacity>
+            ))}
+            {services.filter(s => !addedServices.some(a => a.id === s.id)).length === 0 && (
+              <Text style={styles.hint}>{t('owner:checkoutSheet.noMoreServices')}</Text>
+            )}
+          </ScrollView>
+        </SheetModal>
       </SheetModal>
     );
   }
@@ -747,6 +822,21 @@ function TotalRow({ label, value, bold, color }: { label: string; value: number;
     <View style={styles.totalRow}>
       <Text style={[styles.totalLabel, bold && styles.totalBold]}>{label}</Text>
       <Text style={[styles.totalValue, bold && styles.totalBold, color ? { color } : null]}>{money(value)}</Text>
+    </View>
+  );
+}
+
+function PriceInput({ value, onChangeText }: { value: string; onChangeText: (text: string) => void }) {
+  return (
+    <View style={styles.priceInputWrap}>
+      <Text style={styles.priceInputPrefix}>$</Text>
+      <TextInput
+        style={styles.priceInput}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType="decimal-pad"
+        selectTextOnFocus
+      />
     </View>
   );
 }
@@ -825,6 +915,27 @@ const styles = StyleSheet.create({
   // processing estimate" into "Card Processing Estimate" in English and,
   // worse, "Procesamiento De Tarjeta (Estimado)" in Spanish.
   tenderTextPlain: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
+  invoiceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(212,175,55,0.15)',
+  },
+  invoiceItemName: { flex: 1, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
+  priceInputWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 2, borderWidth: 1, borderColor: 'rgba(212,175,55,0.4)',
+    borderRadius: BorderRadius.sm, paddingHorizontal: Spacing.xs, paddingVertical: 4,
+  },
+  priceInputPrefix: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.5)' },
+  priceInput: {
+    width: 62, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF', padding: 0,
+  },
+  serviceModalList: { gap: Spacing.xs, paddingTop: Spacing.sm, paddingBottom: Spacing.lg },
+  serviceModalRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm,
+    borderRadius: BorderRadius.md, borderWidth: 1, borderColor: 'rgba(212,175,55,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: Spacing.md, paddingVertical: 12,
+  },
+  serviceModalName: { flex: 1, fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: '#FFFFFF' },
+  serviceModalPrice: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A' },
   addCard: {
     borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
     backgroundColor: 'rgba(0,0,0,0.2)', padding: Spacing.sm, gap: Spacing.xs,

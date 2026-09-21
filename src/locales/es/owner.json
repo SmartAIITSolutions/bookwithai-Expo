@@ -565,6 +565,8 @@
     "performedByHint": "Quién realizó el servicio en realidad -- se usa para el crédito de comisión.",
     "service": "Servicio",
     "addService": "Agregar servicio",
+    "selectServiceTitle": "Seleccionar un servicio",
+    "noMoreServices": "Ya se agregaron todos los servicios.",
     "products": "Productos",
     "discount": "Descuento",
     "none": "Ninguno",

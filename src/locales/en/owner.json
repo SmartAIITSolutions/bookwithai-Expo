@@ -565,6 +565,8 @@
     "performedByHint": "Who actually did the service -- used for commission credit.",
     "service": "Service",
     "addService": "Add service",
+    "selectServiceTitle": "Select a service",
+    "noMoreServices": "All services already added.",
     "products": "Products",
     "discount": "Discount",
     "none": "None",
