@@ -1,5 +1,5 @@
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, Image, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, Directions, ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring, interpolate, Extrapolation,
@@ -25,6 +25,7 @@ import { Spacing, BorderRadius } from '@/constants/Spacing';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { formatWeekdayMonthDay, formatTimeShortInTZ, formatCentsUSDWhole } from '@/lib/i18n/format';
+import { formatDuration } from '@/lib/api/salon';
 
 const PULL_THRESHOLD = 60;
 const PULL_MAX = 90;
@@ -99,9 +100,13 @@ interface TimelineCalendarProps {
   // Long-press-then-release-without-dragging on an occupied block --
   // intentional double-booking (availability-override, Sprint N).
   onOpenAnother?: (startsAt: Date, staffId: string | null) => void;
+  // Lets the floating Now/Today button jump the parent's selected date back
+  // to today -- without this the button can only scroll within the day
+  // that's already showing, so it was invisible on every day but today.
+  onGoToToday?: () => void;
 }
 
-export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, timeZone, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60, onIntervalChange, onSwipeDate, onOpenAnother }: TimelineCalendarProps) {
+export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekSchedule, timeZone, onOpenBooking, onChanged, onFillSlot, intervalMinutes = 60, onIntervalChange, onSwipeDate, onOpenAnother, onGoToToday }: TimelineCalendarProps) {
   const pinchTriggered = useSharedValue(false);
   const { width: screenWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
@@ -141,6 +146,20 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
   const pullIndicatorStyle = useAnimatedStyle(() => ({
     opacity: interpolate(pullY.value, [0, PULL_THRESHOLD], [0, 1], Extrapolation.CLAMP),
     transform: [{ scale: interpolate(pullY.value, [0, PULL_THRESHOLD], [0.6, 1], Extrapolation.CLAMP) }],
+  }));
+
+  // Staff-name header pinned above the vertical scroll -- previously the
+  // "TINA T" label lived inside each column's own scrolling content, so it
+  // disappeared the moment the owner scrolled past the first row or two,
+  // leaving a multi-column "All Staff" day with no way to tell which
+  // column belongs to which stylist. This row sits outside scrollRef's
+  // ScrollView entirely (never scrolls vertically) and just mirrors the
+  // grid body's horizontal scroll position via the same scrollX shared
+  // value the body's own horizontal ScrollView already writes to on
+  // every scroll frame -- a transform-following row, not a second real
+  // ScrollView, so there's nothing to desync or fight over touch with.
+  const stickyHeaderStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -scrollX.value }],
   }));
 
   const schedule = dayScheduleFor(weekSchedule, date);
@@ -367,6 +386,14 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
     const y = Math.max(0, (nowMinutes - 60 - gridStart) * pxPerMinute);
     scrollRef.current?.scrollTo({ y, animated: true });
   }
+  // On any other day the grid has no "now" position to scroll to -- the
+  // button instead jumps the parent's date back to today, which remounts
+  // this view onto isToday and the existing mount-time effect above lands
+  // it on the current time automatically.
+  function handleNowButtonPress() {
+    if (!isToday) { onGoToToday?.(); return; }
+    scrollToNow();
+  }
 
   // Everything outside business hours (midnight to opening, closing to
   // midnight) gets a flat gray band. A fully closed day (e.g. Sunday) grays
@@ -407,6 +434,20 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
       {refreshing && (
         <View style={styles.pullIndicator} pointerEvents="none">
           <BreathingHeart size={26} color={P.accentGold} />
+        </View>
+      )}
+      {columns.some(c => c.id !== 'all') && (
+        <View style={styles.stickyHeaderRow}>
+          <View style={{ width: TIME_GUTTER }} />
+          <View style={{ flex: 1, overflow: 'hidden' }}>
+            <Animated.View style={[{ flexDirection: 'row', width: rowWidth }, stickyHeaderStyle]}>
+              {columns.map(col => (
+                <View key={col.id ?? 'unassigned'} style={{ width: columnWidth }}>
+                  {col.id !== 'all' && <Text style={styles.columnLabel} numberOfLines={1}>{col.label}</Text>}
+                </View>
+              ))}
+            </Animated.View>
+          </View>
         </View>
       )}
       <ScrollView
@@ -515,7 +556,6 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
                   const colStaffId = typeof col.id === 'string' && col.id !== 'all' ? col.id : null;
                   return (
                     <View key={col.id ?? 'unassigned'} style={{ width: columnWidth, height: totalHeight, borderRightWidth: 1, borderRightColor: P.border }}>
-                      {col.id !== 'all' && <Text style={styles.columnLabel}>{col.label}</Text>}
                       {/* Closed-hours fringe (and fully closed days, via
                           colClosedTopHeight covering the whole column) is
                           still tappable to book -- an owner may have a staff
@@ -585,17 +625,16 @@ export function TimelineCalendar({ date, bookings, staff, selectedStaffId, weekS
           </ScrollView>
         </View>
       </ScrollView>
-      {isToday && showNowButton && (
+      {(!isToday || showNowButton) && (
         // Plain Pressable, same as everything else here, is inside the
         // outer backgroundGesture's GestureDetector tree and its tap can
         // get swallowed the same way the ScrollView's pan did before that
         // was fixed -- wrapping it in its own Gesture.Tap(), the same
         // pattern AppointmentBlock already uses for its own tap-to-open,
         // is what actually makes it reliably tappable.
-        <GestureDetector gesture={Gesture.Tap().onEnd(() => runOnJS(scrollToNow)())}>
+        <GestureDetector gesture={Gesture.Tap().onEnd(() => runOnJS(handleNowButtonPress)())}>
           <View style={styles.nowButton}>
-            <Ionicons name="locate" size={16} color="#FFFFFF" />
-            <Text style={styles.nowButtonText}>{i18n.t('calendar:timeline.now')}</Text>
+            <Image source={require('../../../assets/images/notifications/rescheduled-icon.png')} style={styles.nowButtonIcon} />
           </View>
         </GestureDetector>
       )}
@@ -1004,16 +1043,27 @@ function AppointmentBlock({
   const corner = cornerIcon(booking);
   const showMeta = baseHeight >= 44;
   // Calendar parity pass (audit §09) — Fresha renders a multi-service
-  // booking as stacked sub-segments, each with its own start time, instead
-  // of one joined label. Segment boundaries are an even split of the real
-  // total duration (per-service durations live in the services catalog,
-  // not on the booking itself, and aren't worth threading through this
-  // component's drag/resize gesture tree just for a label) -- still
-  // genuinely time-ordered along the appointment's actual span, not a
-  // fake/decorative breakdown.
+  // booking as stacked sub-segments, each getting its own proportional
+  // slice of the card's height (not squeezed text lines sharing the name
+  // column). Segment boundaries use each service's real duration
+  // (service_durations_min, resolved server-side from the catalog) when
+  // available; falls back to an even split of the total only when that
+  // data is missing, so older cached bookings/offline data still render.
   const serviceNames = booking.service_names ?? [];
   const isMultiService = serviceNames.length > 1;
-  const segmentMinutes = isMultiService ? durationMin / serviceNames.length : durationMin;
+  const realDurations = booking.service_durations_min;
+  const hasRealDurations = !!realDurations && realDurations.length === serviceNames.length && realDurations.every(d => d > 0);
+  const segmentDurations = hasRealDurations ? realDurations! : serviceNames.map(() => durationMin / (serviceNames.length || 1));
+  const totalSegMinutes = segmentDurations.reduce((s, d) => s + d, 0) || 1;
+  const serviceSegmentsData = (() => {
+    let cursor = 0;
+    return serviceNames.map((name, i) => {
+      const segMin = segmentDurations[i];
+      const segStart = new Date(new Date(booking.starts_at).getTime() + cursor * 60000);
+      cursor += segMin;
+      return { name, segStart, fraction: segMin / totalSegMinutes };
+    });
+  })();
   const compact = baseHeight < 60; // ~15-min card at 1x zoom -- tighter content per Part 12
   // Card pass Part 10 — a genuinely overlapping card (slotCount > 1, so
   // this card only gets a fraction of the column's width) can't fit the
@@ -1022,6 +1072,20 @@ function AppointmentBlock({
   // screenshot, not a duration/height problem (`compact` above). This is
   // a width condition, independent of and additive to `compact`.
   const narrow = slotCount > 1;
+  // "All Staff" columns are a fixed 160px (COLUMN_WIDTH) regardless of how
+  // many staff are shown -- narrow enough that the normal row layout (58px
+  // time col + 34px avatar + padding/gaps ≈ 124px of fixed overhead) left
+  // almost nothing for the service line, which is exactly why it read as
+  // invisible rather than just tight. Distinct from `narrow` above (that's
+  // a genuine double-booking sharing part of one column; this is every
+  // card in a multi-column view, even with zero overlap) -- gated off
+  // whenever `narrow` already applies so a double-booked card inside an
+  // All Staff column still gets its one, already-tuned mini treatment
+  // instead of fighting over which compact layout wins. The staff-name
+  // header (now pinned, see stickyHeaderStyle above) already identifies
+  // whose column this is, so the avatar's marginal value here is lower
+  // than the service line it would otherwise crowd out.
+  const tightColumn = columns.length > 1 && !narrow;
   // Mobile overlap fix — the real rendered pixel width of a narrow card
   // (overlapStyle's own math, reused rather than recomputed), so the mini
   // card can decide whether an icon has genuinely enough room instead of
@@ -1065,7 +1129,7 @@ function AppointmentBlock({
               {formatTimeShortInTZ(new Date(booking.starts_at), timeZone)}
               {' – '}
               {formatTimeShortInTZ(new Date(booking.ends_at), timeZone)}
-              {'  ·  '}{durationMin}m
+              {'  ·  '}{formatDuration(durationMin)}
             </Text>
             <Text style={styles.blockedTitle} numberOfLines={1}>{i18n.t('calendar:timeline.blockedTimeTitle')}</Text>
             {!!booking.internal_notes && <Text style={styles.blockedReason} numberOfLines={1}>{booking.internal_notes}</Text>}
@@ -1158,12 +1222,14 @@ function AppointmentBlock({
           </View>
         ) : (
           <>
-            <View style={styles.blockTimeCol}>
-              <Text style={styles.blockTimeText} numberOfLines={1}>{timeLabel}</Text>
-              {!compact && <Text style={styles.blockDurationText}>{durationMin}m</Text>}
-            </View>
+            {!tightColumn && (
+              <View style={styles.blockTimeCol}>
+                <Text style={styles.blockTimeText} numberOfLines={1}>{timeLabel}</Text>
+                {!compact && <Text style={styles.blockDurationText}>{formatDuration(durationMin)}</Text>}
+              </View>
+            )}
 
-            {!isTerminal && (
+            {!isTerminal && !tightColumn && (
               <View style={[styles.blockAvatar, { borderColor: color, backgroundColor: initialsAvatarColor(customerDisplayName(booking)) + '33' }]}>
                 <Text style={[styles.blockAvatarText, { color: initialsAvatarColor(customerDisplayName(booking)) }]}>
                   {initials(customerDisplayName(booking))}
@@ -1171,7 +1237,7 @@ function AppointmentBlock({
               </View>
             )}
 
-            <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={[{ flex: 1, minWidth: 0 }, showMeta && isMultiService && !compact && !narrow && styles.blockContentStretch]}>
               {/* Hierarchy pass — customer name is now the strongest text
                   on the card (blockCustomer bumped up), service is
                   secondary/dimmer (blockMeta, unchanged weight), and the
@@ -1189,20 +1255,35 @@ function AppointmentBlock({
                   <View style={styles.newChip}><Text style={styles.newChipText}>{i18n.t('calendar:timeline.newChip')}</Text></View>
                 )}
               </View>
+              {/* Fresha parity — each service now gets its own proportional
+                  slice of the card's remaining height (flex: fraction,
+                  sized off segmentDurations above) instead of sharing the
+                  name column with cramped single-line text. blockContentStretch
+                  (sibling override, not a parent alignItems change -- block's
+                  own alignItems:'flex-start' still governs every other
+                  child) lets this column fill the card's full height so
+                  the segments below actually have room to divide. */}
               {showMeta && isMultiService && !compact && !narrow ? (
-                <View style={styles.serviceSegments}>
-                  {serviceNames.map((name, i) => {
-                    const segStart = new Date(new Date(booking.starts_at).getTime() + i * segmentMinutes * 60000);
-                    return (
-                      <Text key={i} style={styles.blockMetaSegment} numberOfLines={1}>
-                        {formatTimeShortInTZ(segStart, timeZone)} · {name}
-                      </Text>
-                    );
-                  })}
+                <View style={styles.serviceSegmentsColumn}>
+                  {serviceSegmentsData.map((seg, i) => (
+                    <View key={i} style={[styles.serviceSegmentRow, { flex: seg.fraction }, i > 0 && styles.serviceSegmentDivider]}>
+                      <View style={styles.serviceSegmentInner}>
+                        <Text style={styles.serviceSegmentTime} numberOfLines={1}>{formatTimeShortInTZ(seg.segStart, timeZone)}</Text>
+                        <Text style={styles.serviceSegmentName} numberOfLines={1}>{seg.name}</Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
               ) : showMeta && (
                 <Text style={styles.blockMeta} numberOfLines={1}>
-                  {serviceDisplayName(booking)}{booking.staff?.name ? ` · ${booking.staff.name}` : ''}
+                  {/* tightColumn dropped the dedicated time column above, so
+                      the time rides along here instead -- staff name is
+                      dropped in its place (not appended after it) since the
+                      pinned column header already says whose card this is;
+                      showing it again per-card here is exactly the
+                      redundant use of this now-scarcer width the avatar
+                      removal above was trying to avoid. */}
+                  {tightColumn ? `${narrowTimeLabel} · ${serviceDisplayName(booking)}` : `${serviceDisplayName(booking)}${booking.staff?.name ? ` · ${booking.staff.name}` : ''}`}
                 </Text>
               )}
             </View>
@@ -1536,12 +1617,17 @@ const styles = StyleSheet.create({
   },
   nowBadgeText: { fontSize: 10, fontWeight: '800', color: '#FFFFFF' },
   nowButton: {
-    position: 'absolute', bottom: 116, right: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: P.primaryPurple, borderRadius: BorderRadius.full, paddingHorizontal: 14, paddingVertical: 10,
-    shadowColor: P.primaryPurple, shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 6,
+    position: 'absolute', bottom: 116, right: Spacing.lg, width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
   },
-  nowButtonText: { fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' },
+  nowButtonIcon: { width: 32, height: 32, resizeMode: 'contain' },
   columnLabel: { fontSize: 11, fontWeight: '700', color: P.textSecondary, textAlign: 'center', paddingVertical: 4 },
+  // Solid backdrop (not transparent) so the grid's own gridlines/bookings
+  // don't show through behind the pinned names as the body scrolls under
+  // it, plus a hairline to visually separate it from the grid below.
+  stickyHeaderRow: {
+    flexDirection: 'row', backgroundColor: P.background,
+    borderBottomWidth: 1, borderBottomColor: P.border,
+  },
 
   // ── Appointment card (Calendar 2.0 Part 10/12) ──────────────────────
   block: {
@@ -1569,9 +1655,25 @@ const styles = StyleSheet.create({
   // meant to read as the strongest text on the card, stronger than time
   // (blockTimeText, 11.5/700) and service (blockMeta, 11/400).
   blockCustomer: { fontSize: 14, fontWeight: '800', color: P.textPrimary, flexShrink: 1 },
-  blockMeta: { fontSize: 11, color: P.textSecondary, marginTop: 1 },
-  serviceSegments: { marginTop: 1, gap: 1 },
-  blockMetaSegment: { fontSize: 10.5, color: P.textSecondary },
+  blockMeta: { fontSize: 12, color: P.textSecondary, marginTop: 1 },
+  // Sibling-only stretch (see usage comment above) so this one column fills
+  // the card's full height without touching styles.block's own
+  // alignItems:'flex-start', which every other child still relies on.
+  blockContentStretch: { alignSelf: 'stretch' },
+  serviceSegmentsColumn: { flex: 1, marginTop: 2 },
+  // Bug fix — time and name had no flexDirection (defaults to 'column'),
+  // so they stacked as two separate lines competing for the segment's own
+  // small vertical slice instead of sitting together on one row -- that's
+  // what read as "not properly aligned" (uneven, cramped spacing that got
+  // worse the shorter the segment's own proportional height was). The
+  // outer row still centers that single line within the segment's actual
+  // time-slice height (justifyContent:'center', column-axis); the inner
+  // row is what puts time + name side by side, baseline-aligned, instead.
+  serviceSegmentRow: { justifyContent: 'center', minHeight: 18 },
+  serviceSegmentInner: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  serviceSegmentDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: P.border, marginTop: 2, paddingTop: 2 },
+  serviceSegmentTime: { fontSize: 11.5, fontWeight: '700', color: P.textPrimary },
+  serviceSegmentName: { fontSize: 12, color: P.textSecondary, flexShrink: 1 },
   newChip: { backgroundColor: P.secondaryPurple + '33', borderRadius: BorderRadius.sm, paddingHorizontal: 4, paddingVertical: 1 },
   newChipText: { fontSize: 8, fontWeight: '800', color: P.secondaryPurple },
   blockRightCol: { alignItems: 'flex-end', gap: 2 },

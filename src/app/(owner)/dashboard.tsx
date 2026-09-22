@@ -270,7 +270,16 @@ export default function OwnerDashboardScreen() {
                 // ever localized. Behavior is identical in English today.
                 const showStatusBadge = !(paid === true && bookingStatusKey(first) === 'confirmed');
                 const amountCents = group.reduce((sum, b) => sum + (b.total_charged_cents || b.price_cents || 0), 0);
-                const serviceLabel = group.map(serviceDisplayName).join(' + ');
+                // Organization pass — this used to be one long "A + B + C + D"
+                // string with no line cap (group.map(serviceDisplayName).join)
+                // for a back-to-back visit where each booking could itself
+                // already be multi-service; a busy visit could run to a full
+                // run-on sentence wrapping to several lines with nothing
+                // visually separating one service from the next. Flattened
+                // to real individual service names (not pre-joined) and
+                // rendered as its own small chip per service below, wrapping
+                // onto further rows so every booked service stays visible.
+                const serviceItems = group.flatMap(b => b.service_names && b.service_names.length > 0 ? b.service_names : [serviceDisplayName(b)]);
                 return (
                   <Pressable key={first.id} onPress={() => openBooking(first)}>
                     <BlurView intensity={90} tint="dark" style={styles.apptCard}>
@@ -283,7 +292,13 @@ export default function OwnerDashboardScreen() {
                         <Text style={styles.apptMeta} numberOfLines={1}>
                           {timeLabel(first.starts_at)}{first.staff?.name ? ` · ${first.staff.name}` : ''}
                         </Text>
-                        <Text style={styles.apptService}>{serviceLabel}</Text>
+                        <View style={styles.apptServiceChips}>
+                          {serviceItems.map((name, i) => (
+                            <View key={i} style={styles.apptServiceChip}>
+                              <Text style={styles.apptServiceChipText} numberOfLines={1}>{name}</Text>
+                            </View>
+                          ))}
+                        </View>
                       </View>
                       <View style={styles.apptTrailing}>
                         <Text style={styles.apptAmount}>{money(amountCents)}</Text>
@@ -407,9 +422,17 @@ function RecentActivity({ bookings, onOpen }: { bookings: OwnerBooking[]; onOpen
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activityTitle} numberOfLines={1}>{item.customer_name}</Text>
                   <Text style={styles.activityMeta} numberOfLines={1}>{dateTimeLabel(item.starts_at)}</Text>
-                  <Text style={styles.activityBody}>
-                    {item.service_names.length > 0 ? item.service_names.join(' + ') : t('common:serviceFallback')}
-                  </Text>
+                  {item.service_names.length > 0 ? (
+                    <View style={styles.activityServiceChips}>
+                      {item.service_names.map((name, si) => (
+                        <View key={si} style={styles.activityServiceChip}>
+                          <Text style={styles.activityServiceChipText} numberOfLines={1}>{name}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.activityBody}>{t('common:serviceFallback')}</Text>
+                  )}
                 </View>
                 <View style={styles.apptTrailing}>
                   <Text style={styles.apptAmount}>{money(item.amount_cents)}</Text>
@@ -494,7 +517,13 @@ const styles = StyleSheet.create({
   apptAvatarText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F4D77A' },
   apptName: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.base, color: '#FFFFFF' },
   apptMeta: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
-  apptService: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+  apptServiceChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  apptServiceChip: {
+    borderRadius: 10, borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)',
+    backgroundColor: 'rgba(212,175,55,0.08)', paddingVertical: 3, paddingHorizontal: 7,
+    maxWidth: 150,
+  },
+  apptServiceChipText: { fontFamily: FontFamily.sora, fontSize: 11.5, color: 'rgba(255,255,255,0.85)' },
   apptTrailing: { alignItems: 'flex-end', gap: Spacing.xs },
   apptAmount: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.base, color: '#F4D77A' },
   apptTrailingIcons: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
@@ -534,5 +563,16 @@ const styles = StyleSheet.create({
   activityTitle: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.base, color: '#FFFFFF' },
   activityMeta: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.xs, color: '#F4D77A', marginTop: 2 },
   activityBody: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)', marginTop: 1 },
+  activityServiceChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3 },
+  activityServiceChip: {
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.3)',
+    backgroundColor: 'rgba(212,175,55,0.07)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    maxWidth: 130,
+  },
+  activityServiceChipText: { fontFamily: FontFamily.sora, fontSize: 11, color: 'rgba(255,255,255,0.8)' },
   activityEmpty: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.5)', textAlign: 'center', paddingVertical: Spacing.md },
 });

@@ -168,6 +168,8 @@
     "navYesterday": "← Ayer",
     "navTomorrow": "Mañana →",
     "weekOf": "Semana del {{date}}",
+    "previousPeriod": "Anterior",
+    "nextPeriod": "Siguiente",
     "today": "Hoy",
     "allStaff": "Todo el Personal",
     "all": "Todos",

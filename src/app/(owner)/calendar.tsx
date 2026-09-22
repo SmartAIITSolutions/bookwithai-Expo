@@ -779,21 +779,45 @@ export default function OwnerCalendarScreen() {
       )}
 
       {/* Fresha-parity pass — the old "← Yesterday | date | Tomorrow →" text
-          row is gone; Fresha's own header (confirmed live) is just the date
-          plus a chevron that opens the scrollable multi-month picker below,
-          with swipe-the-grid as the actual day-to-day navigation gesture
-          (shiftDay/shiftView, unchanged, still power every onSwipeDate
-          callback passed into the grid views). */}
-      <Pressable style={styles.dateRow} onPress={() => setDatePickerOpen(true)}>
-        <Text style={styles.dateLabel}>
-          {mode === 'month'
-            ? formatMonthYearLong(date)
-            : mode === 'week'
-            ? t('calendar:screen.weekOf', { date: formatMonthDay(date) })
-            : isToday ? t('calendar:screen.today') : zonedHeaderLabels(date, timeZone).dateLabel}
-        </Text>
-        <Ionicons name="chevron-down" size={16} color={P.textSecondary} />
-      </Pressable>
+          row was removed in favor of just the date + a chevron opening the
+          scrollable multi-month picker, with swipe-the-grid as the actual
+          day-to-day navigation gesture (shiftDay/shiftView, unchanged,
+          still power every onSwipeDate callback passed into the grid
+          views). Restored per explicit request as a supplement, not a
+          revert -- swipe nav and the dropdown both stay exactly as they
+          were; these two arrows are a third, quicker way to page by
+          whatever shiftView's own step size is for the active mode (a day,
+          a week, or a month), for anyone who'd rather tap than swipe. */}
+      <View style={styles.dateRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar:screen.previousPeriod')}
+          hitSlop={10}
+          style={styles.dateNavButton}
+          onPress={() => shiftView(-1)}
+        >
+          <Ionicons name="chevron-back" size={20} color={P.textSecondary} />
+        </Pressable>
+        <Pressable style={styles.dateLabelGroup} onPress={() => setDatePickerOpen(true)}>
+          <Text style={styles.dateLabel}>
+            {mode === 'month'
+              ? formatMonthYearLong(date)
+              : mode === 'week'
+              ? t('calendar:screen.weekOf', { date: formatMonthDay(date) })
+              : isToday ? t('calendar:screen.today') : zonedHeaderLabels(date, timeZone).dateLabel}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={P.textSecondary} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('calendar:screen.nextPeriod')}
+          hitSlop={10}
+          style={styles.dateNavButton}
+          onPress={() => shiftView(1)}
+        >
+          <Ionicons name="chevron-forward" size={20} color={P.textSecondary} />
+        </Pressable>
+      </View>
       <FreshaDatePicker
         visible={datePickerOpen}
         selectedDate={date}
@@ -852,6 +876,7 @@ export default function OwnerCalendarScreen() {
               onIntervalChange={handleSetGridInterval}
               onSwipeDate={(direction) => shiftDay(direction === 'next' ? 1 : -1)}
               onOpenAnother={openWalkInFor}
+              onGoToToday={() => setDate(new Date())}
             />
           </View>
           {/* Calendar 2.0 Day View Part 28/29 — Find Opening is deliberately
@@ -1447,6 +1472,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
   },
+  // Fixed square touch target (not just hitSlop) so the arrow's tap area
+  // is consistent regardless of the chevron glyph's own tiny icon bounds.
+  dateNavButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  dateLabelGroup: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   dateNav: { fontSize: 13, color: P.accentGold, fontWeight: '600' },
   dateLabel: { fontSize: 15, fontWeight: '700', color: P.textPrimary },
   chromeGlassWrap: {

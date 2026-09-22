@@ -40,6 +40,11 @@ export interface OwnerBooking {
   // widget often have `service_id` null and only the line-ids array set,
   // in which case `service` above is null but this still has real names).
   service_names?: string[];
+  // Parallel to service_names (same order/length) -- each segment's real
+  // duration, resolved server-side from the services catalog. Only present
+  // when every segment's duration was found; TimelineCalendar falls back
+  // to an even split of the booking's total duration otherwise.
+  service_durations_min?: number[];
 }
 
 // i18n foundation (L2) — 'Service'/'Customer' below are app-owned FALLBACK

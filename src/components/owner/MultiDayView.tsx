@@ -154,12 +154,15 @@ export function MultiDayView({ startDate, numDays, weekSchedule, selectedStaffId
     setRefreshing(false);
   }
 
+  // Same fix as TimelineCalendar's day-view swipe: without linking each
+  // Fling to the grid's own ScrollView, the ScrollView's native responder
+  // claims the touch first and the swipe gesture never fires.
   const swipeNext = Gesture.Fling().direction(Directions.LEFT).onEnd(() => {
     if (onSwipeDate) runOnJS(onSwipeDate)('next');
-  });
+  }).simultaneousWithExternalGesture(scrollRef as never);
   const swipePrev = Gesture.Fling().direction(Directions.RIGHT).onEnd(() => {
     if (onSwipeDate) runOnJS(onSwipeDate)('prev');
-  });
+  }).simultaneousWithExternalGesture(scrollRef as never);
   const pullGesture = Gesture.Pan()
     .onUpdate((e) => {
       if (scrollY.value <= 2 && e.translationY > 0) {
