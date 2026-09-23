@@ -697,6 +697,7 @@ export default function CustomerDetailScreen() {
         ref={checkoutRef}
         booking={selectedBooking}
         onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); load(); }}
+        onChanged={load}
       />
     </View>
   );

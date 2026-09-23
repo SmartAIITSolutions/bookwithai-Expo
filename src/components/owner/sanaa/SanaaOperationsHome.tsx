@@ -322,7 +322,12 @@ export function SanaaOperationsHome({ state, status: sanaaStatus }: SanaaOperati
       ) : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{summary ? t('sanaa:operationsHome.resultsLastDays', { days: summary.window_days }) : t('sanaa:operationsHome.results')}</Text>
+        {/* Bug fix -- this used to say "Results — Last {{days}} Days", tied
+            to a rolling 30-day window that quietly bled into the previous
+            calendar month. The backend now aggregates the current calendar
+            month to date, so the label says so plainly instead of a day
+            count that no longer described a fixed window at all. */}
+        <Text style={styles.sectionTitle}>{t('sanaa:operationsHome.resultsThisMonth')}</Text>
         {loadingActivity && !summary ? (
           <View style={styles.placeholderCard}>
             <Ionicons name="stats-chart-outline" size={22} color="rgba(255,200,87,0.6)" />

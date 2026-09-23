@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { OwnerBooking, createBooking } from '@/lib/api/ownerBookings';
+import { OwnerBooking, createBooking, updateBooking, serviceDisplayName } from '@/lib/api/ownerBookings';
 import { getCheckoutPreview, submitCheckout, CheckoutPreview, Tender, ProductLine, sendBalancePaymentEmail, sendBalancePaymentPush, sendRebookNudge } from '@/lib/api/ownerCheckout';
 import { getStoreCredit } from '@/lib/api/ownerCheckout';
 import { validateGiftCard } from '@/lib/api/giftCards';
@@ -59,6 +59,12 @@ interface CheckoutSheetProps {
   // service if it differs from who the booking was originally scheduled
   // with, so commission credits the right person.
   staff?: StaffMember[];
+  // Called after a service added mid-checkout gets persisted onto the
+  // booking itself because the sheet was closed before completing checkout
+  // (see closeSheet below) -- lets the caller refresh its own booking list/
+  // detail view so the addition is reflected outside this sheet too.
+  // Optional: not every screen this is used from needs to react to it.
+  onChanged?: () => void;
 }
 
 export interface CheckoutSheetHandle {
@@ -76,7 +82,7 @@ export interface CheckoutSheetHandle {
 // known open issues in @gorhom/bottom-sheet v5 around animation-timing
 // races). Plain Modal has no such issue and needs no external library.
 export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>(
-  function CheckoutSheet({ booking, onDone, staff = [] }, ref) {
+  function CheckoutSheet({ booking, onDone, staff = [], onChanged }, ref) {
     const { t } = useTranslation(['owner']);
     // Display-only labels for canonical tender methods -- `Tender['method']`
     // values themselves ('cash', 'card', etc.) are never translated: they're
@@ -119,6 +125,11 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       return r.data.data;
     } });
     const services = (servicesQuery.data ?? []).filter(s => s.active && s.id !== booking?.service_id);
+    // Unfiltered (includes inactive services) so a since-deactivated service
+    // still resolves a real name/price here instead of falling through to a
+    // generic fallback -- deliberately the raw query result, not `services`
+    // above (which excludes inactive ones for the "add a service" picker).
+    const catalogById = new Map((servicesQuery.data ?? []).map(s => [s.id, s]));
     // Same caching pass, same reasoning -- owner-settings/products.tsx
     // already fetches the catalog under this exact key. This used to be its
     // own uncached listProducts() call inside load() below, refetched from
@@ -130,12 +141,18 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     } });
     const catalog = productsQuery.data ?? [];
     const [addedServices, setAddedServices] = useState<Service[]>([]);
-    // Invoice-style editable pricing — null/empty means "use the default"
-    // (preview.subtotal_cents for the original service, the catalog price
-    // for an added one). Editing either doesn't change what's booked/sold,
-    // only what this specific visit is charged, mirroring a paper invoice
-    // line being crossed out and rewritten.
-    const [originalPriceOverrideCents, setOriginalPriceOverrideCents] = useState<number | null>(null);
+    // Invoice-style editable pricing — a missing key means "use the
+    // default" (this line's own catalog/booked price). Editing doesn't
+    // change what's booked/sold, only what this specific visit is charged,
+    // mirroring a paper invoice line being crossed out and rewritten.
+    // Keyed by originalLines[].key (below), same pattern addedServicePriceOverrides
+    // already uses for added services -- was a single originalPriceOverrideCents
+    // scalar, which could only ever represent ONE combined price for the
+    // whole original booking, even when it actually had several services on
+    // it (service_line_ids), which is exactly why Checkout used to show them
+    // all mashed into one joined name with one price instead of a real,
+    // itemized line per service.
+    const [originalLinePriceOverrides, setOriginalLinePriceOverrides] = useState<Record<string, number>>({});
     const [addedServicePriceOverrides, setAddedServicePriceOverrides] = useState<Record<string, number>>({});
     const [priceEditText, setPriceEditText] = useState<Record<string, string>>({});
     const [showServiceModal, setShowServiceModal] = useState(false);
@@ -217,7 +234,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       if (booking) {
         setResult(null); setCardResultInfo(null); setTenders([]); setProducts([]); setDiscountCents(0); setTipCents(0); setAddedServices([]);
         setPreviewError(null);
-        setOriginalPriceOverrideCents(null); setAddedServicePriceOverrides({}); setPriceEditText({});
+        setOriginalLinePriceOverrides({}); setAddedServicePriceOverrides({}); setPriceEditText({});
         setCustomDiscount(false); setCustomDiscountText(''); setCustomTip(false); setCustomTipText('');
         setBookNext(false); setPerformedByStaffId(booking.staff_id);
         load();
@@ -231,12 +248,38 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     // this component (an early `if (!booking || !preview) return` used to
     // sit above this, which made the tenderAmount-sync effect conditional
     // and threw "rendered more hooks than during the previous render").
-    const originalServiceName = booking?.service?.name
-      ?? (booking?.service_names && booking.service_names.length > 0 ? booking.service_names.join(' + ') : t('owner:checkoutSheet.service'));
-    const originalServicePriceCents = originalPriceOverrideCents ?? preview?.subtotal_cents ?? 0;
+    // Bug fix -- Checkout used to show the original booking as ONE row with
+    // a joined "A + B + C" name and one combined price (or, worse, only the
+    // FIRST service's name when booking.service was checked before
+    // service_names). A real invoice itemizes every service actually
+    // booked, each on its own line with its own editable price -- so this
+    // resolves booking.service_line_ids (falling back to the singular
+    // service_id for an ordinary single-service booking) against the
+    // services catalog, the same way addedServices already work below.
+    // catalogById is built from the UNFILTERED query result specifically so
+    // a since-deactivated service still resolves a real name/price here.
+    const originalLines: { key: string; name: string; defaultPriceCents: number }[] = booking ? (() => {
+      const ids = booking.service_line_ids && booking.service_line_ids.length > 0
+        ? booking.service_line_ids
+        : booking.service_id ? [booking.service_id] : [];
+      if (ids.length === 0) {
+        // No resolvable id at all (shouldn't normally happen) -- one line
+        // carrying the booking's own recorded total under its display name.
+        return [{ key: 'original-0', name: serviceDisplayName(booking), defaultPriceCents: preview?.subtotal_cents ?? 0 }];
+      }
+      return ids.map((id, i) => {
+        const svc = catalogById.get(id);
+        return {
+          key: `original-${i}`,
+          name: svc?.name ?? booking.service_names?.[i] ?? serviceDisplayName(booking),
+          defaultPriceCents: svc?.price_cents ?? 0,
+        };
+      });
+    })() : [];
+    const originalLinesTotal = originalLines.reduce((s, l) => s + (originalLinePriceOverrides[l.key] ?? l.defaultPriceCents), 0);
     const addedServicesTotal = addedServices.reduce((s, sv) => s + (addedServicePriceOverrides[sv.id] ?? sv.price_cents), 0);
-    const serviceBaseCents = originalServicePriceCents + addedServicesTotal;
-    const servicePriceEdited = originalPriceOverrideCents !== null || addedServices.length > 0;
+    const serviceBaseCents = originalLinesTotal + addedServicesTotal;
+    const servicePriceEdited = Object.keys(originalLinePriceOverrides).length > 0 || addedServices.length > 0;
     const productTotal = products.reduce((s, p) => s + p.quantity * p.price_cents_each, 0);
     const subtotal = serviceBaseCents + productTotal;
     // Recomputed reactively, not frozen from the initial preview call --
@@ -311,9 +354,9 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
       });
     }
 
-    function handleOriginalPriceChange(text: string) {
-      setPriceEditText(m => ({ ...m, original: text }));
-      setOriginalPriceOverrideCents(Math.round((parseFloat(text) || 0) * 100));
+    function handleOriginalLinePriceChange(key: string, text: string) {
+      setPriceEditText(m => ({ ...m, [key]: text }));
+      setOriginalLinePriceOverrides(m => ({ ...m, [key]: Math.round((parseFloat(text) || 0) * 100) }));
     }
 
     function handleAddedPriceChange(serviceId: string, text: string) {
@@ -338,6 +381,49 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
         delete next[serviceId];
         return next;
       });
+    }
+
+    // Bug fix -- a service added mid-checkout (via "+ Add service") only
+    // ever lived in this sheet's own local state. Closing the sheet before
+    // tapping "Complete checkout" (backdrop tap, Android back button) threw
+    // it away entirely -- the appointment itself was never updated, so
+    // reopening Checkout later showed the original booking with no memory
+    // the service had been added, and the salon had to notice and re-add it
+    // by hand every time. Writes it onto the booking's own service_line_ids/
+    // price_cents (the same fields a real multi-service booking already
+    // uses) so it's a permanent part of the appointment from here on,
+    // exactly as if it had been booked that way to begin with -- using each
+    // service's plain catalog price, not any not-yet-confirmed checkout-only
+    // price edit, since that's a "this visit only" adjustment that was never
+    // actually submitted.
+    async function persistPendingAddedServices() {
+      if (!booking || addedServices.length === 0) return;
+      const currentLineIds = booking.service_line_ids && booking.service_line_ids.length > 0
+        ? booking.service_line_ids
+        : booking.service_id ? [booking.service_id] : [];
+      const newLineIds = [...currentLineIds, ...addedServices.map(s => s.id)];
+      const addedDefaultTotal = addedServices.reduce((sum, s) => sum + s.price_cents, 0);
+      const res = await updateBooking(booking.id, {
+        service_line_ids: newLineIds,
+        price_cents: (booking.price_cents ?? 0) + addedDefaultTotal,
+      });
+      if (!res.ok) {
+        Alert.alert(t('owner:checkoutSheet.couldNotSaveAddedServiceTitle'), res.error);
+      }
+    }
+
+    // Single choke point for every way this sheet can be closed without
+    // completing checkout (SheetModal's backdrop tap and Android hardware
+    // back both route through the main form sheet's onRequestClose below).
+    // Once `result` is set, checkout already completed and the server
+    // already recorded any added services via submitCheckout's own
+    // added_service_ids -- persisting again here would be redundant.
+    async function closeSheet() {
+      if (!result && addedServices.length > 0) {
+        await persistPendingAddedServices();
+        onChanged?.();
+      }
+      setVisible(false);
     }
 
     async function handleValidateGift() {
@@ -533,7 +619,10 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
     }
 
     return (
-      <SheetModal visible={visible} onRequestClose={() => setVisible(false)} maxHeight="90%">
+      // 95%, not 90% -- the section cards above now carry their own padding/
+      // border like the dashboard's cards do, which made the old 90% cap
+      // feel tighter than before rather than roomier.
+      <SheetModal visible={visible} onRequestClose={closeSheet} maxHeight="95%">
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.sectionTitle}>{t('owner:checkoutSheet.checkoutTitle')}</Text>
 
@@ -563,18 +652,22 @@ export const CheckoutSheet = forwardRef<CheckoutSheetHandle, CheckoutSheetProps>
           )}
 
           {/* Invoice-style itemization — every service this visit is being
-              charged for, each with its own editable price, instead of a
-              single opaque "Subtotal" number. The original booked service
-              is always the first line and can't be removed (it's what the
+              charged for, each on its OWN line with its own editable price,
+              instead of a single opaque "Subtotal" number (or, for a
+              multi-service booking, one row with every service's name
+              mashed into a single joined string and one combined price).
+              The originally booked lines can't be removed (they're what the
               appointment was for), only re-priced; added services get both. */}
           <Section title={t('owner:checkoutSheet.service')}>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceItemName} numberOfLines={2}>{originalServiceName}</Text>
-              <PriceInput
-                value={priceEditText.original ?? (originalServicePriceCents / 100).toFixed(2)}
-                onChangeText={handleOriginalPriceChange}
-              />
-            </View>
+            {originalLines.map(line => (
+              <View key={line.key} style={styles.invoiceRow}>
+                <Text style={styles.invoiceItemName} numberOfLines={2}>{line.name}</Text>
+                <PriceInput
+                  value={priceEditText[line.key] ?? ((originalLinePriceOverrides[line.key] ?? line.defaultPriceCents) / 100).toFixed(2)}
+                  onChangeText={(v) => handleOriginalLinePriceChange(line.key, v)}
+                />
+              </View>
+            ))}
             {addedServices.map(s => (
               <View key={s.id} style={styles.invoiceRow}>
                 <Text style={styles.invoiceItemName} numberOfLines={2}>+ {s.name}</Text>
@@ -829,8 +922,19 @@ function SheetModal({ visible, onRequestClose, maxHeight, children }: {
   );
 }
 
+// Matches the dashboard's own card language (BlurView + CardOverlay + gold
+// border + generous internal padding) -- this used to be a bare label with
+// no card framing at all, so every section ran directly into the next with
+// only a small uppercase caption between them, reading as one cramped
+// block instead of the dashboard's clearly separated, breathing cards.
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <View style={styles.section}><Text style={styles.subTitle}>{title}</Text>{children}</View>;
+  return (
+    <BlurView intensity={90} tint="dark" style={styles.section}>
+      <CardOverlay />
+      <Text style={styles.subTitle}>{title}</Text>
+      {children}
+    </BlurView>
+  );
 }
 
 function TotalRow({ label, value, bold, color }: { label: string; value: number; bold?: boolean; color?: string }) {
@@ -869,7 +973,20 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.soraSemiBold, fontSize: 12, textTransform: 'uppercase',
     letterSpacing: 0.6, color: '#F4D77A', marginBottom: 4,
   },
-  section: { gap: Spacing.xs },
+  // Same card language as the dashboard's apptCard/activityCard: bordered,
+  // rounded, gold-tinted, generously padded -- was a bare `{ gap: Spacing.xs }`
+  // View with no border/background/padding of its own, which is why every
+  // section previously ran straight into the next with nothing but a small
+  // caption between them.
+  section: {
+    gap: Spacing.sm,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(212,175,55,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    padding: Spacing.md,
+  },
   cardActionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   cardActionPrimary: {
     backgroundColor: '#4ADE80', borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 10,

@@ -166,68 +166,87 @@ export default function RootLayout() {
   // before this; every other notification type is only ever seen via the
   // in-app inbox (notifications.tsx), which doesn't need this since tapping
   // an inbox row is already an explicit in-app action.
+  // Bug fix -- this whole handler used to run ONLY inside
+  // addNotificationResponseReceivedListener, which fires for a tap while the
+  // JS context is already alive (foreground or backgrounded). It never fires
+  // for the tap that COLD-LAUNCHES the app from fully closed, since that tap
+  // happens before this effect has even mounted to start listening -- the
+  // app just opens to its default route instead, which is exactly why
+  // "Send app notification" for a balance-due payment looked like it
+  // "took them to the booking" instead of the payment page: for a customer
+  // who didn't already have the app open, nothing here ever ran at all.
+  // Expo's own API for this exact case is getLastNotificationResponseAsync()
+  // (checked once on mount below), not something this listener can ever see.
+  async function handleNotificationResponse(response: Notifications.NotificationResponse) {
+    const data = response.notification.request.content.data as {
+      action?: string; bookingId?: string; url?: string;
+      salonId?: string; salonSlug?: string; salonName?: string; requireOnlinePayment?: string;
+      serviceIds?: string[]; staffId?: string; suggestedStartsAt?: string;
+    } | undefined;
+    if (data?.action === 'checkin' && data.bookingId) {
+      const result = await checkInBooking(data.bookingId);
+      if (result.ok) Alert.alert("You're checked in!", 'The salon has been notified.');
+    }
+    // Salon's "Send app notification" checkout action -- opens the same
+    // secure pay page "Open payment page"/"Copy link"/"Email link" all
+    // point at, so the customer can pay without the salon needing their
+    // phone number or email at all.
+    if (data?.action === 'pay_balance' && data.url) {
+      Linking.openURL(data.url);
+    }
+    // 48h-before payment reminder for a manually-created, still-unpaid
+    // booking -- deep-links straight into the in-app Pay Now flow (native
+    // PaymentSheet), distinct from pay_balance's external hosted-link open.
+    if (data?.action === 'pay_unpaid_booking' && data.bookingId) {
+      router.push({
+        pathname: '/booking/pay-existing',
+        params: { bookingId: data.bookingId },
+      } as never);
+    }
+    // "Update available" broadcast, sent right after app_version_config is
+    // bumped for this platform -- tapping it goes straight to the store
+    // rather than just opening the app (where the in-app nag only checks
+    // on a cold JS mount, not a background->foreground resume).
+    if (data?.action === 'app_update' && STORE_URL) {
+      const canOpen = await Linking.canOpenURL(STORE_URL);
+      Linking.openURL(canOpen ? STORE_URL : STORE_URL_FALLBACK);
+    }
+    // Rebook nudge (immediate post-checkout, or the weekly "it's time to
+    // book" cron) -- lands on the same booking flow a normal "Book Now"
+    // tap would, just pre-seeded with the suggested service/staff/time.
+    // Every field stays fully editable; nothing here is forced.
+    if (data?.action === 'rebook' && data.salonId) {
+      router.push({
+        pathname: '/booking/services',
+        params: {
+          salonId: data.salonId,
+          salonSlug: data.salonSlug ?? '',
+          salonName: data.salonName ?? '',
+          requireOnlinePayment: data.requireOnlinePayment ?? 'true',
+          ...(data.serviceIds && data.serviceIds.length > 0 ? { prefillServiceIds: data.serviceIds.join(',') } : {}),
+          ...(data.staffId ? { prefillStaffId: data.staffId } : {}),
+          ...(data.suggestedStartsAt ? { prefillStartsAt: data.suggestedStartsAt } : {}),
+          rebookSource: 'rebook_nudge',
+        },
+      } as never);
+    }
+    // Review nudge -- lands on My Bookings with that booking's rating
+    // panel already open, pre-set to 5 stars for a one-tap submit.
+    if (data?.action === 'leave_review' && data.bookingId) {
+      router.push({
+        pathname: '/(tabs)/my-booking',
+        params: { openRatingBookingId: data.bookingId },
+      } as never);
+    }
+  }
+
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      const data = response.notification.request.content.data as {
-        action?: string; bookingId?: string; url?: string;
-        salonId?: string; salonSlug?: string; salonName?: string; requireOnlinePayment?: string;
-        serviceIds?: string[]; staffId?: string; suggestedStartsAt?: string;
-      } | undefined;
-      if (data?.action === 'checkin' && data.bookingId) {
-        const result = await checkInBooking(data.bookingId);
-        if (result.ok) Alert.alert("You're checked in!", 'The salon has been notified.');
-      }
-      // Salon's "Send app notification" checkout action -- opens the same
-      // secure pay page "Open payment page"/"Copy link"/"Email link" all
-      // point at, so the customer can pay without the salon needing their
-      // phone number or email at all.
-      if (data?.action === 'pay_balance' && data.url) {
-        Linking.openURL(data.url);
-      }
-      // 48h-before payment reminder for a manually-created, still-unpaid
-      // booking -- deep-links straight into the in-app Pay Now flow (native
-      // PaymentSheet), distinct from pay_balance's external hosted-link open.
-      if (data?.action === 'pay_unpaid_booking' && data.bookingId) {
-        router.push({
-          pathname: '/booking/pay-existing',
-          params: { bookingId: data.bookingId },
-        } as never);
-      }
-      // "Update available" broadcast, sent right after app_version_config is
-      // bumped for this platform -- tapping it goes straight to the store
-      // rather than just opening the app (where the in-app nag only checks
-      // on a cold JS mount, not a background->foreground resume).
-      if (data?.action === 'app_update' && STORE_URL) {
-        const canOpen = await Linking.canOpenURL(STORE_URL);
-        Linking.openURL(canOpen ? STORE_URL : STORE_URL_FALLBACK);
-      }
-      // Rebook nudge (immediate post-checkout, or the weekly "it's time to
-      // book" cron) -- lands on the same booking flow a normal "Book Now"
-      // tap would, just pre-seeded with the suggested service/staff/time.
-      // Every field stays fully editable; nothing here is forced.
-      if (data?.action === 'rebook' && data.salonId) {
-        router.push({
-          pathname: '/booking/services',
-          params: {
-            salonId: data.salonId,
-            salonSlug: data.salonSlug ?? '',
-            salonName: data.salonName ?? '',
-            requireOnlinePayment: data.requireOnlinePayment ?? 'true',
-            ...(data.serviceIds && data.serviceIds.length > 0 ? { prefillServiceIds: data.serviceIds.join(',') } : {}),
-            ...(data.staffId ? { prefillStaffId: data.staffId } : {}),
-            ...(data.suggestedStartsAt ? { prefillStartsAt: data.suggestedStartsAt } : {}),
-            rebookSource: 'rebook_nudge',
-          },
-        } as never);
-      }
-      // Review nudge -- lands on My Bookings with that booking's rating
-      // panel already open, pre-set to 5 stars for a one-tap submit.
-      if (data?.action === 'leave_review' && data.bookingId) {
-        router.push({
-          pathname: '/(tabs)/my-booking',
-          params: { openRatingBookingId: data.bookingId },
-        } as never);
-      }
+    const sub = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    // Cold-start case -- the app was fully closed when the notification was
+    // tapped, so the tap itself launched the app rather than being caught by
+    // the listener above. Checked once on mount, same handler either way.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) handleNotificationResponse(response);
     });
     return () => sub.remove();
   }, []);

@@ -604,6 +604,7 @@
     "amountExceedsStoreCreditTitle": "Amount exceeds store credit balance",
     "paymentsMustAddUpTitle": "Payments must add up to the total due.",
     "checkoutFailedTitle": "Checkout failed",
+    "couldNotSaveAddedServiceTitle": "Could not save the added service",
     "checkoutCompletedRebookFailedTitle": "Checkout completed, but rebooking failed"
   },
   "reportsScreen": {

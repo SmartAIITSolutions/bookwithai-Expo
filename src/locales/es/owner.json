@@ -604,6 +604,7 @@
     "amountExceedsStoreCreditTitle": "El monto excede el crédito de tienda disponible",
     "paymentsMustAddUpTitle": "Los pagos deben sumar el total adeudado.",
     "checkoutFailedTitle": "El pago falló",
+    "couldNotSaveAddedServiceTitle": "No se pudo guardar el servicio agregado",
     "checkoutCompletedRebookFailedTitle": "Pago completado, pero la reserva falló"
   },
   "reportsScreen": {

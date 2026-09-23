@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomSheetFooter, type BottomSheetFooterProps } from '@gorhom/bottom-sheet';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -83,7 +83,18 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     const [confirmNoShow, setConfirmNoShow] = useState(false);
     const [addOn, setAddOn] = useState<AddOnSuggestion | null>(null);
     const [, forceTick] = useState(0);
-    const snapPoints = useMemo(() => ['85%'], []);
+    // Bug fix -- was 85%, with the primary action/Cancel row placed via a
+    // flex:1 spacer inside a fixed-height BottomSheetView. That only pushes
+    // them to the bottom edge when the content above happens to fit; once
+    // notes/badges/an open menu or activity panel pushed total height past
+    // the snap point, BottomSheetView clips everything past it silently
+    // (same failure mode already diagnosed and fixed once in WalkInSheet --
+    // see the header comment on renderFooter below). Restructured onto a
+    // BottomSheetScrollView + BottomSheetFooter instead (that proven fix,
+    // applied here too), so content above the actions can grow and scroll
+    // instead of getting cut off, and Cancel/the primary action stay docked
+    // and reachable regardless. 90%, not 85%, for a bit more headroom too.
+    const snapPoints = useMemo(() => ['90%'], []);
 
     const renderBackdrop = useCallback(
       (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />,
@@ -211,15 +222,45 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
 
     const showElapsed = booking.service_started_at && !booking.service_completed_at;
 
+    // Plain sibling Views after BottomSheetScrollView get clipped to the
+    // sheet's snap-point-constrained content area instead of docking to its
+    // actual bottom edge -- BottomSheetFooter is the library's own API for a
+    // footer that stays pinned to the sheet's bottom regardless of snap
+    // point, keyboard state, or how tall the scrollable content above it
+    // gets (same pattern already proven in WalkInSheet's own "Book" button).
+    const renderFooter = useCallback((props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props} style={styles.footer}>
+        {action && (
+          <TouchableOpacity
+            style={[styles.actionButton, action.disabled && styles.actionButtonDisabled]}
+            onPress={handleActionPress}
+            disabled={action.disabled || working}
+          >
+            {working ? <ActivityIndicator color="#09000F" /> : (
+              <Text style={styles.actionButtonText}>{action.label}</Text>
+            )}
+          </TouchableOpacity>
+        )}
+        {booking && booking.status !== 'cancelled' && booking.status !== 'no_show' && (
+          <TouchableOpacity onPress={handleCancel} style={styles.cancelRow}>
+            <Ionicons name="close-circle-outline" size={16} color="#F09595" />
+            <Text style={styles.cancelText}>{t('owner:appointmentSheet.cancelAppointment')}</Text>
+          </TouchableOpacity>
+        )}
+      </BottomSheetFooter>
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [action, working, booking]);
+
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={snapPoints}
         backdropComponent={renderBackdrop}
+        footerComponent={renderFooter}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handleIndicator}
       >
-        <BottomSheetView style={styles.container}>
+        <BottomSheetScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
           <View style={styles.header}>
             {onOpenDetail ? (
               <TouchableOpacity
@@ -351,27 +392,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
               </Text>
             </View>
           )}
-
-          <View style={styles.spacer} />
-
-          {action && (
-            <TouchableOpacity
-              style={[styles.actionButton, action.disabled && styles.actionButtonDisabled]}
-              onPress={handleActionPress}
-              disabled={action.disabled || working}
-            >
-              {working ? <ActivityIndicator color="#09000F" /> : (
-                <Text style={styles.actionButtonText}>{action.label}</Text>
-              )}
-            </TouchableOpacity>
-          )}
-          {booking.status !== 'cancelled' && booking.status !== 'no_show' && (
-            <TouchableOpacity onPress={handleCancel} style={styles.cancelRow}>
-              <Ionicons name="close-circle-outline" size={16} color="#F09595" />
-              <Text style={styles.cancelText}>{t('owner:appointmentSheet.cancelAppointment')}</Text>
-            </TouchableOpacity>
-          )}
-        </BottomSheetView>
+        </BottomSheetScrollView>
         <ConfirmModal
           visible={confirmCancel}
           title={t('owner:appointmentSheet.cancelConfirmTitle')}
@@ -399,7 +420,10 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
 const styles = StyleSheet.create({
   sheetBg: { backgroundColor: '#0B0712', borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl },
   handleIndicator: { backgroundColor: 'rgba(212,175,55,0.4)', width: 40 },
-  container: { flex: 1, padding: Spacing.lg, gap: Spacing.sm },
+  // Used as BottomSheetScrollView's contentContainerStyle now, not a flex
+  // container of its own -- paddingBottom keeps the last card from sitting
+  // flush against the docked footer's top edge.
+  container: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing.lg },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   customerName: { fontFamily: FontFamily.frauncesBold, fontSize: FontSize.lg, color: '#FFFFFF' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.full },
@@ -452,10 +476,19 @@ const styles = StyleSheet.create({
   },
   addOnText: { fontFamily: FontFamily.sora, fontSize: FontSize.sm, color: 'rgba(255,255,255,0.85)' },
   addOnBold: { fontFamily: FontFamily.soraSemiBold, color: '#F4D77A' },
-  spacer: { flex: 1 },
+  // Docked footer, same convention as WalkInSheet's own -- always visible
+  // regardless of how tall the scrollable content above it grows.
+  footer: {
+    paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xl,
+    borderTopWidth: 1, borderTopColor: 'rgba(212,175,55,0.15)', backgroundColor: '#0B0712',
+    gap: Spacing.xs,
+  },
   actionButton: { backgroundColor: '#F4D77A', borderRadius: BorderRadius.lg, paddingVertical: 14, alignItems: 'center' },
   actionButtonDisabled: { backgroundColor: 'rgba(212,175,55,0.3)' },
   actionButtonText: { fontFamily: FontFamily.soraSemiBold, color: '#09000F', fontSize: FontSize.base },
-  cancelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: Spacing.md },
+  // paddingTop dropped -- was needed when this sat directly under the
+  // action button in the same flex column; the footer's own `gap` handles
+  // that spacing now that both live there instead.
+  cancelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   cancelText: { fontFamily: FontFamily.soraSemiBold, fontSize: FontSize.sm, color: '#F09595' },
 });

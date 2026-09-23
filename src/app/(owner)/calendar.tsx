@@ -942,7 +942,7 @@ export default function OwnerCalendarScreen() {
         flowMode={business?.checkin_flow_mode ?? 'full'}
         onOpenDetail={(b) => { sheetRef.current?.dismiss(); router.push(`/appointment/${b.id}` as never); }}
       />
-      <CheckoutSheet ref={checkoutRef} booking={selectedBooking} onDone={handleCheckoutDone} staff={staff} />
+      <CheckoutSheet ref={checkoutRef} booking={selectedBooking} onDone={handleCheckoutDone} onChanged={reload} staff={staff} />
       <WalkInSheet
         ref={walkInRef}
         staff={staff}

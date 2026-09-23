@@ -340,6 +340,7 @@ export default function OwnerDashboardScreen() {
         ref={checkoutRef}
         booking={selectedBooking}
         onDone={() => { checkoutRef.current?.dismiss(); sheetRef.current?.dismiss(); reloadAll(); }}
+        onChanged={reloadAll}
         staff={staff}
       />
       </View>
