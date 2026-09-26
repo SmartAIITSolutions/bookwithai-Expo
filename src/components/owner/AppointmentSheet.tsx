@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SanaaMark } from '@/components/SanaaMark';
 import { OwnerBooking, serviceDisplayName, customerDisplayName } from '@/lib/api/ownerBookings';
 import { checkIn, startService, completeService, completeAndReadyForCheckout, cancelBooking, markNoShow, duplicateBooking, setBookingLocked, updateBooking } from '@/lib/api/ownerBookings';
@@ -83,6 +84,7 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     const [confirmNoShow, setConfirmNoShow] = useState(false);
     const [addOn, setAddOn] = useState<AddOnSuggestion | null>(null);
     const [, forceTick] = useState(0);
+    const insets = useSafeAreaInsets();
     // Bug fix -- was 85%, with the primary action/Cancel row placed via a
     // flex:1 spacer inside a fixed-height BottomSheetView. That only pushes
     // them to the bottom edge when the content above happens to fit; once
@@ -93,8 +95,9 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     // BottomSheetScrollView + BottomSheetFooter instead (that proven fix,
     // applied here too), so content above the actions can grow and scroll
     // instead of getting cut off, and Cancel/the primary action stay docked
-    // and reachable regardless. 90%, not 85%, for a bit more headroom too.
-    const snapPoints = useMemo(() => ['90%'], []);
+    // and reachable regardless. Opens at 60% of the screen; content above
+    // the footer scrolls when it's taller than that.
+    const snapPoints = useMemo(() => ['60%'], []);
 
     const renderBackdrop = useCallback(
       (props: any) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} />,
@@ -228,8 +231,11 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
     // footer that stays pinned to the sheet's bottom regardless of snap
     // point, keyboard state, or how tall the scrollable content above it
     // gets (same pattern already proven in WalkInSheet's own "Book" button).
-    const renderFooter = useCallback((props: BottomSheetFooterProps) => (
-      <BottomSheetFooter {...props} style={styles.footer}>
+    // Deliberately a plain function, not useCallback: it sits after the
+    // `if (!booking) return null` early return above, so a hook here would
+    // change the hook count between renders and crash the sheet on open.
+    const renderFooter = (props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props} style={{ ...styles.footer, paddingBottom: Spacing.md + insets.bottom }}>
         {action && (
           <TouchableOpacity
             style={[styles.actionButton, action.disabled && styles.actionButtonDisabled]}
@@ -248,13 +254,16 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
           </TouchableOpacity>
         )}
       </BottomSheetFooter>
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    ), [action, working, booking]);
+    );
 
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={snapPoints}
+        // v5 defaults this to true, which sizes the sheet to measured content
+        // instead of the snap point -- a flex:1 BottomSheetScrollView measures
+        // ~0, so the sheet opened only as tall as the footer.
+        enableDynamicSizing={false}
         backdropComponent={renderBackdrop}
         footerComponent={renderFooter}
         backgroundStyle={styles.sheetBg}

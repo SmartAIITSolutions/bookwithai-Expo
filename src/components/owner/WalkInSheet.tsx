@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { searchCustomers, quickCreateCustomer, CustomerLite } from '@/lib/api/ownerCustomers';
 import { listServices, Service } from '@/lib/api/ownerServices';
 import { createBooking, OwnerBooking } from '@/lib/api/ownerBookings';
@@ -99,6 +100,7 @@ function CardOverlay() {
 export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
   function WalkInSheet({ staff, todaysBookings, onBooked, initialTime, initialStaffId, outsideBusinessHours, initialCustomer, mode = 'new' }, ref) {
     const { t } = useTranslation(['calendar', 'errors']);
+    const insets = useSafeAreaInsets();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<CustomerLite[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
@@ -376,7 +378,7 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
     // footer that stays pinned to the sheet's bottom regardless of snap
     // point or keyboard state.
     const renderFooter = useCallback((props: BottomSheetFooterProps) => (
-      <BottomSheetFooter {...props} style={styles.footer}>
+      <BottomSheetFooter {...props} style={{ ...styles.footer, paddingBottom: Spacing.md + insets.bottom }}>
         {cartCount > 0 && (
           <Text style={styles.footerSummary}>
             {t('calendar:walkIn.footerSummary', { count: cartCount, minutes: cartDurationMin, price: formatCentsUSD(cartPriceCents) })}
@@ -389,12 +391,15 @@ export const WalkInSheet = forwardRef<BottomSheetModal, WalkInSheetProps>(
         </TouchableOpacity>
       </BottomSheetFooter>
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    ), [cartCount, cartDurationMin, cartPriceCents, booking, manualMode, cart, selectedCustomer, walkInMode, walkInLabel, manualHour12, manualMinute, manualAmPm, manualStaffId, initialTime, initialStaffId, staff, todaysBookings]);
+    ), [cartCount, cartDurationMin, cartPriceCents, booking, manualMode, cart, selectedCustomer, walkInMode, walkInLabel, manualHour12, manualMinute, manualAmPm, manualStaffId, initialTime, initialStaffId, staff, todaysBookings, insets.bottom]);
 
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={['70%']}
+        // v5 defaults this to true, sizing the sheet to measured content
+        // instead of the snap point -- keep it pinned to 70%.
+        enableDynamicSizing={false}
         backdropComponent={renderBackdrop}
         footerComponent={renderFooter}
         backgroundStyle={styles.sheetBg}

@@ -25,7 +25,7 @@ import Reanimated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { StripeProvider, useStripe, initStripe } from '@stripe/stripe-react-native';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -171,6 +171,21 @@ function PaymentForm({
     if (!clientSecret || !stripeAccountId) return;
     let cancelled = false;
     (async () => {
+      // StripeProvider re-scopes the native SDK in its own useEffect without
+      // awaiting it, and React runs this (child) effect before the provider's
+      // (parent) effect -- so initPaymentSheet could reach Stripe while the
+      // SDK was still on the platform account ("client_secret does not match
+      // any associated PaymentIntent on this account"). Scope it explicitly
+      // and wait for it first.
+      try {
+        await initStripe({ publishableKey: STRIPE_PK, stripeAccountId });
+      } catch (e: any) {
+        if (cancelled) return;
+        setError(e?.message || t('booking:paymentScreen.couldNotSetUpPayment'));
+        setLoading(false);
+        return;
+      }
+      if (cancelled) return;
       const { error: initErr } = await initPaymentSheet({
         paymentIntentClientSecret: clientSecret,
         merchantDisplayName: salonName || 'Book With AI',

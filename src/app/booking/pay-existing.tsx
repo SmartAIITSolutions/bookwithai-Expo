@@ -17,7 +17,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BreathingHeart } from '@/components/BreathingHeart';
-import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { StripeProvider, useStripe, initStripe } from '@stripe/stripe-react-native';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
 import { notificationSuccess, notificationError } from '@/hooks/usePressHaptic';
 import { FontFamily, FontSize, Spacing, BorderRadius } from '@/constants/Theme';
@@ -146,6 +146,11 @@ function PayExistingForm({
     let cancelled = false;
     (async () => {
       try {
+        // Same race as booking/payment.tsx: StripeProvider's own re-scope to
+        // the connected account isn't awaited and runs after this child
+        // effect, so scope explicitly and wait before initPaymentSheet.
+        await initStripe({ publishableKey: STRIPE_PK, stripeAccountId });
+        if (cancelled) return;
         const { error: initErr } = await initPaymentSheet({
           paymentIntentClientSecret: pendingPayment.clientSecret,
           merchantDisplayName: salonName || 'Book With AI',
