@@ -42,6 +42,7 @@ import { AuthProvider, useAuth, getCachedRole } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import i18n, { initI18n } from '@/lib/i18n';
 import { queryClient } from '@/lib/queryClient';
+import { restoreQueryCache } from '@/lib/queryPersistence';
 import { supabase, peekStoredSessionUserId } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
 import { fetchCustomerProfile, isProfileComplete, linkCustomerIdentity } from '@/lib/api/customerProfile';
@@ -689,6 +690,9 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     // original wait-for-INITIAL_SESSION path unchanged.
     const storedUserId = await peekStoredSessionUserId();
     if (storedUserId) {
+      // Hydrate this user's saved owner-dashboard data (local read only)
+      // before routing, so the first screen renders with it immediately.
+      await restoreQueryCache(storedUserId);
       if (await shouldLockWithBiometrics()) {
         router.replace('/auth/biometrics');
         return;
@@ -764,6 +768,7 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     // read below, unchanged.
     const cachedRole = await getCachedRole(session.user.id);
     if (cachedRole) {
+      await restoreQueryCache(session.user.id);
       splashRoutedFromCache = { userId: session.user.id, role: cachedRole.role };
       router.replace(roleHome(cachedRole.role) as never);
       return;

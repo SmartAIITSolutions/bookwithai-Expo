@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+import { activateQueryPersistence, clearQueryPersistence } from '@/lib/queryPersistence';
 import { unregisterPushToken } from '@/lib/push/registerForPushNotifications';
 import { reconcileServerLanguagePreference } from '@/lib/i18n/reconcile';
 import { getLanguagePreferenceSource, setLanguagePreference, setLanguagePreferenceSource } from '@/lib/i18n/storage';
@@ -179,12 +180,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          // Owner-dashboard data persistence is scoped to this exact user;
+          // a different user becoming active drops the previous one's
+          // in-memory data first (see queryPersistence.ts).
+          activateQueryPersistence(session.user.id);
           await loadProfile(session.user.id);
         } else {
           latestProfileRequest.current = null;
           languageReconciledForUserId.current = null;
           setRole(null);
           setClientId(null);
+          // No session -- never leave the previous user's cached data in
+          // memory or on disk for whoever signs in next on this device.
+          await clearQueryPersistence();
         }
       } catch (error) {
         console.error('AuthContext: onAuthStateChange handler failed', error);
@@ -235,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userId) {
       await AsyncStorage.removeItem(`${ROLE_CACHE_PREFIX}${userId}`).catch(() => {});
     }
+    await clearQueryPersistence();
     // PA1 Section F fix -- if the active language was merely adopted from
     // this account's server preference (not a real pick on this device),
     // clear it on sign-out. Otherwise a different account signing in next

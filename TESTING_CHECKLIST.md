@@ -962,3 +962,16 @@ Full detail in `MASTER.md` § WEARABLES BUILD PLAN. Covers the new Wear OS modul
 - ⬜ **Airplane mode cold open** — lands on home with offline banner (previously: splash up to 8s then sign-in screen).
 - ⬜ **Upgrade from an old build with a pre-P12 plaintext session** — still signed in after update (peek is read-only; migration still done once by the Supabase client).
 - 🐛 **Not fixed (by choice, tracked):** `auth/biometrics.tsx:50` and `auth/pin-entry.tsx:30` route every non-owner (including staff) to customer tabs `/(tabs)/book` after Face ID/PIN unlock, instead of using `roleHome()` → staff land on the customer side.
+
+## Owner Dashboard — Instant Open from Saved Data (2026-09-28, static verification only — tsc clean, validate-translations passing, persistence partition logic verified against the real TanStack libraries with an in-memory storage harness; no device pass yet)
+
+- 🔵 **Saved dashboard data** — new `src/lib/queryPersistence.ts` (`@tanstack/react-query-persist-client` + `query-async-storage-persister`, pure JS). Only owner-dashboard query roots are persisted (summary, bookings, payment status, business, staff, recent activity, SANAA status); nothing customer/staff-facing. Every snapshot is stamped with the signed-in user id; restoring for any other user discards it and deletes it from disk (verified). Restored during the splash before routing; saving starts in AuthContext once a session is confirmed.
+- 🔵 **Cleared on sign-out / user change** — `signOut()` and any null session wipe in-memory React Query data and the on-disk snapshot (twice, to cover a throttled save). Also fixes a pre-existing gap: nothing cleared the in-memory query cache on sign-out, so a second account signing in without closing the app could briefly see the first account's cached dashboard.
+- 🔵 **Dashboard layout renders immediately** — full-screen spinner replaced: greeting, SANAA card and snapshot cards show at once with "—" until the summary arrives; small inline loader for Today's Schedule until bookings arrive.
+- 🔵 **Freshness notice (en/es)** — "Couldn't update — last updated {time}. Tap to retry." when a refresh fails while showing saved data; "Couldn't load today's numbers. Tap to retry." when nothing is available; "Updating… last updated {time}" when showing >2-min-old data during a slow refresh. Tap = reload.
+- ⬜ **Owner reopen, same day** — numbers and today's schedule appear instantly, then update silently.
+- ⬜ **Owner first open of a new day** — layout shows instantly with "—", numbers fill in (yesterday's numbers must NOT appear as today's).
+- ⬜ **Sign out as owner A, sign in as owner B (different salon) without closing the app** — B never sees A's numbers or bookings.
+- ⬜ **Sign out as owner, sign in as customer** — no salon data anywhere on the customer side.
+- ⬜ **Airplane mode reopen within the hour** — saved dashboard shows with the amber "Couldn't update" notice; tapping it retries.
+- ⬜ **Spanish device language** — notices show in Spanish.

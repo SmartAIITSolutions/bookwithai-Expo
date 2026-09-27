@@ -53,6 +53,9 @@ function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 }
 
+// Snapshot value shown until the day's summary has loaded (a symbol, not copy).
+const PLACEHOLDER = '—';
+
 function timeLabel(iso: string) {
   return formatTimeShort(new Date(iso));
 }
@@ -155,7 +158,16 @@ export default function OwnerDashboardScreen() {
   const paymentStatus = paymentQuery.data ?? null;
   const checkinFlowMode = businessQuery.data?.checkin_flow_mode ?? 'full';
   const staff = staffQuery.data ?? [];
-  const loading = dashQuery.isLoading;
+  // Saved/previous data shown while a refresh is failing or slow -- say so
+  // plainly instead of letting old numbers pass as live ones.
+  const updatedAtLabel = dashQuery.dataUpdatedAt ? timeLabel(new Date(dashQuery.dataUpdatedAt).toISOString()) : null;
+  const freshnessNotice = dashQuery.isError
+    ? (data && updatedAtLabel
+        ? t('owner:dashboard.staleNotice', { time: updatedAtLabel })
+        : t('owner:dashboard.loadFailedNotice'))
+    : (data && updatedAtLabel && dashQuery.isFetching && Date.now() - dashQuery.dataUpdatedAt > 2 * 60 * 1000
+        ? t('owner:dashboard.updatingNotice', { time: updatedAtLabel })
+        : null);
 
   // P1A Wear OS foundation -- pushes NEXT/TODAY to a paired watch whenever
   // this screen's own already-fetched data changes. No-op on iOS and a
@@ -216,10 +228,13 @@ export default function OwnerDashboardScreen() {
 
       <View style={styles.container}>
       <OwnerScreenHeader title={t('owner:dashboard.title')} onNotificationsPress={() => router.push('/owner-notifications' as never)} />
-      {loading || !data ? (
-        <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
+          {freshnessNotice && (
+            <Pressable style={styles.freshnessNotice} onPress={reloadAll}>
+              <Text style={styles.freshnessNoticeText}>{freshnessNotice}</Text>
+            </Pressable>
+          )}
+
           {/* Greeting */}
           <View>
             <Text style={styles.greeting}>{greetingWord(now.getHours())} 👋</Text>
@@ -231,18 +246,18 @@ export default function OwnerDashboardScreen() {
 
           {/* Today's Snapshot — Health + Revenue + Appointments + Occupancy in one row */}
           <View style={styles.snapshotGrid}>
-            <Pressable style={{ flex: 1 }} onPress={() => setHealthExpanded(v => !v)}>
+            <Pressable style={{ flex: 1 }} disabled={!data} onPress={() => setHealthExpanded(v => !v)}>
               <BlurView intensity={90} tint="dark" style={[styles.snapshotCard, { borderColor: `${healthColor}88` }]}>
                 <CardOverlay />
-                <Text style={[styles.snapshotValue, { color: healthColor }]} numberOfLines={1} adjustsFontSizeToFit>{data.health.score}</Text>
+                <Text style={[styles.snapshotValue, { color: healthColor }]} numberOfLines={1} adjustsFontSizeToFit>{data ? data.health.score : PLACEHOLDER}</Text>
                 <Text style={styles.snapshotLabel} numberOfLines={1}>{t('owner:dashboard.health')}</Text>
               </BlurView>
             </Pressable>
-            <SnapshotCard label={t('owner:dashboard.revenue')} value={money(data.snapshot.revenue_cents)} trend={data.snapshot.revenue_trend_pct} />
-            <SnapshotCard label={t('owner:dashboard.appointments')} value={String(data.snapshot.appointments)} />
-            <SnapshotCard label={t('owner:dashboard.occupancy')} value={`${data.snapshot.occupancy_pct}%`} />
+            <SnapshotCard label={t('owner:dashboard.revenue')} value={data ? money(data.snapshot.revenue_cents) : PLACEHOLDER} trend={data?.snapshot.revenue_trend_pct} />
+            <SnapshotCard label={t('owner:dashboard.appointments')} value={data ? String(data.snapshot.appointments) : PLACEHOLDER} />
+            <SnapshotCard label={t('owner:dashboard.occupancy')} value={data ? `${data.snapshot.occupancy_pct}%` : PLACEHOLDER} />
           </View>
-          {healthExpanded && (
+          {healthExpanded && data && (
             <View style={styles.healthReasons}>
               <Text style={styles.healthReasonsTitle}>{data.health.label}</Text>
               {data.health.reasons.map((r, i) => <Text key={i} style={styles.healthReasonText}>• {r}</Text>)}
@@ -253,6 +268,9 @@ export default function OwnerDashboardScreen() {
           <WaitingQueue bookings={todaysBookings} onOpen={openBooking} />
 
           {/* Today's Schedule — Option 2 card style, one card per visit */}
+          {bookingsQuery.data === undefined && !bookingsQuery.isError && (
+            <View style={styles.inlineLoader}><BreathingHeart size={28} color="#F4D77A" /></View>
+          )}
           {todaysBookings.length > 0 && (
             <View style={styles.scheduleSection}>
               <Text style={styles.sectionTitle}>{t('owner:dashboard.todaysSchedule')}</Text>
@@ -320,8 +338,7 @@ export default function OwnerDashboardScreen() {
 
           {/* Recent Activity */}
           <RecentActivity bookings={todaysBookings} onOpen={openBookingById} />
-        </ScrollView>
-      )}
+      </ScrollView>
       <AppointmentSheet
         ref={sheetRef}
         booking={selectedBooking}
@@ -451,7 +468,16 @@ function RecentActivity({ bookings, onOpen }: { bookings: OwnerBooking[]; onOpen
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#040108' },
   container: { flex: 1, backgroundColor: 'transparent' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  inlineLoader: { alignItems: 'center', paddingVertical: Spacing.md },
+  freshnessNotice: {
+    backgroundColor: 'rgba(251,191,36,0.12)',
+    borderColor: 'rgba(251,191,36,0.45)',
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+  },
+  freshnessNoticeText: { fontFamily: FontFamily.soraMedium, fontSize: 12, color: '#FBBF24', textAlign: 'center' },
   content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 110 },
 
   greeting: {
