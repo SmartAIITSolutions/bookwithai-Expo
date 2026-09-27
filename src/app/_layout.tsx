@@ -42,7 +42,7 @@ import { AuthProvider, useAuth, getCachedRole } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
 import i18n, { initI18n } from '@/lib/i18n';
 import { queryClient } from '@/lib/queryClient';
-import { supabase } from '@/lib/supabase';
+import { supabase, peekStoredSessionUserId } from '@/lib/supabase';
 import { useSegments } from 'expo-router';
 import { fetchCustomerProfile, isProfileComplete, linkCustomerIdentity } from '@/lib/api/customerProfile';
 import { requestAndRegisterPushToken } from '@/lib/push/registerForPushNotifications';
@@ -429,6 +429,23 @@ function AuthRedirectGate() {
     // done, via router.replace('/(owner)/dashboard').
     const onOwnerSignupWizard = segments[0] === 'auth' && segments[1] === 'owner-signup';
     if (onOwnerSignupWizard) return;
+    // Cold start was routed from the cached role (handleSplashDone's fast
+    // path) -- once AuthContext has the live role for that same user, move
+    // them to the correct side if it changed since the role was cached.
+    // Consumed once; only acts on a real mismatch, so a matching live role
+    // (the normal case) leaves navigation untouched.
+    if (splashRoutedFromCache) {
+      if (!user || user.id !== splashRoutedFromCache.userId) {
+        splashRoutedFromCache = null;
+      } else if (role) {
+        const routedRole = splashRoutedFromCache.role;
+        splashRoutedFromCache = null;
+        if (routedRole !== role && !onAuthStack) {
+          router.replace(roleHome(role) as never);
+          return;
+        }
+      }
+    }
     if (user && onAuthStack) {
       if (role) {
         router.replace(roleHome(role) as never);
@@ -605,6 +622,11 @@ function AuthRedirectGate() {
   return null;
 }
 
+// Set by handleSplashDone when it routed a cold start from the cached role
+// rather than a live profiles read -- consumed once by AuthRedirectGate to
+// correct the route if AuthContext's live role turns out different.
+let splashRoutedFromCache: { userId: string; role: string } | null = null;
+
 function roleHome(role: string | null): string {
   if (role === 'owner') return '/(owner)/dashboard';
   if (role === 'staff') return '/(staff)/schedule';
@@ -619,6 +641,16 @@ function roleHome(role: string | null): string {
 const OWNER_ONLY_SEGMENTS = new Set(['(owner)', 'owner-settings', 'owner-sanaa']);
 function isOwnerOnlySegment(segment: string | undefined): boolean {
   return !!segment && OWNER_ONLY_SEGMENTS.has(segment);
+}
+
+// Biometrics lock is on for this device AND usable (hardware present +
+// enrolled). Shared by handleSplashDone's fast path and its original path.
+async function shouldLockWithBiometrics(): Promise<boolean> {
+  const biometricsEnabled = await SecureStore.getItemAsync(BIOMETRICS_KEY);
+  if (biometricsEnabled !== 'true') return false;
+  const hasHardware = await LocalAuthentication.hasHardwareAsync();
+  const isEnrolled   = await LocalAuthentication.isEnrolledAsync();
+  return hasHardware && isEnrolled;
 }
 
 async function handleSplashDone(setSplashReady: (v: boolean) => void) {
@@ -641,6 +673,32 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     if (!onboardingDone) {
       router.replace('/onboarding');
       return;
+    }
+
+    // 1b. Fast path for a returning user -- don't hold the splash on the
+    // Supabase client's initialization, which (when the 1h access token has
+    // expired, i.e. most cold opens) blocks on a network token refresh
+    // before INITIAL_SESSION fires. Who is signed in on this device, and
+    // their last confirmed role, are both already on disk. Route from those;
+    // the refresh continues in the background and every authenticated
+    // request awaits it via getSession(). If the refresh fails (revoked /
+    // expired refresh token), AuthContext resolves a null session and
+    // AuthRedirectGate sends the user to /auth. Same role source as the
+    // step-4 fast path below, same live-role correction via
+    // splashRoutedFromCache. Anything missing -> fall through to the
+    // original wait-for-INITIAL_SESSION path unchanged.
+    const storedUserId = await peekStoredSessionUserId();
+    if (storedUserId) {
+      if (await shouldLockWithBiometrics()) {
+        router.replace('/auth/biometrics');
+        return;
+      }
+      const cached = await getCachedRole(storedUserId);
+      if (cached) {
+        splashRoutedFromCache = { userId: storedUserId, role: cached.role };
+        router.replace(roleHome(cached.role) as never);
+        return;
+      }
     }
 
     // 2. Auth is mandatory — no session, no entry
@@ -689,17 +747,28 @@ async function handleSplashDone(setSplashReady: (v: boolean) => void) {
     }
 
     // 3. Signed in — check biometrics lock before letting them into tabs
-    const biometricsEnabled = await SecureStore.getItemAsync(BIOMETRICS_KEY);
-    if (biometricsEnabled === 'true') {
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled   = await LocalAuthentication.isEnrolledAsync();
-      if (hasHardware && isEnrolled) {
-        router.replace('/auth/biometrics');
-        return;
-      }
+    if (await shouldLockWithBiometrics()) {
+      router.replace('/auth/biometrics');
+      return;
     }
 
     // 4. Signed in, no biometrics lock — route by role
+    // Fast path: a returning user on this device already has their last
+    // confirmed role cached (written by AuthContext on every successful
+    // profiles read, cleared on sign-out), so route from that immediately
+    // instead of holding the splash on a profiles round-trip + retries.
+    // AuthContext still does its own live profiles read in parallel;
+    // AuthRedirectGate compares that live role against this one and moves
+    // the user to the correct side if their role changed since last launch.
+    // No cache (first sign-in on this device) falls through to the live
+    // read below, unchanged.
+    const cachedRole = await getCachedRole(session.user.id);
+    if (cachedRole) {
+      splashRoutedFromCache = { userId: session.user.id, role: cachedRole.role };
+      router.replace(roleHome(cachedRole.role) as never);
+      return;
+    }
+
     // A zero-row read here is almost always a transient RLS/token-refresh
     // race on cold launch, not a real "no profile" case (every account gets
     // a profiles row via a DB trigger at signup) -- retry once before

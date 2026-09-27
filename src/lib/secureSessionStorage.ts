@@ -96,6 +96,25 @@ class LargeSecureStore {
     return rawValue;
   }
 
+  // Read-only counterpart to getItem() for callers outside the Supabase
+  // client (the cold-start splash fast path). Never writes -- unlike
+  // getItem(), it does NOT migrate a plaintext value, so it can safely run
+  // concurrently with the Supabase client's own getItem() without two
+  // migrations racing and leaving a mismatched key/ciphertext pair. Any
+  // unreadable state (mid-write, decrypt failure) resolves to null so the
+  // caller falls back to waiting on the client instead.
+  async peekItem(storageKey: string): Promise<string | null> {
+    try {
+      const rawValue = await AsyncStorage.getItem(storageKey);
+      if (!rawValue) return null;
+      const encryptionKeyHex = await SecureStore.getItemAsync(storageKey);
+      if (!encryptionKeyHex) return rawValue; // pre-P12 plaintext, not yet migrated
+      return await this.decrypt(encryptionKeyHex, rawValue);
+    } catch {
+      return null;
+    }
+  }
+
   async setItem(storageKey: string, value: string): Promise<void> {
     const encryptedHex = await this.encrypt(storageKey, value);
     await AsyncStorage.setItem(storageKey, encryptedHex);

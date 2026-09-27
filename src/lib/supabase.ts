@@ -35,3 +35,35 @@ AppState.addEventListener('change', (state) => {
     supabase.auth.stopAutoRefresh();
   }
 });
+
+// Supabase's default persisted-session key (supabase-js derives it as
+// `sb-<first hostname label>-auth-token` when no `storageKey` option is set,
+// which is the case above). Parsed with a regex rather than
+// `new URL().hostname` so this can never throw at module load on a React
+// Native URL implementation without `hostname`.
+function sessionStorageKey(): string | null {
+  const host = supabaseUrl?.match(/^[a-z]+:\/\/([^/:?#]+)/i)?.[1];
+  return host ? `sb-${host.split('.')[0]}-auth-token` : null;
+}
+
+// Local-only, read-only peek at the persisted session's user id -- no
+// network, no token refresh, no writes. Lets the cold-start splash know who
+// is signed in on this device without waiting for the client's own
+// initialization, which blocks on refreshing an expired access token.
+// Returns null for anything unexpected (no session, no refresh token,
+// unreadable/changed format) so callers fall back to the client's
+// INITIAL_SESSION instead of guessing.
+export async function peekStoredSessionUserId(): Promise<string | null> {
+  try {
+    const key = sessionStorageKey();
+    if (!key) return null;
+    const raw = await secureSessionStorage.peekItem(key);
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as { refresh_token?: unknown; user?: { id?: unknown } } | null;
+    if (!stored || typeof stored.refresh_token !== 'string' || !stored.refresh_token) return null;
+    const userId = stored.user?.id;
+    return typeof userId === 'string' && userId ? userId : null;
+  } catch {
+    return null;
+  }
+}
