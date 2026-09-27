@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { View, Text, TextInput, FlatList, Pressable, StyleSheet } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { DualBreathingBackground } from '@/components/DualBreathingBackground';
@@ -29,79 +30,83 @@ function CardOverlay() {
 }
 
 const PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE_MS = 300;
+
+function ownerCustomersQueryKey(q: string) {
+  return ['owner-customers', q] as const;
+}
 
 export default function OwnerCustomersScreen() {
   const { t } = useTranslation(['owner']);
   const [query, setQuery] = useState('');
-  const [customers, setCustomers] = useState<CustomerLite[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [duplicateGroups, setDuplicateGroups] = useState(0);
 
-  // Perf pass — `load` used to unconditionally blank the whole list behind
-  // a full-screen spinner, including on the useFocusEffect below's own
-  // "just re-validate in case something changed elsewhere" call -- so
-  // every single switch back to this tab flashed a reload even though the
-  // list just shown a moment ago was still perfectly valid. Only the
-  // genuinely first fetch for a given query now shows that spinner;
-  // revisiting with the same query silently refreshes in the background
-  // and swaps the list in place once the new data arrives, keeping the
-  // guaranteed-fresh-on-focus behavior the comment below explains without
-  // the jarring blank-then-repopulate flash on every visit.
-  const lastLoadedQuery = useRef<string | null>(null);
-  const load = useCallback(async (q: string) => {
-    const silent = lastLoadedQuery.current === q;
-    if (!silent) { setLoading(true); setLoadError(null); }
-    const result = await listCustomers(q, 0, PAGE_SIZE);
-    if (result.ok) {
-      setCustomers(result.data.data);
-      setPage(0);
-      setHasMore(result.data.data.length === PAGE_SIZE && result.data.data.length < result.data.total);
-      lastLoadedQuery.current = q;
-    } else if (!silent) {
-      // A silent background refresh failing keeps showing whatever list is
-      // already on screen rather than replacing it with an error state --
-      // same "best effort, don't discard good data" behavior as this
-      // screen's own explicit pull-to-refresh would want.
-      setLoadError(result.error);
-    }
-    if (!silent) setLoading(false);
-  }, []);
-
-  const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore || loading || loadError) return;
-    setLoadingMore(true);
-    const nextPage = page + 1;
-    const result = await listCustomers(query, nextPage, PAGE_SIZE);
-    if (result.ok) {
-      setCustomers((prev) => [...prev, ...result.data.data]);
-      setPage(nextPage);
-      setHasMore(
-        result.data.data.length === PAGE_SIZE &&
-        (nextPage + 1) * PAGE_SIZE < result.data.total
-      );
-    }
-    setLoadingMore(false);
-  }, [loadingMore, hasMore, loading, loadError, page, query]);
-
+  // Search waits for a short pause in typing instead of firing a request
+  // (and blanking the list) on every keystroke. Clearing the box applies
+  // immediately so the full list comes straight back.
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   useEffect(() => {
-    getMergeCandidates().then(r => { if (r.ok) setDuplicateGroups(r.data.groups.length); });
-  }, []);
+    const trimmed = query.trim();
+    if (trimmed === '') { setDebouncedQuery(''); return; }
+    const timer = setTimeout(() => setDebouncedQuery(trimmed), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-  // Covers both "search query changed" and "screen regained focus" in one
-  // place -- tabs stay mounted when you switch away, so without the focus
-  // half of this, revisiting Customers after adding/editing one elsewhere
-  // showed stale data with no signal anything had changed. Deliberately
-  // re-runs the existing `load` (not a React Query migration) to avoid
-  // touching this screen's pagination/search-accumulation logic.
+  // React Query instead of hand-rolled state: each search term is its own
+  // cache entry (so a slow response for an older term can never overwrite
+  // a newer one), the previous results stay on screen while a new term
+  // loads (keepPreviousData) instead of a full-screen spinner, and the
+  // unfiltered list is persisted to the device (queryPersistence.ts) so
+  // the tab opens instantly on the next launch.
+  const customersQuery = useInfiniteQuery({
+    queryKey: ownerCustomersQueryKey(debouncedQuery),
+    queryFn: async ({ pageParam }) => {
+      const result = await listCustomers(debouncedQuery, pageParam, PAGE_SIZE);
+      if (!result.ok) throw new Error(result.error);
+      return result.data;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((n, p) => n + p.data.length, 0);
+      return lastPage.data.length === PAGE_SIZE && loaded < lastPage.total ? allPages.length : undefined;
+    },
+    placeholderData: keepPreviousData,
+  });
+  const customers: CustomerLite[] = customersQuery.data?.pages.flatMap(p => p.data) ?? [];
+  const loading = customersQuery.isPending;
+  // Only an error with nothing to show replaces the list; a failed
+  // background refresh keeps showing the list already on screen.
+  const loadError = customersQuery.isError && !customersQuery.data ? customersQuery.error.message : null;
+  const searching = customersQuery.isFetching && customersQuery.isPlaceholderData;
+
+  const mergeQuery = useQuery({
+    queryKey: ['owner-customer-merge-candidates'],
+    queryFn: async () => {
+      const r = await getMergeCandidates();
+      if (!r.ok) throw new Error(r.error);
+      return r.data.groups.length;
+    },
+  });
+  const duplicateGroups = mergeQuery.data ?? 0;
+
+  const loadMore = useCallback(() => {
+    if (customersQuery.hasNextPage && !customersQuery.isFetchingNextPage && !customersQuery.isError) {
+      customersQuery.fetchNextPage();
+    }
+  }, [customersQuery]);
+
+  // Tabs stay mounted when you switch away, so re-validate silently every
+  // time this tab regains focus (e.g. after adding/editing a customer
+  // elsewhere) -- the list on screen stays put while it refreshes. The
+  // very first focus is skipped: the queries above are already fetching.
+  const hasFocusedOnce = useRef(false);
+  const { refetch: refetchCustomers } = customersQuery;
+  const { refetch: refetchMerge } = mergeQuery;
   useFocusEffect(
     useCallback(() => {
-      load(query);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [load, query])
+      if (!hasFocusedOnce.current) { hasFocusedOnce.current = true; return; }
+      refetchCustomers();
+      refetchMerge();
+    }, [refetchCustomers, refetchMerge])
   );
 
   return (
@@ -119,6 +124,7 @@ export default function OwnerCustomersScreen() {
           value={query}
           onChangeText={setQuery}
         />
+        {searching && <BreathingHeart size={16} color="#F4D77A" />}
       </BlurView>
 
       {duplicateGroups > 0 && (
@@ -134,7 +140,7 @@ export default function OwnerCustomersScreen() {
       {loading ? (
         <View style={styles.centered}><BreathingHeart size={40} color="#F4D77A" /></View>
       ) : loadError ? (
-        <ErrorState message={loadError} onRetry={() => load(query)} />
+        <ErrorState message={loadError} onRetry={() => customersQuery.refetch()} />
       ) : (
         <FlatList
           style={{ flex: 1 }}
@@ -145,7 +151,7 @@ export default function OwnerCustomersScreen() {
           onEndReachedThreshold={0.4}
           ListEmptyComponent={<Text style={styles.emptyHint}>{t('owner:customersScreen.emptyHint')}</Text>}
           ListFooterComponent={
-            loadingMore ? (
+            customersQuery.isFetchingNextPage ? (
               <View style={styles.footerLoading}><BreathingHeart size={22} color="#F4D77A" /></View>
             ) : null
           }

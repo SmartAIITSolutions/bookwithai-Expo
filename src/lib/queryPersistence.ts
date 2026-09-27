@@ -23,7 +23,14 @@ const PERSISTED_QUERY_ROOTS = new Set([
   'owner-staff',
   'owner-recent-activity',
   'owner-sanaa-status',
+  'owner-customer-merge-candidates',
 ]);
+
+// Customers tab: only the unfiltered list is worth keeping across launches,
+// not every search term typed.
+function isPersistedCustomersList(queryKey: readonly unknown[]) {
+  return queryKey[0] === 'owner-customers' && queryKey[1] === '';
+}
 
 const CACHE_VERSION = 'v1';
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -41,7 +48,8 @@ function busterFor(userId: string) {
 
 function shouldPersistQuery(query: Query) {
   const root = query.queryKey[0];
-  return query.state.status === 'success' && typeof root === 'string' && PERSISTED_QUERY_ROOTS.has(root);
+  if (query.state.status !== 'success') return false;
+  return (typeof root === 'string' && PERSISTED_QUERY_ROOTS.has(root)) || isPersistedCustomersList(query.queryKey);
 }
 
 let activeUserId: string | null = null;

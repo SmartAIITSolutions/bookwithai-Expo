@@ -985,3 +985,18 @@ Full detail in `MASTER.md` § WEARABLES BUILD PLAN. Covers the new Wear OS modul
 - ⬜ **Jump far ahead via date picker** — still shows the spinner once for that day (expected), then its neighbours are instant.
 - ⬜ **Booking change on a prefetched day** (e.g. create a booking for tomorrow from another device, or SANAA) — when you step to tomorrow, the new booking is there.
 - ⬜ **Week / 3-Day views** — still load and swipe correctly; days already prefetched appear immediately.
+
+## Owner Customers Tab — Instant Open + Search Fixes (2026-09-28, static verification only — tsc clean; no device pass yet)
+
+- 🔵 **Moved to React Query** (`useInfiniteQuery`, key `['owner-customers', term]`) — replaces hand-rolled state. The unfiltered list (`term = ''`) and the duplicate-groups count are persisted with the rest of the owner cache (user-id stamped, wiped on sign-out); search terms are not persisted.
+- 🔵 **Search debounced 300 ms** — was one request per keystroke. Clearing the box applies immediately.
+- 🐛→✅ **Fixed: search results could show an older term's results** — each keystroke's request wrote to the same state, so a slow response for "Mar" arriving after "Maria" replaced the list with the wrong results. Each term is now its own cache entry.
+- 🔵 **No more blanking while searching** — previous results stay on screen with a small loader in the search box until the new term's results arrive (was: full-screen spinner per keystroke).
+- 🔵 **Still refreshes silently on every return to the tab** (e.g. after editing a customer), keeping the list on screen; infinite scroll paging unchanged (50 per page).
+- ⬜ **Open Customers after an app restart** — list appears instantly (after it has loaded once before).
+- ⬜ **Type a name quickly** — list doesn't blank; results match the final text in the box; small loader in the search box while loading.
+- ⬜ **Clear the search** — full list returns immediately.
+- ⬜ **Scroll to the bottom of a long list** — next page loads, footer loader shows.
+- ⬜ **Edit a customer's name, go back** — list shows the new name.
+- ⬜ **Duplicate-customers banner** still shows the right count and opens the merge screen.
+- ⬜ **Sign out, sign in as another owner** — never see the first owner's customers.
