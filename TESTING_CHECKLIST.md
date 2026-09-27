@@ -975,3 +975,13 @@ Full detail in `MASTER.md` § WEARABLES BUILD PLAN. Covers the new Wear OS modul
 - ⬜ **Sign out as owner, sign in as customer** — no salon data anywhere on the customer side.
 - ⬜ **Airplane mode reopen within the hour** — saved dashboard shows with the amber "Couldn't update" notice; tapping it retries.
 - ⬜ **Spanish device language** — notices show in Spanish.
+
+## Owner Calendar — Neighbouring Days Load Silently (2026-09-28, static verification only — tsc clean, date-shift helper tested across DST/month/year/leap edges; no device pass yet)
+
+- 🔵 **Silent prefetch** — `useOwnerBookings` now prefetches yesterday + the next 6 days once the day on screen has loaded (same per-day query key Dashboard/Week/Month already share). Neighbours younger than 5 min aren't re-fetched on each swipe.
+- 🔵 **Days kept for 24h** — calendar day queries now use a 24h gcTime (was React Query's 5-min default), so previously loaded days are still in memory/persisted cache when revisited.
+- 🔵 **Realtime marks every cached day stale** — a booking change now invalidates all of the salon's cached days (was: only the day on screen), so silently prefetched days can't show outdated bookings; only on-screen days refetch immediately.
+- ⬜ **Swipe/step forward and back through the next week** — each day renders instantly after the first day loads (no full-screen spinner).
+- ⬜ **Jump far ahead via date picker** — still shows the spinner once for that day (expected), then its neighbours are instant.
+- ⬜ **Booking change on a prefetched day** (e.g. create a booking for tomorrow from another device, or SANAA) — when you step to tomorrow, the new booking is there.
+- ⬜ **Week / 3-Day views** — still load and swipe correctly; days already prefetched appear immediately.
