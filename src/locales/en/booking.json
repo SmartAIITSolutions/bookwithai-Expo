@@ -265,6 +265,11 @@
     "paymentFailed": "Payment failed. Please try again.",
     "contactSalonError": "Something went wrong. Please contact the salon."
   },
+  "slotTaken": {
+    "title": "That time was just taken",
+    "message": "Someone booked this time a moment ago. Please choose another time.",
+    "chooseAnother": "Choose another time"
+  },
   "reviewScreen": {
     "title": "Review Booking",
     "edit": "Edit",

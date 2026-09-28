@@ -156,6 +156,15 @@ export default function ReviewScreen() {
       });
 
       const booking = await res.json();
+      if (res.status === 409 && booking.code === 'slot_taken') {
+        // Someone else booked this time since the list was loaded -- send
+        // them back to pick another instead of a generic failure.
+        notificationError();
+        Alert.alert(t('booking:slotTaken.title'), t('booking:slotTaken.message'), [
+          { text: t('booking:slotTaken.chooseAnother'), onPress: () => router.back() },
+        ]);
+        return;
+      }
       if (!res.ok) throw new Error(booking.error || t('errors:generic'));
 
       notificationSuccess();

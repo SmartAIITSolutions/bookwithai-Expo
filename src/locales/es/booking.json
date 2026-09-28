@@ -265,6 +265,11 @@
     "paymentFailed": "El pago falló. Inténtalo de nuevo.",
     "contactSalonError": "Algo salió mal. Por favor contacta al salón."
   },
+  "slotTaken": {
+    "title": "Ese horario acaba de ocuparse",
+    "message": "Alguien reservó este horario hace un momento. Por favor, elige otro horario.",
+    "chooseAnother": "Elegir otro horario"
+  },
   "reviewScreen": {
     "title": "Revisar Reserva",
     "edit": "Editar",

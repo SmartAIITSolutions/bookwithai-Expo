@@ -135,9 +135,17 @@ function PaymentForm({
           client_id:   salonId,
           service_ids: serviceIdList,
           price_cents: cents,
+          // Lets the server re-check the time is still free before any
+          // charge is created.
+          starts_at:   startsAt,
+          ends_at:     endsAt || undefined,
+          staff_id:    staffId || undefined,
         }),
       });
       const data = await res.json();
+      if (res.status === 409 && data.code === 'slot_taken') {
+        throw new Error(t('booking:slotTaken.message'));
+      }
       if (!res.ok || !data.client_secret || !data.stripe_account_id) {
         throw new Error(data.error || t('booking:paymentScreen.couldNotSetUpPayment'));
       }

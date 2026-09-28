@@ -1012,3 +1012,15 @@ Full detail in `MASTER.md` § WEARABLES BUILD PLAN. Covers the new Wear OS modul
 - ⬜ **Pull to refresh** on both tabs still works.
 - ⬜ **Sign out as customer, sign in as owner (or another customer)** — never see the first account's bookings or salons.
 - ⬜ **Wear OS customer glance** (if paired) still updates from My Bookings.
+
+## Customer Booking — Server Re-checks the Time Slot (2026-09-28, static verification only — tsc + booking-app build clean, validate-translations passing; re-check property-tested against the real /api/availability slot generators: 3,000 random calendars, 104,182 offered slots, 0 wrongly rejected; both real incidents reproduced correctly)
+
+- 🐛→✅ **Fixed: app bookings could double-book** — `/api/mobile/bookings` saved whatever time the app sent with no re-check (the 3-min "hold" is client-side only). Found 2 real app overlaps in production: Sep 5 (salon 29216b6d, same staff, 15-min overlap vs 10-min allowance — booked 7 min apart, stale-screen race) and Sep 26 (10-min run-in — allowed by that salon's online_slot_overlap setting, not a bug).
+- 🔵 **New shared check** `booking-app/src/lib/bookings/online-slot-conflict.ts` mirrors `/api/availability` exactly (non-cancelled bookings incl. time blocks, same-staff + store-wide, packing+overlap allowance, never re-checks hours/lead time/grid).
+- 🔵 **Unpaid booking** on a just-taken time → 409 `slot_taken`; app shows "That time was just taken" (en/es) and goes back to pick another time.
+- 🔵 **Paid booking** → checked at `/api/mobile/payment-intent` BEFORE charging (new optional starts_at/ends_at/staff_id; older app builds that don't send them are unaffected). If taken in the seconds between paying and saving: booking is saved anyway and the owner gets a "Overlapping booking — please review" bell/push (always sent, regardless of the new-booking toggle) — per product decision.
+- ⬜ **Two phones, same salon/staff/time, unpaid salon** — first to confirm books; second gets "That time was just taken" and returns to the time list.
+- ⬜ **Same with a paid salon** — second phone is stopped at the payment step, before being charged.
+- ⬜ **Normal booking** (free time) — still books normally, both paid and unpaid.
+- ⬜ **Salon 29216b6d (overlap 10 min)** — a slot the list offers that runs ≤10 min into the next booking still books successfully.
+- ⬜ **Spanish device** — message shows in Spanish.
