@@ -1000,3 +1000,15 @@ Full detail in `MASTER.md` § WEARABLES BUILD PLAN. Covers the new Wear OS modul
 - ⬜ **Edit a customer's name, go back** — list shows the new name.
 - ⬜ **Duplicate-customers banner** still shows the right count and opens the merge screen.
 - ⬜ **Sign out, sign in as another owner** — never see the first owner's customers.
+
+## Customer — My Bookings & My Salons Open Instantly (2026-09-28, static verification only — tsc clean, hooks-order checked; no device pass yet)
+
+- 🔵 **My Bookings on React Query** — key `['customer-my-bookings', userId]`, persisted with the rest of the cache (stamped with the customer's own user id, wiped on sign-out / user change). First visit after a relaunch now shows the saved list instantly and refreshes silently; spinner only on a genuinely first-ever load. Still re-validates silently on every return to the tab, pull-to-refresh unchanged, review submit still updates every booking at that salon in place. Removed a duplicate fetch (mount effect + focus both fired on first visit).
+- 🔵 **My Salons / favourites on React Query** — `FavoritesContext` keeps the same interface (Book tab, salon heart, My Salons) but is backed by a persisted query keyed on the user id. 🐛→✅ Fixed: the list re-fetched with a full-screen spinner on every login token refresh (≈hourly and on app resume) because it depended on the `user` object; add/remove favourite no longer flashes the spinner either. Pull-to-refresh on My Salons has its own indicator.
+- ⬜ **Customer relaunch** — My Bookings and My Salons appear instantly (after having loaded once before).
+- ⬜ **Cancel a booking** — list updates; **submit a review** — every booking at that salon shows it.
+- ⬜ **Notification tap → My Bookings** — still scrolls to / highlights the right booking; review-nudge still opens the rating panel.
+- ⬜ **Favourite / unfavourite a salon** from the salon page and from Book — My Salons and the tab bar update, no spinner flash.
+- ⬜ **Pull to refresh** on both tabs still works.
+- ⬜ **Sign out as customer, sign in as owner (or another customer)** — never see the first account's bookings or salons.
+- ⬜ **Wear OS customer glance** (if paired) still updates from My Bookings.

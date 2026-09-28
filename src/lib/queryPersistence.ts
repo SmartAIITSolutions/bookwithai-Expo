@@ -4,16 +4,19 @@ import { persistQueryClientRestore, persistQueryClientSubscribe } from '@tanstac
 import type { Query } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 
-// Saves the owner Dashboard's React Query data to the device so a reopened
-// app shows the last-known numbers instantly and refreshes them in the
-// background, instead of a spinner on every cold open.
+// Saves selected React Query data to the device so a reopened app shows the
+// last-known data instantly and refreshes it in the background, instead of
+// a spinner on every cold open -- the owner Dashboard/Calendar/Customers,
+// and the customer's own My Bookings and My Salons.
 //
 // Partition safety -- every persisted snapshot is stamped (`buster`) with
 // the signed-in user's id. Restoring for any other user discards it
 // outright, so one account's salon data can never hydrate into another
 // account on the same device, even if a throttled save lands late after a
-// sign-out. Only the owner-dashboard query roots below are ever written;
-// nothing customer- or staff-facing is persisted.
+// sign-out. Only the allow-listed query roots below are ever written.
+// Owner roots only ever hold that owner's salon data and customer roots
+// only that customer's own data -- and a snapshot is always stamped for,
+// and only restorable by, the single user who was signed in when it saved.
 
 const PERSISTED_QUERY_ROOTS = new Set([
   'owner-dashboard-summary',
@@ -24,6 +27,8 @@ const PERSISTED_QUERY_ROOTS = new Set([
   'owner-recent-activity',
   'owner-sanaa-status',
   'owner-customer-merge-candidates',
+  'customer-my-bookings',
+  'customer-favorite-salons',
 ]);
 
 // Customers tab: only the unfiltered list is worth keeping across launches,

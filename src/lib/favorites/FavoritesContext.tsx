@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/AuthContext';
 import {
   fetchFavoriteSalons,
@@ -18,36 +19,43 @@ interface FavoritesContextValue {
 
 const FavoritesContext = createContext<FavoritesContextValue | null>(null);
 
+// Stable empty list -- consumers use `salons` in effect/memo dependencies.
+const NO_SALONS: FavoriteSalon[] = [];
+
+export function favoriteSalonsQueryKey(userId: string | null) {
+  return ['customer-favorite-salons', userId] as const;
+}
+
 // Single shared source of truth for favorited salons -- consumed by the tab
 // bar (to decide whether Book stays visible), the salon screen (heart
 // toggle), and the My Salons tab (list + Add Salon entry). Keeping this in
 // one context means adding/removing a favorite from any of those places
 // updates all the others immediately, no separate re-fetches to keep in sync.
+//
+// Backed by React Query so the list is persisted to the device
+// (queryPersistence.ts, stamped with this user's id) and shows instantly on
+// the next launch. Keyed on the user's id rather than depending on the
+// `user` object, which is replaced on every token refresh -- that used to
+// re-run the fetch (and flash My Salons' spinner) roughly hourly and on
+// every app resume. `loading` is now only true for a genuinely first load;
+// add/remove and refresh update the list in place.
 export function FavoritesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [salons, setSalons] = useState<FavoriteSalon[]>([]);
-  const [loading, setLoading] = useState(true);
+  const userId = user?.id ?? null;
 
+  const favoritesQuery = useQuery({
+    queryKey: favoriteSalonsQueryKey(userId),
+    queryFn: fetchFavoriteSalons,
+    enabled: !!userId,
+  });
+  const salons = userId ? (favoritesQuery.data ?? NO_SALONS) : NO_SALONS;
+  const loading = !!userId && favoritesQuery.isPending;
+
+  const { refetch } = favoritesQuery;
   const refresh = useCallback(async () => {
-    if (!user) {
-      setSalons([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await fetchFavoriteSalons();
-      setSalons(data);
-    } catch {
-      // keep whatever was there before on a transient failure
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!userId) return;
+    await refetch();
+  }, [userId, refetch]);
 
   async function addFavorite(clientId: string) {
     await addFavoriteSalon(clientId);

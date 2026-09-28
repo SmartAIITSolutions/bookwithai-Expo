@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, Alert, Linking, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -196,14 +197,49 @@ function sortBookings(items: Booking[]): Booking[] {
   return [...upcoming, ...past];
 }
 
+// Stable empty list -- `bookings` is an effect dependency below (deep links,
+// Wear OS sync); a fresh [] every render would re-run those effects.
+const NO_BOOKINGS: Booking[] = [];
+
+function myBookingsQueryKey(userId: string | null) {
+  return ['customer-my-bookings', userId] as const;
+}
+
+async function fetchMyBookings(): Promise<Booking[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not signed in');
+  const res = await fetch(`${API_BASE}/api/mobile/my-bookings`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  const json = await res.json();
+  if (!res.ok || !json.data) throw new Error('Failed to load bookings');
+  return sortBookings(json.data);
+}
+
 export default function MyBookingScreen() {
   const { t } = useTranslation(['booking', 'common', 'errors']);
   const { user, loading: authLoading } = useAuth();
   const { highlightBookingId, openRatingBookingId } = useLocalSearchParams<{ highlightBookingId?: string; openRatingBookingId?: string }>();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading,  setLoading]  = useState(false);
+  const queryClient = useQueryClient();
+  const bookingsQueryKey = myBookingsQueryKey(user?.id ?? null);
+  // React Query (persisted to the device, stamped with this user's id -- see
+  // queryPersistence.ts) so the list shows instantly on the next launch and
+  // refreshes silently, instead of a spinner on the first visit of every
+  // app session.
+  const bookingsQuery = useQuery({
+    queryKey: bookingsQueryKey,
+    queryFn: fetchMyBookings,
+    enabled: !!user,
+  });
+  const bookings = bookingsQuery.data ?? NO_BOOKINGS;
+  // Only a genuinely first load (nothing cached yet) shows the spinner.
+  const loading = !!user && bookingsQuery.isPending;
+  const loadError = bookingsQuery.isError;
+  const setBookings = useCallback((update: (prev: Booking[]) => Booking[]) => {
+    queryClient.setQueryData<Booking[]>(bookingsQueryKey, (prev) => update(prev ?? []));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryClient, user?.id]);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [ratingId, setRatingId] = useState<string | null>(null);
   const [ratingStars, setRatingStars] = useState(0);
@@ -258,10 +294,6 @@ export default function MyBookingScreen() {
     }
   }
 
-  useEffect(() => {
-    if (user) fetchBookings();
-  }, [user]);
-
   // Scroll to and highlight the booking a notification tap was pointing at.
   useEffect(() => {
     if (!highlightBookingId || bookings.length === 0) return;
@@ -304,32 +336,17 @@ export default function MyBookingScreen() {
   // load shows the full-screen spinner; a revisit silently re-validates in
   // the background and swaps the list in place, so it doesn't reintroduce
   // the blank-on-every-visit flash customers.tsx had before its own fix.
-  const hasLoadedOnce = useRef(false);
+  const { refetch: refetchBookings } = bookingsQuery;
   const fetchBookings = useCallback(async () => {
-    const silent = hasLoadedOnce.current;
-    try {
-      if (!silent) { setLoading(true); setLoadError(false); }
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const res = await fetch(`${API_BASE}/api/mobile/my-bookings`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const json = await res.json();
-      if (res.ok && json.data) {
-        setBookings(sortBookings(json.data));
-        hasLoadedOnce.current = true;
-      } else if (!silent) {
-        setLoadError(true);
-      }
-    } catch (e) {
-      if (!silent) setLoadError(true);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(useCallback(() => { fetchBookings(); }, [fetchBookings]));
+    if (!user) return;
+    await refetchBookings();
+  }, [user, refetchBookings]);
+  // The first focus is skipped -- the query above is already loading.
+  const hasFocusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!hasFocusedOnce.current) { hasFocusedOnce.current = true; return; }
+    fetchBookings();
+  }, [fetchBookings]));
 
   async function handleRefresh() {
     setRefreshing(true);

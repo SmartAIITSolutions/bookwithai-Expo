@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, Image,
   ScrollView, RefreshControl,
@@ -34,6 +35,13 @@ export default function MySalonsScreen() {
   const { width, height } = useWindowDimensions();
   const { salons, loading, refresh } = useFavorites();
   const insets = useSafeAreaInsets();
+  // Pull-to-refresh has its own indicator; `loading` is only the very
+  // first load (the list itself stays on screen while refreshing).
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refresh(); } finally { setRefreshing(false); }
+  }, [refresh]);
 
   function handleAddSalon() {
     router.push('/(tabs)/book');
@@ -145,7 +153,7 @@ export default function MySalonsScreen() {
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={loading} onRefresh={refresh} tintColor="#F4D77A" colors={['#F4D77A']} />
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#F4D77A" colors={['#F4D77A']} />
             }>
             {salons.map((item) => (
               <Pressable key={item.id} onPress={() => handleOpenSalon(item)}>
