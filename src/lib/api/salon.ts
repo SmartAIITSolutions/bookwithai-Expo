@@ -22,11 +22,28 @@ export interface SalonInfo {
   booking_cutoff_minutes?: number;
 }
 
+// Salons are read through the public-safe salon_profiles view (security
+// Phase C) -- it carries no owner email, Stripe ids, credits or billing
+// fields. Logos live in brand_studio_settings and are fetched separately
+// (keyed by salon id) rather than embedded through the view.
+export async function fetchSalonLogos(clientIds: string[]): Promise<Map<string, string | null>> {
+  const logos = new Map<string, string | null>();
+  if (clientIds.length === 0) return logos;
+  const { data } = await supabase
+    .from('brand_studio_settings')
+    .select('client_id, logo_url')
+    .in('client_id', clientIds);
+  for (const row of (data as { client_id: string; logo_url: string | null }[] | null) ?? []) {
+    logos.set(row.client_id, row.logo_url ?? null);
+  }
+  return logos;
+}
+
 export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> {
   const { data, error } = await supabase
-    .from('agency_clients')
+    .from('salon_profiles')
     .select(
-      'id, business_name, slug, owner_phone, address_line1, address_line2, city, state, postal_code, iana_timezone, business_hours, cancellation_policy, rescheduling_policy, store_policy, require_online_payment, booking_cutoff_minutes, brand_studio_settings ( logo_url )'
+      'id, business_name, slug, owner_phone, address_line1, address_line2, city, state, postal_code, iana_timezone, business_hours, cancellation_policy, rescheduling_policy, store_policy, require_online_payment, booking_cutoff_minutes'
     )
     .eq('slug', slug)
     .single();
@@ -34,8 +51,8 @@ export async function fetchSalonBySlug(slug: string): Promise<SalonInfo | null> 
   if (error && error.code !== 'PGRST116') throw error;
   if (!data) return null;
 
-  const { brand_studio_settings, ...rest } = data as any;
-  return { ...rest, logo_url: brand_studio_settings?.logo_url ?? null } as SalonInfo;
+  const logos = await fetchSalonLogos([(data as { id: string }).id]);
+  return { ...(data as object), logo_url: logos.get((data as { id: string }).id) ?? null } as SalonInfo;
 }
 
 export interface SalonListing {
@@ -53,8 +70,8 @@ export interface SalonListing {
 // via publicly_listed are browsable; test salons are always excluded.
 export async function fetchSalonDirectory(query?: string): Promise<SalonListing[]> {
   let q = supabase
-    .from('agency_clients')
-    .select('id, business_name, slug, city, state, latitude, longitude, brand_studio_settings ( logo_url )')
+    .from('salon_profiles')
+    .select('id, business_name, slug, city, state, latitude, longitude')
     .eq('publicly_listed', true)
     .eq('is_test', false)
     .order('business_name');
@@ -66,10 +83,9 @@ export async function fetchSalonDirectory(query?: string): Promise<SalonListing[
 
   const { data, error } = await q;
   if (error) throw error;
-  return ((data as any[]) ?? []).map(({ brand_studio_settings, ...rest }) => ({
-    ...rest,
-    logo_url: brand_studio_settings?.logo_url ?? null,
-  }));
+  const rows = (data as Omit<SalonListing, 'logo_url'>[] | null) ?? [];
+  const logos = await fetchSalonLogos(rows.map((r) => r.id));
+  return rows.map((r) => ({ ...r, logo_url: logos.get(r.id) ?? null }));
 }
 
 export interface StaffMember {

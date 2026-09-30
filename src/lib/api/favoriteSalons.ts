@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { fetchSalonLogos } from '@/lib/api/salon';
 
 // customer_favorite_salons is keyed by auth_user_id (not customer_id), since
 // a salon can be favorited before the customer ever books there -- same
@@ -20,10 +21,13 @@ export async function fetchFavoriteSalons(): Promise<FavoriteSalon[]> {
   if (!favorites || favorites.length === 0) return [];
 
   const clientIds = favorites.map((f) => f.client_id);
-  const { data: salons, error: salonsError } = await supabase
-    .from('agency_clients')
-    .select('id, business_name, slug, brand_studio_settings ( logo_url )')
-    .in('id', clientIds);
+  const [{ data: salons, error: salonsError }, logos] = await Promise.all([
+    supabase
+      .from('salon_profiles')
+      .select('id, business_name, slug')
+      .in('id', clientIds),
+    fetchSalonLogos(clientIds),
+  ]);
   if (salonsError) throw salonsError;
 
   const byId = new Map((salons ?? []).map((s: any) => [s.id, s]));
@@ -34,7 +38,7 @@ export async function fetchFavoriteSalons(): Promise<FavoriteSalon[]> {
       id: s.id,
       business_name: s.business_name,
       slug: s.slug,
-      logo_url: s.brand_studio_settings?.logo_url ?? null,
+      logo_url: logos.get(s.id) ?? null,
     }));
 }
 
