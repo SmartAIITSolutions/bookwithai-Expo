@@ -203,9 +203,29 @@ export default function OwnerDashboardScreen() {
   // no signal anything was stale.
   useRefetchOnFocus(reloadAll);
 
+  // AppointmentSheet renders nothing until it has a booking, so presenting
+  // in the same tick as setSelectedBooking could hit a not-yet-mounted
+  // sheet (the first tap silently did nothing). Present from an effect
+  // instead, after the sheet has rendered with the tapped booking.
+  const [presentRequest, setPresentRequest] = useState(0);
+  useEffect(() => {
+    if (presentRequest > 0) sheetRef.current?.present();
+  }, [presentRequest]);
+
   function openBooking(b: OwnerBooking) {
     setSelectedBooking(b);
-    sheetRef.current?.present();
+    setPresentRequest(n => n + 1);
+  }
+
+  // Same hand-off Calendar has always used: close the appointment sheet
+  // BEFORE opening Checkout. Leaving the @gorhom bottom-sheet presented
+  // underneath Checkout's native Modal, then dismissing both at once when
+  // checkout finished, could wedge the library's internal state (the known
+  // v5 timing race noted in CheckoutSheet.tsx) -- after which every later
+  // present() was silently ignored until the app was restarted.
+  function handleReadyForCheckout() {
+    sheetRef.current?.dismiss();
+    checkoutRef.current?.present();
   }
 
   // Recent Activity only carries a lightweight summary (not the full
@@ -343,7 +363,7 @@ export default function OwnerDashboardScreen() {
         ref={sheetRef}
         booking={selectedBooking}
         onChanged={() => { sheetRef.current?.dismiss(); reloadAll(); }}
-        onReadyForCheckout={() => checkoutRef.current?.present()}
+        onReadyForCheckout={handleReadyForCheckout}
         flowMode={checkinFlowMode}
         onOpenDetail={(b) => {
           sheetRef.current?.dismiss();

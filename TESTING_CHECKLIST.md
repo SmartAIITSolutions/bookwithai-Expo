@@ -1024,3 +1024,13 @@ Full detail in `MASTER.md` § WEARABLES BUILD PLAN. Covers the new Wear OS modul
 - ⬜ **Normal booking** (free time) — still books normally, both paid and unpaid.
 - ⬜ **Salon 29216b6d (overlap 10 min)** — a slot the list offers that runs ≤10 min into the next booking still books successfully.
 - ⬜ **Spanish device** — message shows in Spanish.
+
+## Owner Dashboard — Appointment Sheet Stuck After Checkout (2026-09-29, static verification only — tsc clean; not reproduced on a device)
+
+- 🐛→🔵 **Reported:** on Dashboard, after opening a customer's appointment and going through checkout, tapping any customer name (even the same one) no longer opens the sheet until the app is fully restarted.
+- **Likely cause (code evidence, not device-reproduced):** Dashboard opened Checkout (native Modal) while leaving the @gorhom appointment sheet presented underneath, then dismissed both at once on checkout done — the known @gorhom v5 timing race already documented in CheckoutSheet.tsx, which wedges the library so later present() calls are ignored. Calendar never had this: it has always dismissed the appointment sheet before presenting Checkout (`handleReadyForCheckout`).
+- 🔵 **Fix:** Dashboard now uses the same hand-off as Calendar (dismiss sheet → present Checkout). Also presents the sheet from an effect after the tapped booking is set, since AppointmentSheet renders nothing until it has a booking (first-ever tap could silently do nothing).
+- ⬜ **Dashboard: tap a customer → checkout → finish** — then tap another customer: sheet opens. Tap the same customer again: opens. Repeat several times without restarting.
+- ⬜ **Dashboard: tap a customer → close sheet (swipe/backdrop)** → tap another: opens.
+- ⬜ **First tap after opening the app** opens the sheet on the first try.
+- ⬜ **Calendar** unchanged — same flow still works there.
