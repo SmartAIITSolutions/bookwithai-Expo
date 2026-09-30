@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { customerTypedNote } from '@/lib/bookings/customerNote';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
@@ -297,9 +298,9 @@ export default function AppointmentDetailScreen() {
             Appointment Note" further down (private staff note on this same
             booking row). Plain <Text>, no markup/link interpretation, no
             truncation -- shown in full. */}
-        {booking.notes && booking.notes.trim() ? (
+        {customerTypedNote(booking.notes) ? (
           <Section title={t('owner:appointmentDetail.customerNote')}>
-            <Text style={styles.customerNoteBody}>{booking.notes}</Text>
+            <Text style={styles.customerNoteBody}>{customerTypedNote(booking.notes)}</Text>
           </Section>
         ) : null}
 

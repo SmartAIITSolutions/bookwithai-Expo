@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomSheetFooter, type BottomSheetFooterProps } from '@gorhom/bottom-sheet';
+import { customerTypedNote } from '@/lib/bookings/customerNote';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -123,6 +124,9 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
 
     const { color, label } = bookingStatusColor(booking);
     const action = nextAction(booking, flowMode);
+    // Only what the customer typed -- system lines the backend appends to
+    // the same column (Stripe/gift card/promo markers) are hidden.
+    const customerNote = customerTypedNote(booking.notes);
 
     // Correction pass — a sample/demo booking's id doesn't exist in the
     // real bookings table, so every mutation entry point in this sheet
@@ -373,11 +377,11 @@ export const AppointmentSheet = forwardRef<BottomSheetModal, AppointmentSheetPro
               (allergies, requests, timing) -- the thing most worth reading
               before or while servicing the appointment. Plain text only,
               no markup/link interpretation. */}
-          {booking.notes && booking.notes.trim() ? (
+          {customerNote ? (
             <BlurView intensity={90} tint="dark" style={styles.customerNoteCard}>
               <CardOverlay />
               <Text style={styles.customerNoteLabel}>{t('owner:appointmentSheet.customerNote')}</Text>
-              <Text style={styles.notesBody}>{booking.notes}</Text>
+              <Text style={styles.notesBody}>{customerNote}</Text>
             </BlurView>
           ) : null}
 

@@ -1034,3 +1034,13 @@ Full detail in `MASTER.md` § WEARABLES BUILD PLAN. Covers the new Wear OS modul
 - ⬜ **Dashboard: tap a customer → close sheet (swipe/backdrop)** → tap another: opens.
 - ⬜ **First tap after opening the app** opens the sheet on the first try.
 - ⬜ **Calendar** unchanged — same flow still works there.
+
+## Owner — Customer Note Shows Only What the Customer Typed (2026-09-29, static verification only — tsc clean; filter unit-tested against the real module, 7 cases)
+
+- 🐛→🔵 **Reported:** the "Customer note" on the Appointment Sheet showed a Stripe checkout link/ID instead of (or alongside) what the customer typed.
+- **Cause:** the backend appends machine lines to the same `bookings.notes` column the customer's note lives in — `Stripe checkout: cs_…` (web online payment), `Stripe payment: pi_…` (app payment for an existing booking), `Gift card CODE: −$X.XX …`, `Promo CODE: −$X.XX`. Several server features (payment matching, refunds, reports) search for these lines, so the data is left untouched.
+- 🔵 **Fix (display only):** new `src/lib/bookings/customerNote.ts` hides those system lines; used by the Appointment Sheet and the full Appointment Detail screen. A note containing only system lines shows no Customer Note card at all. A customer sentence that merely mentions "Stripe checkout" is kept.
+- ⬜ **Booking paid online through the web page** — Customer note shows only the customer's text (or no card if they typed nothing); no `Stripe checkout: cs_…`.
+- ⬜ **Booking with a customer note + promo/gift card** — only the customer's text shows.
+- ⬜ **Appointment Detail screen** (tap through from the sheet) — same result.
+- ⬜ **Refunds / payments for those bookings** still work (data unchanged).
