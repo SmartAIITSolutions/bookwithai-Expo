@@ -1,6 +1,6 @@
 # 📱 Book With AI — Expo App MASTER.md
 ### Single source of truth for the customer mobile app
-**Last updated:** 2026-09-04 (Wear OS companion app — full P0–P6 build, local Gradle build/sign pipeline verified, same-package Play release architecture confirmed against Google docs, signed release AAB built with the existing production Upload Key, Wear OS form factor added and first Internal Testing release [`361070102`, `1.0.7`] published live with 3 testers — see WEARABLES BUILD PLAN below)
+**Last updated:** 2026-09-29 (App speed & reliability pass — splash, dashboard, calendar, customers, customer My Bookings/My Salons, booking slot re-check handling, dashboard sheet fix, customer-note display fix; all shipped via OTA on runtime 1.0.7 — see APP SPEED & RELIABILITY PASS at the end. Prior: 2026-09-04 Wear OS companion app)
 
 > Always pull this at the start of every session.
 > For platform-wide decisions (SANAA, booking backend, web app), see `C:\Dev\booking-app\MASTER.md`
@@ -319,6 +319,8 @@
 | **Deep linking** | ⏸ Untestable in debug build | Will work automatically once app is live on Play Store. |
 | **Stripe payment approach** | ✅ Switched to destination charges | Direct charges on connected account caused PaymentSheet issues. Now uses `transfer_data.destination` on platform account. Works. |
 | **App icon** | `public/icons/icon-512.png` from booking-app — purple + gold atom on dark | 2026-07-15 |
+| **Staff sent to customer tabs after Face ID / PIN unlock** | 🐛 Open — user chose not to fix yet (2026-09-27) | `auth/biometrics.tsx:50` and `auth/pin-entry.tsx:30` route every non-owner (incl. staff) to `/(tabs)/book` instead of using `roleHome()`. |
+| **Calendar first-tap sheet timing** | ⚠️ Open (2026-09-29) | Calendar's `openBooking` presents the appointment sheet in the same tick it sets the booking (sheet renders nothing until it has one) — same weakness fixed on Dashboard in `195efa1`. Not reported as a problem; offered to apply the same fix. |
 | **Play Store feature graphic** | `public/feature-graphic-1024x500.png` from booking-app | 2026-07-15 |
 
 ### Future phase ideas — smart booking-flow guidance (2026-07-20, not yet scoped)
@@ -1896,3 +1898,43 @@ This is the first time this specific fix has been exercised on a real running bu
 - **Still open / explicitly not done**: real phone↔watch Data Layer sync is unverified (emulator pairing blocked; needs a physical Wear OS device), production Wear OS rollout (still Internal Testing only, by design), and store-ready launcher icon/screenshot assets (still placeholders). No EAS build/submit was run at any point in this entire initiative; every local build used the existing `./gradlew` pipeline directly.
 
 **PA5: PASS WITH REQUIRED PRE-RELEASE FIX** — the Calendar clipping bug is fixed and verified in both languages, and the shared-device isolation fix is now proven correct on a real device with real database checks, not just code review. Staff-persona, checkout, and a dedicated customer booking-flow walkthrough remain genuinely untested and should happen before PA6, alongside re-establishing a real owner login on the test device. Nothing found this pass blocks the release-build checkpoint outright, but these gaps should be closed or explicitly accepted as known V1 limitations before PA6 begins.
+
+---
+
+## APP SPEED & RELIABILITY PASS (2026-09-27 → 2026-09-29)
+
+User report: "app takes so long to load always, even between pages." All shipped via EAS Update (OTA) on branch `production`, runtime `1.0.7`, **published per platform** (`--platform android` then `--platform ios`; `--platform all` fails because the web export breaks on `@stripe/stripe-react-native`). Backend side + measured findings: `booking-app/MASTER.md` §74.
+
+| Commit | What | Status |
+|---|---|---|
+| `d0e8ed5` | Splash routes returning users from the cached role (live-role correction in `AuthRedirectGate`) and no longer waits on the expired-token network refresh (read-only `secureSessionStorage.peekItem()` + `peekStoredSessionUserId()` — never migrates plaintext, so it can't race the Supabase client) | ✅ Shipped; user confirmed splash faster |
+| `5f167e7` | Owner dashboard persisted React Query cache (`src/lib/queryPersistence.ts`, snapshot stamped with user id — restoring for another user discards it; wiped on sign-out/user change) + layout with "—" placeholders instead of full-screen spinner + en/es freshness notice. Also fixed: nothing cleared the in-memory query cache on sign-out | ✅ Shipped; user confirmed dashboard faster |
+| `64f0613` | Calendar prefetches yesterday + next 6 days, 24h gcTime, Realtime invalidates every cached day for the salon | ✅ Shipped; user confirmed faster |
+| `97ed004` | Customers tab on `useInfiniteQuery`: debounced search, previous results kept while loading, unfiltered list persisted; fixed out-of-order search results bug | ✅ Shipped |
+| `469a81c` | Customer My Bookings + `FavoritesContext` on persisted React Query (keys include user id); fixed favourites refetching behind a spinner on every token refresh | ✅ Shipped |
+| `511e3b6` | Booking flow sends the slot to `/api/mobile/payment-intent` (server re-checks before charging); handles 409 `slot_taken` with en/es "That time was just taken" | ✅ Shipped with backend `da497d2` |
+| `195efa1` | Dashboard appointment sheet stuck after checkout (wouldn't reopen until app restart): Dashboard now dismisses the @gorhom sheet before presenting Checkout (same as Calendar) and presents from an effect after the booking is set | ✅ Shipped; user confirmed it works |
+| `59659fe` | Customer Note shows only what the customer typed — hides backend system lines (`Stripe checkout:`, `Stripe payment:`, gift card, promo) at display time (`src/lib/bookings/customerNote.ts`); data unchanged because server features search those lines | ✅ Shipped |
+
+Per-change device test lists: `TESTING_CHECKLIST.md` (sections dated 2026-09-27 → 2026-09-29).
+
+**Remaining speed/product items (user picks one at a time)**:
+- Customer fix 2 — `booking/datetime.tsx` time slots: prefetch next dates, short (~60 s) freshness, fix out-of-order date responses. Now safe because the server re-checks slots.
+- Customer fix 3 — salon directory (`book.tsx`) keeps list during search; persist `salon/[id]` queries.
+- Optional: keep owners on the saved dashboard in read-only mode during a Supabase outage instead of the sign-in screen (currently: expired session + outage → sign-in screen; session is not actually lost).
+- Optional: show promo/gift-card lines as a separate "Discounts" line instead of hiding them.
+
+---
+
+## DELTECH 2026 SUPPORT-DRIVE BANNER (2026-10-01)
+
+Shipped `307161c`, OTA'd both platforms (runtime 1.0.7). Full detail (backend, migrations, cron-job.org setup, launch push) in `booking-app/MASTER.md` §77 — this entry is the mobile-side summary only.
+
+`DeltechSupportBanner`, mounted once in `RootLayout`, both apps: asks for a store review + Facebook/Instagram/TikTok follows, each self-confirmed by opening the link (no separate confirm tap) or skippable with "I don't have an account." Opens expanded every app load; X minimizes to a small ribbon for that session only; once all four are resolved, shows a thank-you instead of vanishing.
+
+**Bugs found + fixed on the emulator before shipping** (all now also fixed in `AppointmentSheet`/`WalkInSheet` generally, not just for this feature):
+- A `useCallback` placed after a component's early `return null` crashed the sheet on every tap ("Rendered more hooks than during the previous render") — now in memory as `feedback_expo_hooks_order_check`, worth checking after any future edit to a component with an early return.
+- Bottom-sheet v5's `enableDynamicSizing` default sized two sheets to their (zero-height) measured content instead of the snap point; neither sheet accounted for `insets.bottom`, hiding the last row behind the Android nav bar.
+- Fixed the intermittent live-payment error "client_secret does not match any associated PaymentIntent": `StripeProvider`'s account-scoping effect isn't awaited and can run after the child effect that calls `initPaymentSheet`. `booking/payment.tsx` and `booking/pay-existing.tsx` now explicitly await `initStripe({ stripeAccountId })` first.
+
+No EAS build/submit was run — pure OTA, same as every other change this session.
