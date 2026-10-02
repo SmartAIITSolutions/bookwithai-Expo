@@ -37,6 +37,7 @@ import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { DeltechSupportBanner } from '@/components/DeltechSupportBanner';
 import { UpdateNagModal, STORE_URL, STORE_URL_FALLBACK } from '@/components/UpdateNagModal';
 import { AuthProvider, useAuth, getCachedRole } from '@/lib/auth/AuthContext';
 import { FavoritesProvider } from '@/lib/favorites/FavoritesContext';
@@ -122,6 +123,9 @@ export default function RootLayout() {
   });
 
   const [splashVisible, setSplashVisible] = useState(true);
+  // Bumped whenever the "we're a DelTech finalist" push is tapped, so the
+  // support card re-expands even if the user had previously minimized it.
+  const [deltechForceOpen, setDeltechForceOpen] = useState(0);
   const [splashReady, setSplashReady] = useState(false);
 
   // i18n foundation (L1) — resolved in parallel with font loading (both are
@@ -239,6 +243,12 @@ export default function RootLayout() {
         params: { openRatingBookingId: data.bookingId },
       } as never);
     }
+    // DelTech support-drive launch/reminder push -- the card itself is a
+    // persistent overlay in this same root tree (not a routed screen), so
+    // there's nothing to navigate to; just force it back open.
+    if (data?.action === 'deltech_support') {
+      setDeltechForceOpen(c => c + 1);
+    }
   }
 
   useEffect(() => {
@@ -345,6 +355,7 @@ export default function RootLayout() {
     <FavoritesProvider>
       <StatusBar style="dark" />
       <OfflineBanner />
+      <DeltechSupportBanner forceOpenSignal={deltechForceOpen} />
       <UpdateNagModal />
       <AuthRedirectGate />
       <Stack

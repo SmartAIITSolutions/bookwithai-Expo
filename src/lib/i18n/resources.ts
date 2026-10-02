@@ -15,6 +15,7 @@ import enStaff from '@/locales/en/staff.json';
 import enLegal from '@/locales/en/legal.json';
 import enErrors from '@/locales/en/errors.json';
 import enNotifications from '@/locales/en/notifications.json';
+import enDeltech from '@/locales/en/deltech.json';
 
 import esCommon from '@/locales/es/common.json';
 import esAuth from '@/locales/es/auth.json';
@@ -27,19 +28,20 @@ import esStaff from '@/locales/es/staff.json';
 import esLegal from '@/locales/es/legal.json';
 import esErrors from '@/locales/es/errors.json';
 import esNotifications from '@/locales/es/notifications.json';
+import esDeltech from '@/locales/es/deltech.json';
 
 // Namespace list is the one place a future namespace (e.g. splitting
 // `owner` further, or adding one for a new feature area) gets registered --
 // i18next's `ns` init option reads straight from this.
 export const NAMESPACES = [
-  'common', 'auth', 'onboarding', 'booking', 'calendar', 'owner', 'sanaa', 'staff', 'legal', 'errors', 'notifications',
+  'common', 'auth', 'onboarding', 'booking', 'calendar', 'owner', 'sanaa', 'staff', 'legal', 'errors', 'notifications', 'deltech',
 ] as const;
 export type Namespace = typeof NAMESPACES[number];
 
 export const enResources = {
   common: enCommon, auth: enAuth, onboarding: enOnboarding, booking: enBooking,
   calendar: enCalendar, owner: enOwner, sanaa: enSanaa, staff: enStaff, legal: enLegal, errors: enErrors,
-  notifications: enNotifications,
+  notifications: enNotifications, deltech: enDeltech,
 };
 
 export const resources = {
@@ -47,6 +49,6 @@ export const resources = {
   es: {
     common: esCommon, auth: esAuth, onboarding: esOnboarding, booking: esBooking,
     calendar: esCalendar, owner: esOwner, sanaa: esSanaa, staff: esStaff, legal: esLegal, errors: esErrors,
-    notifications: esNotifications,
+    notifications: esNotifications, deltech: esDeltech,
   },
 } as const;

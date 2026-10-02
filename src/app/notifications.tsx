@@ -135,6 +135,7 @@ const TYPE_CATEGORY: Record<string, Category> = {
   reminder_2h:           'reminder',
   checkin_ready:         'reminder',
   review_nudge:          'rewards',
+  deltech_support:       'updates',
 };
 
 // Per-type icon override -- falls back to the category default above when
@@ -151,6 +152,7 @@ const TYPE_ICON: Partial<Record<string, keyof typeof Ionicons.glyphMap>> = {
   reminder_2h:           'alarm-outline',
   checkin_ready:         'location-outline',
   review_nudge:          'star-outline',
+  deltech_support:       'trophy-outline',
 };
 
 // Hero-card treatment (glowing panel background, stylized title, chevron)
